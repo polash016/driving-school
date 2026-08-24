@@ -1,0 +1,107 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "../../config/theme.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * shadcn semantic variables ← TeoriPro tokens (config/theme.css).
+ * Components consume ONLY these mappings — changing theme.css restyles the whole app.
+ */
+:root,
+.dark {
+  --background: var(--surface-page);
+  --foreground: var(--text-default);
+  --card: var(--surface-card);
+  --card-foreground: var(--text-default);
+  --popover: var(--surface-raised);
+  --popover-foreground: var(--text-default);
+  --primary: var(--brand-primary);
+  --primary-foreground: var(--brand-primary-fg);
+  --secondary: var(--surface-sunken);
+  --secondary-foreground: var(--text-strong);
+  --muted: var(--surface-sunken);
+  --muted-foreground: var(--text-muted);
+  --accent: var(--brand-primary-soft);
+  --accent-foreground: var(--text-strong);
+  --destructive: var(--status-danger);
+  --border: var(--border-default);
+  --input: var(--border-strong);
+  --ring: var(--focus-ring);
+  --radius: var(--radius-base);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  /* TeoriPro status + brand utilities (bg-success, text-warning-fg, bg-brand-accent, …) */
+  --color-success: var(--status-success);
+  --color-success-foreground: var(--status-success-fg);
+  --color-success-soft: var(--status-success-soft);
+  --color-warning: var(--status-warning);
+  --color-warning-foreground: var(--status-warning-fg);
+  --color-warning-soft: var(--status-warning-soft);
+  --color-danger: var(--status-danger);
+  --color-danger-foreground: var(--status-danger-fg);
+  --color-danger-soft: var(--status-danger-soft);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-foreground: var(--brand-accent-fg);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: var(--radius-control);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-raised: var(--shadow-raised);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  /* WCAG: always-visible focus for keyboard users */
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

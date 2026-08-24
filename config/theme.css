@@ -1,0 +1,86 @@
+/**
+ * TeoriPro theme tokens — THE single place a school's visual identity lives.
+ * Swap this file (or just the brand block) per school deployment; no component edits allowed.
+ *
+ * Consumed by src/app/globals.css, which maps these onto Tailwind/shadcn variables.
+ * All colors oklch. Spacing follows a 4pt grid (--space-unit).
+ */
+
+:root {
+  /* ── Brand (per-school slots) ─────────────────────────────── */
+  --brand-primary: oklch(0.46 0.15 255); /* action color: buttons, links, active states */
+  --brand-primary-fg: oklch(0.99 0 0);
+  --brand-primary-soft: oklch(0.94 0.03 255); /* tinted chips/hovers */
+  --brand-accent: oklch(0.72 0.14 75); /* highlights, gauges, streaks */
+  --brand-accent-fg: oklch(0.2 0.02 75);
+
+  /* ── Status (semantic; NOT school-swappable meaning) ──────── */
+  --status-success: oklch(0.62 0.15 150); /* pass / correct ONLY */
+  --status-success-fg: oklch(0.99 0 0);
+  --status-success-soft: oklch(0.94 0.05 150);
+  --status-warning: oklch(0.78 0.14 80); /* time warnings, needs-review */
+  --status-warning-fg: oklch(0.25 0.05 80);
+  --status-warning-soft: oklch(0.95 0.06 90);
+  --status-danger: oklch(0.55 0.2 27); /* fail / destructive ONLY */
+  --status-danger-fg: oklch(0.99 0 0);
+  --status-danger-soft: oklch(0.94 0.04 27);
+
+  /* ── Neutral surfaces & text ──────────────────────────────── */
+  --surface-page: oklch(0.982 0.003 250); /* app background, slightly cool */
+  --surface-card: oklch(1 0 0);
+  --surface-raised: oklch(1 0 0); /* popovers, sheets */
+  --surface-sunken: oklch(0.955 0.004 250); /* inputs, wells, skeletons */
+  --text-strong: oklch(0.2 0.015 255);
+  --text-default: oklch(0.3 0.012 255);
+  --text-muted: oklch(0.52 0.01 255);
+  --border-default: oklch(0.9 0.006 250);
+  --border-strong: oklch(0.82 0.008 250);
+  --focus-ring: var(--brand-primary);
+
+  /* ── Geometry (4pt grid) ──────────────────────────────────── */
+  --space-unit: 0.25rem;
+  --radius-base: 0.875rem; /* 14px — spec-09 asks 12–16px card radii */
+  --radius-control: 0.625rem; /* inputs/buttons */
+  --shadow-card: 0 1px 2px oklch(0 0 0 / 0.04), 0 2px 10px oklch(0 0 0 / 0.05);
+  --shadow-raised: 0 4px 12px oklch(0 0 0 / 0.08), 0 12px 32px oklch(0 0 0 / 0.08);
+
+  /* ── Type scale ───────────────────────────────────────────── */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.375rem;
+  --font-size-2xl: 1.75rem;
+  --font-size-stat: 2.25rem; /* headline numbers on dashboard */
+}
+
+.dark {
+  --brand-primary: oklch(0.68 0.13 255);
+  --brand-primary-fg: oklch(0.15 0.02 255);
+  --brand-primary-soft: oklch(0.3 0.06 255);
+  --brand-accent: oklch(0.78 0.13 80);
+  --brand-accent-fg: oklch(0.2 0.04 80);
+
+  --status-success: oklch(0.7 0.14 150);
+  --status-success-fg: oklch(0.16 0.03 150);
+  --status-success-soft: oklch(0.32 0.06 150);
+  --status-warning: oklch(0.8 0.13 85);
+  --status-warning-fg: oklch(0.22 0.05 85);
+  --status-warning-soft: oklch(0.34 0.06 90);
+  --status-danger: oklch(0.68 0.17 25);
+  --status-danger-fg: oklch(0.16 0.03 25);
+  --status-danger-soft: oklch(0.32 0.07 25);
+
+  --surface-page: oklch(0.17 0.012 255);
+  --surface-card: oklch(0.215 0.014 255);
+  --surface-raised: oklch(0.25 0.015 255);
+  --surface-sunken: oklch(0.185 0.012 255);
+  --text-strong: oklch(0.96 0.005 250);
+  --text-default: oklch(0.88 0.006 250);
+  --text-muted: oklch(0.68 0.008 250);
+  --border-default: oklch(0.32 0.012 255);
+  --border-strong: oklch(0.42 0.014 255);
+
+  --shadow-card: 0 1px 2px oklch(0 0 0 / 0.3), 0 2px 10px oklch(0 0 0 / 0.3);
+  --shadow-raised: 0 4px 12px oklch(0 0 0 / 0.45), 0 12px 32px oklch(0 0 0 / 0.45);
+}

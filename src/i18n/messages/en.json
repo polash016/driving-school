@@ -1,0 +1,31 @@
+{
+  "common": {
+    "loading": "Loading…"
+  },
+  "nav": {
+    "skipToContent": "Skip to content",
+    "home": "Home",
+    "logout": "Log out"
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "nb": "Norwegian"
+  },
+  "theme": {
+    "toggle": "Switch between light and dark mode"
+  },
+  "home": {
+    "title": "Ready for your theory test?",
+    "subtitle": "Practice with realistic questions, mock exams and instant feedback — at your own pace.",
+    "shellNote": "Your training dashboard is on its way. Your driving school will let you know when it opens."
+  },
+  "errors": {
+    "title": "Something went wrong",
+    "description": "An unexpected error occurred. Please try again — if it keeps happening, contact your driving school.",
+    "retry": "Try again",
+    "notFoundTitle": "Page not found",
+    "notFoundDescription": "The page you are looking for does not exist or has been moved.",
+    "goHome": "Go to homepage"
+  }
+}

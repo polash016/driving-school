@@ -1,0 +1,31 @@
+{
+  "common": {
+    "loading": "Laster…"
+  },
+  "nav": {
+    "skipToContent": "Hopp til innhold",
+    "home": "Hjem",
+    "logout": "Logg ut"
+  },
+  "language": {
+    "label": "Språk",
+    "en": "Engelsk",
+    "nb": "Norsk"
+  },
+  "theme": {
+    "toggle": "Bytt mellom lyst og mørkt modus"
+  },
+  "home": {
+    "title": "Klar for teoriprøven?",
+    "subtitle": "Øv med realistiske oppgaver, prøveeksamener og umiddelbar tilbakemelding — i ditt eget tempo.",
+    "shellNote": "Treningsdashbordet ditt er på vei. Trafikkskolen din gir deg beskjed når det åpner."
+  },
+  "errors": {
+    "title": "Noe gikk galt",
+    "description": "Det oppstod en uventet feil. Prøv igjen — kontakt trafikkskolen din hvis det fortsetter.",
+    "retry": "Prøv igjen",
+    "notFoundTitle": "Siden ble ikke funnet",
+    "notFoundDescription": "Siden du leter etter finnes ikke eller har blitt flyttet.",
+    "goHome": "Gå til forsiden"
+  }
+}
