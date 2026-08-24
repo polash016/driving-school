@@ -35,11 +35,18 @@ export const answerInputSchema = z
     attemptId: idSchema,
     position: z.int().min(1),
     optionKey: z.string().min(1).max(8),
+    locale: localeSchema,
     /** Idempotency: re-sending the same answer is a no-op; changing pre-submit is allowed. */
     clientAnsweredAt: z.iso.datetime().optional(),
   })
   .strict();
 export type AnswerInput = z.infer<typeof answerInputSchema>;
+
+/** EXAM-mode answer acknowledgement — deliberately carries NO correctness. */
+export const answerAckSchema = z
+  .object({ position: z.int().min(1), saved: z.literal(true) })
+  .strict();
+export type AnswerAck = z.infer<typeof answerAckSchema>;
 
 export const flagInputSchema = z
   .object({
@@ -49,7 +56,9 @@ export const flagInputSchema = z
   })
   .strict();
 
-export const submitInputSchema = z.object({ attemptId: idSchema }).strict();
+export const submitInputSchema = z
+  .object({ attemptId: idSchema, locale: localeSchema })
+  .strict();
 
 export const serveInputSchema = z
   .object({ attemptId: idSchema, locale: localeSchema })

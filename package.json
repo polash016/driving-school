@@ -42,6 +42,7 @@
     "@vitejs/plugin-react": "^6.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.2",
+    "fast-check": "^4.9.0",
     "prettier": "^3.9.6",
     "prisma": "^6.19.3",
     "prisma-markdown": "^4.0.0",
