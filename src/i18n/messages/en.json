@@ -21,6 +21,14 @@
     "shellNote": "Your training dashboard is on its way. Your driving school will let you know when it opens."
   },
   "errors": {
+    "validation": "Some of the information you entered is not valid. Please check and try again.",
+    "unauthenticated": "You need to log in to continue.",
+    "forbidden": "You do not have access to this.",
+    "notFound": "We could not find what you were looking for.",
+    "conflict": "This change conflicts with the current state. Please refresh and try again.",
+    "rateLimited": "Too many attempts. Please wait a moment and try again.",
+    "examState": "This test is no longer active. Your progress has been saved.",
+    "internal": "An unexpected error occurred. Please try again.",
     "title": "Something went wrong",
     "description": "An unexpected error occurred. Please try again — if it keeps happening, contact your driving school.",
     "retry": "Try again",

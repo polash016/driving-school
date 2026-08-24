@@ -21,6 +21,14 @@
     "shellNote": "Treningsdashbordet ditt er på vei. Trafikkskolen din gir deg beskjed når det åpner."
   },
   "errors": {
+    "validation": "Noe av informasjonen du oppga er ikke gyldig. Sjekk og prøv igjen.",
+    "unauthenticated": "Du må logge inn for å fortsette.",
+    "forbidden": "Du har ikke tilgang til dette.",
+    "notFound": "Vi fant ikke det du lette etter.",
+    "conflict": "Endringen er i konflikt med gjeldende tilstand. Last inn på nytt og prøv igjen.",
+    "rateLimited": "For mange forsøk. Vent litt og prøv igjen.",
+    "examState": "Denne prøven er ikke lenger aktiv. Fremgangen din er lagret.",
+    "internal": "Det oppstod en uventet feil. Prøv igjen.",
     "title": "Noe gikk galt",
     "description": "Det oppstod en uventet feil. Prøv igjen — kontakt trafikkskolen din hvis det fortsetter.",
     "retry": "Prøv igjen",
