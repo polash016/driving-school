@@ -11,7 +11,7 @@ Legend: ⬜ Not started · 📝 Planned (plan approved) · 🔨 In progress · �
 |---|---|---|---|---|---|
 | 00 | `CLAUDE.md` + workflow setup | — | ✅ Done | — | — |
 | 01 | [Foundation, config, i18n, theming](spec-01-foundation.md) | — | ✅ Done (Fable) | [plan](plans/spec-01-plan.md) | [notes](notes/spec-01-notes.md) |
-| 02 | [Database schema](spec-02-database.md) | 01 | ⬜ Not started | — | — |
+| 02 | [Database schema](spec-02-database.md) | 01 | ✅ Done (Fable) | [plan](plans/spec-02-plan.md) | [notes](notes/spec-02-notes.md) |
 | 03 | [Auth & roles](spec-03-auth.md) | 02 | ⬜ Not started | — | — |
 | 04 | [Question bank CRUD & review](spec-04-question-bank.md) | 02, 03 | ⬜ Not started | — | — |
 | 05 | [AI knowledge base (RAG) & facts](spec-05-ai-knowledge-base.md) | 02 | ⬜ Not started | — | — |

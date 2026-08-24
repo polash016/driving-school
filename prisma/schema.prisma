@@ -1,0 +1,667 @@
+// TeoriPro — complete schema (spec-02). Every index carries a comment naming the
+// query it serves. Bilingual content is Json of shape { en: …, nb: … }.
+// Auth.js adapter tables (Account/Session/VerificationToken) arrive with spec-03's migration.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+generator markdown {
+  provider = "prisma-markdown"
+  output   = "../docs/erd.md"
+  title    = "TeoriPro ERD"
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+// ─────────────────────────── Enums (closed sets only; open sets stay String) ──
+
+enum Role {
+  ADMIN
+  INSTRUCTOR
+  STUDENT
+}
+
+enum Locale {
+  en
+  nb
+}
+
+enum QuizMode {
+  PRACTICE
+  EXAM
+}
+
+enum ItemType {
+  TEXT
+  IMAGE
+  SIGN
+}
+
+enum ItemStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  NEEDS_REVIEW // set automatically when a cited fact/chunk changes (spec-05)
+  RETIRED
+}
+
+enum Provenance {
+  AI
+  HUMAN
+}
+
+enum VariantSource {
+  TEMPLATE // deterministic parameter expansion
+  AI_VARIATION // AI surface variation, validator-approved
+}
+
+enum AttemptMode {
+  PRACTICE
+  EXAM
+  TOPIC
+  SIGN
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  EXPIRED
+}
+
+enum ImageStatus {
+  UPLOADED
+  ANALYZING
+  NEEDS_HUMAN_ID // low-confidence detection — never guess silently (spec-06)
+  GENERATING
+  IN_REVIEW
+  READY
+  FAILED
+}
+
+enum SignClass {
+  FARE
+  VIKEPLIKT_OG_FORKJORS
+  FORBUD
+  PABUD
+  OPPLYSNING
+  SERVICE
+  VEGVISNING
+  UNDERSKILT
+  MARKERING
+}
+
+enum CitationType {
+  KB_CHUNK
+  FACT
+}
+
+enum KbSourceKind {
+  LAW
+  REGULATION
+  CURRICULUM
+  TEMALISTE
+  NOTE
+}
+
+enum FactType {
+  NUMBER
+  STRING
+  BOOLEAN
+}
+
+// ─────────────────────────────────────────────────────── Identity & groups ──
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String? // argon2 (spec-03); null until password set / SSO-only
+  role            Role      @default(STUDENT)
+  emailVerifiedAt DateTime?
+  totpSecret      String? // 2FA — required ADMIN, optional INSTRUCTOR (spec-03)
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime? // GDPR: PII anonymized, aggregates preserved (spec-12)
+
+  profile             Profile?
+  memberships         GroupMembership[]
+  attempts            ExamAttempt[]
+  masteries           TopicMastery[]
+  readinessSnapshots  ReadinessSnapshot[]
+  mistakeCards        MistakeCard[]
+  homeworkCompletions HomeworkCompletion[]
+  createdInvites      InviteLink[]         @relation("InviteCreator")
+  createdGroups       StudentGroup[]       @relation("GroupCreator")
+  createdItems        MasterItem[]         @relation("ItemCreator")
+  reviewedItems       MasterItem[]         @relation("ItemReviewer")
+  uploadedImages      ImageAsset[]         @relation("ImageUploader")
+  createdHomework     HomeworkAssignment[] @relation("HomeworkCreator")
+  auditEvents         AuditLog[]           @relation("AuditActor")
+  updatedSettings     Setting[]            @relation("SettingUpdater")
+
+  // Admin user lists filtered by role/active (spec-11)
+  @@index([role, isActive])
+}
+
+model Profile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  firstName         String
+  lastName          String
+  phone             String?
+  preferredLocale   Locale   @default(en)
+  preferredQuizMode QuizMode @default(PRACTICE) // quick-start toggle, persisted per user (spec-08/09)
+  avatarUrl         String?
+  instructorNote    String? // visible to instructors/admin only (spec-11)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model StudentGroup {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  createdBy   User                 @relation("GroupCreator", fields: [createdById], references: [id])
+  memberships GroupMembership[]
+  invites     InviteLink[]
+  homework    HomeworkAssignment[]
+}
+
+model GroupMembership {
+  id       String   @id @default(cuid())
+  groupId  String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  group StudentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  // "which groups is this student in" (authorize() scoping, spec-03/11)
+  @@index([userId])
+}
+
+model InviteLink {
+  id          String    @id @default(cuid())
+  token       String    @unique // lookup on registration (spec-03)
+  role        Role      @default(STUDENT)
+  groupId     String?
+  maxUses     Int? // null = single-use enforced at service level? no — null = unlimited; 1 = single-use
+  usedCount   Int       @default(0)
+  expiresAt   DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+
+  group     StudentGroup? @relation(fields: [groupId], references: [id])
+  createdBy User          @relation("InviteCreator", fields: [createdById], references: [id])
+}
+
+// ────────────────────────────────────────────────── Curriculum & registries ──
+
+model LicenseClass {
+  id            String   @id @default(cuid())
+  code          String   @unique // B, B96, BE, A1 …
+  name          Json // bilingual { en, nb }
+  questionCount Int
+  timeLimitMin  Int
+  passMark      Int
+  isEnabled     Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  masterItems MasterItem[]
+  blueprints  ExamBlueprint[]
+  attempts    ExamAttempt[]
+}
+
+model Topic {
+  id          String    @id @default(cuid())
+  slug        String    @unique // stable reference used by blueprints/config
+  parentId    String?
+  name        Json // bilingual { en, nb }
+  description Json?
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  parent           Topic?                @relation("TopicTree", fields: [parentId], references: [id])
+  children         Topic[]               @relation("TopicTree")
+  masterItems      MasterItem[]
+  masteries        TopicMastery[]
+  attemptQuestions ExamAttemptQuestion[]
+
+  // Tree traversal (children of a node)
+  @@index([parentId])
+}
+
+model Sign {
+  id        String    @id @default(cuid())
+  code      String    @unique // skiltforskriften code, e.g. "302.1"
+  signClass SignClass
+  svgPath   String // official SVG asset path
+  name      Json // bilingual { en, nb }
+  meaning   Json // bilingual { en, nb }
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  detections ImageDetection[]
+
+  // Sign catalog grouped by class (spec-10)
+  @@index([signClass])
+}
+
+// ─────────────────────────────────────────────────────────────── Content ──
+
+model MasterItem {
+  id             String     @id @default(cuid())
+  type           ItemType
+  status         ItemStatus @default(DRAFT)
+  topicId        String
+  licenseClassId String? // null = applies to all license classes
+  difficulty     Int        @default(3) // 1..5 (validated at service boundary)
+  content        Json // bilingual template { en: {stem, options[], explanation}, nb: {…} }
+  parameterSlots Json? // slots + constraint rules for deterministic expansion (spec-07)
+  legalCitations Json // display payload; queryable links live in MasterItemCitation
+  version        Int        @default(1) // bumped on content edit; variants snapshot masterVersion
+  createdBy      Provenance
+  modelVersion   String? // AI provenance (spec-06)
+  promptVersion  String?
+  sourceImageId  String?
+  createdById    String?
+  reviewedById   String?
+  reviewedAt     DateTime?
+  reviewNote     String? // rejection reason / review comment (spec-04)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  deletedAt      DateTime?
+
+  topic         Topic                @relation(fields: [topicId], references: [id])
+  licenseClass  LicenseClass?        @relation(fields: [licenseClassId], references: [id])
+  sourceImage   ImageAsset?          @relation(fields: [sourceImageId], references: [id])
+  createdByUser User?                @relation("ItemCreator", fields: [createdById], references: [id])
+  reviewedBy    User?                @relation("ItemReviewer", fields: [reviewedById], references: [id])
+  variants      ItemVariant[]
+  citations     MasterItemCitation[]
+  mistakeCards  MistakeCard[]
+
+  // Assembly sampling (spec-07): approved items per topic/type
+  @@index([topicId, status, type])
+  // Review queue oldest-first (spec-04)
+  @@index([status, createdAt])
+  // "questions generated from this image" (spec-06)
+  @@index([sourceImageId])
+}
+
+// Queryable citation links — powers "affected items" lookup on fact/chunk change (spec-05)
+model MasterItemCitation {
+  id           String       @id @default(cuid())
+  masterItemId String
+  citationType CitationType
+  kbChunkId    String?
+  factKey      String?
+  quote        String? // supporting excerpt captured at generation time
+  createdAt    DateTime     @default(now())
+
+  masterItem MasterItem @relation(fields: [masterItemId], references: [id], onDelete: Cascade)
+  kbChunk    KbChunk?   @relation(fields: [kbChunkId], references: [id])
+  fact       Fact?      @relation(fields: [factKey], references: [key])
+
+  @@index([masterItemId])
+  // Fact changed → flag citing items NEEDS_REVIEW (spec-05)
+  @@index([factKey])
+  // Chunk re-ingested → same flow
+  @@index([kbChunkId])
+}
+
+model ItemVariant {
+  id               String        @id @default(cuid())
+  masterItemId     String
+  masterVersion    Int // which master version rendered this variant
+  contentHash      String        @unique // dedupe + per-user seen-window key (spec-07)
+  content          Json // bilingual rendered { en: {stem, options: [{key, text}]}, nb: {…} } — NEVER contains correctness
+  correctOptionKey String // server-side only — must never reach a client pre-submit (security invariant)
+  explanation      Json // bilingual explanation + citations, revealed only after grading
+  source           VariantSource
+  validatorReport  Json?
+  modelVersion     String?
+  promptVersion    String?
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  masterItem       MasterItem            @relation(fields: [masterItemId], references: [id], onDelete: Cascade)
+  attemptQuestions ExamAttemptQuestion[]
+
+  // Warmed-pool reads (spec-07): active variants of a master item
+  @@index([masterItemId, isActive])
+}
+
+// ──────────────────────────────────────────────────────── Images (spec-06) ──
+
+model ImageAsset {
+  id                 String      @id @default(cuid())
+  url                String
+  storagePath        String
+  status             ImageStatus @default(UPLOADED)
+  perceptualHash     String?
+  width              Int?
+  height             Int?
+  exifStripped       Boolean     @default(false)
+  blurApplied        Boolean     @default(false) // faces & plates auto-blurred
+  aiContextSheet     Json? // structured context sheet (validated by contract schema)
+  contextVerifiedAt  DateTime? // admin confirmed/corrected the sheet
+  licenseAttestation Json?
+  uploadedById       String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  deletedAt          DateTime?
+
+  uploadedBy  User?            @relation("ImageUploader", fields: [uploadedById], references: [id])
+  detections  ImageDetection[]
+  masterItems MasterItem[]
+
+  // Dedupe check on upload (spec-06)
+  @@index([perceptualHash])
+  // Pipeline job board (queued → analyzing → …)
+  @@index([status, createdAt])
+}
+
+model ImageDetection {
+  id            String   @id @default(cuid())
+  imageAssetId  String
+  signCode      String? // cross-checked against Sign registry; null for non-sign detections
+  label         String? // roadMarking / actor / condition label
+  bbox          Json // {x, y, w, h} normalized
+  confidence    Float
+  humanVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  imageAsset ImageAsset @relation(fields: [imageAssetId], references: [id], onDelete: Cascade)
+  sign       Sign?      @relation(fields: [signCode], references: [code])
+
+  // Detection chips over an image (spec-06 admin correction UI)
+  @@index([imageAssetId])
+}
+
+// ───────────────────────────────────────────────────────── Exams (spec-07) ──
+
+model ExamBlueprint {
+  id                String   @id @default(cuid())
+  licenseClassId    String
+  name              Json? // bilingual, admin-facing
+  topicDistribution Json // { topicSlug: count } — validated to sum to questionCount
+  imageRatio        Float    @default(0) // share of IMAGE-type questions in mixed mocks
+  isDefault         Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  licenseClass LicenseClass  @relation(fields: [licenseClassId], references: [id])
+  attempts     ExamAttempt[]
+
+  // Default blueprint lookup at assembly time
+  @@index([licenseClassId, isActive])
+}
+
+model ExamAttempt {
+  id                    String        @id @default(cuid())
+  userId                String
+  mode                  AttemptMode
+  status                AttemptStatus @default(IN_PROGRESS)
+  licenseClassId        String?
+  blueprintId           String?
+  seed                  String // deterministic assembly/shuffle seed
+  // Config snapshots — official rules frozen at start so mid-attempt config changes can't corrupt grading
+  questionCountSnapshot Int
+  timeLimitSecSnapshot  Int? // null = untimed (practice)
+  passMarkSnapshot      Int?
+  startedAt             DateTime      @default(now())
+  expiresAt             DateTime? // startedAt + limit + grace; server-authoritative timer
+  submittedAt           DateTime?
+  correctCount          Int?
+  passed                Boolean?
+  topicBreakdown        Json? // per-topic result snapshot written at grading
+  focusLossCount        Int           @default(0) // exam-mode chrome events (spec-08, policy spec-12)
+  anomalyFlagged        Boolean       @default(false) // impossible answer speed etc. (spec-12)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  user         User                  @relation(fields: [userId], references: [id])
+  licenseClass LicenseClass?         @relation(fields: [licenseClassId], references: [id])
+  blueprint    ExamBlueprint?        @relation(fields: [blueprintId], references: [id])
+  questions    ExamAttemptQuestion[]
+  completions  HomeworkCompletion[]
+
+  // Resume lookup — hottest read: "this user's IN_PROGRESS attempt"
+  @@index([userId, status])
+  // Attempt history newest-first (dashboard "My previous tests")
+  @@index([userId, startedAt(sort: Desc)])
+  // Expiry sweeper: auto-submit overdue attempts
+  @@index([status, expiresAt])
+}
+
+model ExamAttemptQuestion {
+  id                String    @id @default(cuid())
+  attemptId         String
+  variantId         String
+  position          Int
+  topicId           String // denormalized from master item at serve time — fast per-topic grading
+  optionOrder       Json // shuffled option keys as served to THIS attempt
+  answeredOptionKey String?
+  isCorrect         Boolean? // written at grading (EXAM) or per-answer (PRACTICE); server-side only pre-submit
+  flagged           Boolean   @default(false)
+  answeredAt        DateTime?
+  timeSpentMs       Int? // anomaly detection input (spec-12)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  attempt ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  variant ItemVariant @relation(fields: [variantId], references: [id])
+  topic   Topic       @relation(fields: [topicId], references: [id])
+
+  @@unique([attemptId, position])
+  // A variant may appear at most once per attempt
+  @@unique([attemptId, variantId])
+  // Exposure stats + seen-window fallback queries
+  @@index([variantId])
+}
+
+// ─────────────────────────────────────────────── Progress & study (spec-09) ──
+
+model TopicMastery {
+  id             String    @id @default(cuid())
+  userId         String
+  topicId        String
+  totalAnswered  Int       @default(0)
+  totalCorrect   Int       @default(0)
+  rollingScore   Float     @default(0) // recency-weighted 0..1 (formula documented in spec-09 plan)
+  recentOutcomes Json? // ring buffer of last N outcomes for the rolling window
+  lastAnsweredAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id])
+  topic Topic @relation(fields: [topicId], references: [id])
+
+  // Mastery lookup — dashboard hot path
+  @@unique([userId, topicId])
+  @@index([userId])
+}
+
+model ReadinessSnapshot {
+  id        String   @id @default(cuid())
+  userId    String
+  score     Float // 0..100
+  breakdown Json // formula inputs at snapshot time
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  // Readiness history graph (dashboard/statistics)
+  @@index([userId, createdAt])
+}
+
+// SM-2 spaced repetition over wrong answers — "My mistakes" deck (spec-09)
+model MistakeCard {
+  id             String    @id @default(cuid())
+  userId         String
+  masterItemId   String // concept-level, not variant-level
+  easeFactor     Float     @default(2.5)
+  intervalDays   Float     @default(0)
+  repetitions    Int       @default(0)
+  lapses         Int       @default(0)
+  dueAt          DateTime
+  suspended      Boolean   @default(false)
+  lastReviewedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id])
+  masterItem MasterItem @relation(fields: [masterItemId], references: [id])
+
+  @@unique([userId, masterItemId])
+  // "cards due now" — mistake-quiz assembly hot path
+  @@index([userId, dueAt])
+}
+
+model HomeworkAssignment {
+  id          String    @id @default(cuid())
+  createdById String
+  groupId     String? // exactly one of groupId/userId set (service-enforced)
+  userId      String?
+  title       String
+  description String?
+  config      Json // { topicSlugs: [...] } or { blueprintId, questionCount }
+  deadline    DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  createdBy   User                 @relation("HomeworkCreator", fields: [createdById], references: [id])
+  group       StudentGroup?        @relation(fields: [groupId], references: [id])
+  completions HomeworkCompletion[]
+
+  // Homework due for a group / an individual (dashboard card, spec-09/11)
+  @@index([groupId, deadline])
+  @@index([userId, deadline])
+}
+
+model HomeworkCompletion {
+  id           String   @id @default(cuid())
+  assignmentId String
+  userId       String
+  attemptId    String?
+  completedAt  DateTime @default(now())
+
+  assignment HomeworkAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  attempt    ExamAttempt?       @relation(fields: [attemptId], references: [id])
+  user       User               @relation(fields: [userId], references: [id])
+
+  @@unique([assignmentId, userId])
+  @@index([userId])
+}
+
+// ───────────────────────────────────────────── Knowledge base & facts (05) ──
+
+model KbSource {
+  id             String       @id @default(cuid())
+  code           String       @unique // e.g. "trafikkreglene"
+  kind           KbSourceKind
+  name           String
+  url            String?
+  effectiveDate  DateTime?
+  version        String?
+  lastIngestedAt DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  chunks KbChunk[]
+}
+
+model KbChunk {
+  id         String                       @id @default(cuid())
+  sourceId   String
+  ref        String // section reference, e.g. "§ 7-2"
+  text       String
+  // pgvector embedding; HNSW index + tsvector/GIN for hybrid search added via raw SQL in the migration
+  embedding  Unsupported("vector(1536)")?
+  tokenCount Int?
+  isActive   Boolean                      @default(true)
+  createdAt  DateTime                     @default(now())
+  updatedAt  DateTime                     @updatedAt
+
+  source    KbSource             @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  citations MasterItemCitation[]
+
+  // Chunk listing per source (admin KB screen)
+  @@index([sourceId])
+}
+
+// Typed legal facts — templates reference keys, never literals (spec-05)
+model Fact {
+  key           String    @id // e.g. "bac_limit_promille"
+  value         String
+  valueType     FactType
+  unit          String?
+  description   String?
+  sourceRef     Json // citation: { sourceCode, ref, url? }
+  effectiveFrom DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  citations MasterItemCitation[]
+}
+
+// ─────────────────────────────────────────────────────────────── Platform ──
+
+// Runtime-editable policies (spec-11 settings screen) — deploy-time identity stays in school.config.ts
+model Setting {
+  key         String   @id
+  value       Json
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  updatedBy User? @relation("SettingUpdater", fields: [updatedById], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String? // null = system
+  action     String // open set by design: "auth.login", "item.approve", "settings.update", …
+  entityType String?
+  entityId   String?
+  meta       Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id])
+
+  // Admin audit viewer, newest-first
+  @@index([createdAt(sort: Desc)])
+  // Per-actor trail
+  @@index([actorId, createdAt])
+  // "history of this entity"
+  @@index([entityType, entityId])
+}
