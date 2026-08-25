@@ -32,7 +32,9 @@ export default async function AccuracyPage({
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-8">
       <header className="space-y-1.5">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">{t("title")}</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          {t("title")}
+        </h1>
         <p className="text-sm/relaxed text-muted-foreground">{t("subtitle")}</p>
       </header>
 
@@ -80,17 +82,32 @@ export default async function AccuracyPage({
           <table className="w-full min-w-[42rem] border-collapse text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                <th scope="col" className="p-3 font-medium">{t("columnKey")}</th>
-                <th scope="col" className="p-3 font-medium">{t("columnReviewed")}</th>
-                <th scope="col" className="p-3 font-medium">{t("columnApproved")}</th>
-                <th scope="col" className="p-3 font-medium">{t("columnRate")}</th>
-                <th scope="col" className="p-3 font-medium">{t("columnMedian")}</th>
+                <th scope="col" className="p-3 font-medium">
+                  {t("columnKey")}
+                </th>
+                <th scope="col" className="p-3 font-medium">
+                  {t("columnReviewed")}
+                </th>
+                <th scope="col" className="p-3 font-medium">
+                  {t("columnApproved")}
+                </th>
+                <th scope="col" className="p-3 font-medium">
+                  {t("columnRate")}
+                </th>
+                <th scope="col" className="p-3 font-medium">
+                  {t("columnMedian")}
+                </th>
               </tr>
             </thead>
             <tbody>
               {stats.rows.map((row) => (
-                <tr key={row.key} className="border-b border-border/60 last:border-0">
-                  <td className="p-3 font-medium text-foreground">{row.label}</td>
+                <tr
+                  key={row.key}
+                  className="border-b border-border/60 last:border-0"
+                >
+                  <td className="p-3 font-medium text-foreground">
+                    {row.label}
+                  </td>
                   <td className="p-3 text-muted-foreground">{row.reviewed}</td>
                   <td className="p-3 text-muted-foreground">{row.approved}</td>
                   <td className="p-3">
@@ -101,7 +118,9 @@ export default async function AccuracyPage({
                   <td className="p-3 text-muted-foreground">
                     {row.medianHoursToReview === null
                       ? "—"
-                      : t("hours", { hours: Math.round(row.medianHoursToReview) })}
+                      : t("hours", {
+                          hours: Math.round(row.medianHoursToReview),
+                        })}
                   </td>
                 </tr>
               ))}
@@ -121,9 +140,16 @@ export default async function AccuracyPage({
             ) : (
               <ul className="space-y-2">
                 {stats.reasons.map((reason) => (
-                  <li key={reason.reason} className="flex items-center justify-between gap-3">
-                    <span className="text-sm text-foreground">{reason.reason}</span>
-                    <span className="text-sm text-muted-foreground">{reason.count}</span>
+                  <li
+                    key={reason.reason}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <span className="text-sm text-foreground">
+                      {reason.reason}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {reason.count}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -138,7 +164,10 @@ export default async function AccuracyPage({
           <CardContent>
             <ul className="space-y-2 text-sm">
               {Object.entries(stats.totals).map(([key, value]) => (
-                <li key={key} className="flex items-center justify-between gap-3">
+                <li
+                  key={key}
+                  className="flex items-center justify-between gap-3"
+                >
                   <span className="text-foreground">{key}</span>
                   <span className="text-muted-foreground">{value}</span>
                 </li>

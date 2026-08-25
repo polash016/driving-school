@@ -8,7 +8,10 @@ import { db } from "@/server/db";
 import { toActionError } from "@/server/http/action-result";
 import { createInvite, revokeInvite } from "@/server/services/auth/invites";
 import { importStudentsCsv } from "@/server/services/auth/csv-import";
-import { schoolConfig, type AppLocale } from "../../../../../../config/school.config";
+import {
+  schoolConfig,
+  type AppLocale,
+} from "../../../../../../config/school.config";
 
 /** Invite administration (spec-03 minimal surface; spec-11 expands it). */
 

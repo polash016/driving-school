@@ -55,7 +55,11 @@ describe("template expansion", () => {
   });
 
   it("fact slots are pinned to the facts table value (never enumerated)", () => {
-    const { variants } = expandTemplate({ template, parameterSlots: slots, facts });
+    const { variants } = expandTemplate({
+      template,
+      parameterSlots: slots,
+      facts,
+    });
     for (const v of variants) {
       expect(v.bindings.limit).toBe("50");
       expect(v.content.en.stem).toContain("limit is 50 km/h");
@@ -133,7 +137,9 @@ describe("template expansion", () => {
       facts: {},
     });
     expect(variants).toHaveLength(1); // x=50 collides with the static "50 km/h" option
-    expect(issues.some((i) => i.reason.includes("duplicate option texts"))).toBe(true);
+    expect(
+      issues.some((i) => i.reason.includes("duplicate option texts")),
+    ).toBe(true);
   });
 
   it("rejects templates with unresolved placeholders", () => {
@@ -172,8 +178,22 @@ describe("template expansion", () => {
     });
     expect(variants).toHaveLength(0); // template HAS placeholders → all rejected
     const staticTpl: TemplateContent = {
-      en: { stem: "S", options: [{ key: "a", text: "A" }, { key: "b", text: "B" }], explanation: "e" },
-      nb: { stem: "S", options: [{ key: "a", text: "A" }, { key: "b", text: "B" }], explanation: "e" },
+      en: {
+        stem: "S",
+        options: [
+          { key: "a", text: "A" },
+          { key: "b", text: "B" },
+        ],
+        explanation: "e",
+      },
+      nb: {
+        stem: "S",
+        options: [
+          { key: "a", text: "A" },
+          { key: "b", text: "B" },
+        ],
+        explanation: "e",
+      },
     };
     expect(
       expandTemplate({ template: staticTpl, parameterSlots: null, facts: {} })

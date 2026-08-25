@@ -25,6 +25,13 @@ export interface QuestionCardProps {
   /** Post-submit / admin-preview only: the answer and why. */
   reveal?: { correctOptionKey: string; explanation?: string } | null;
   imageUrl?: string | null;
+  /**
+   * Alternative text that must NOT describe what the picture shows.
+   *
+   * On a test image the description IS the answer: "Give way sign" as alt text hands the question
+   * to every screen-reader user and to anyone who opens the page source. WCAG asks that such an
+   * image be identified without being explained, so callers pass a neutral label.
+   */
   imageAlt?: string;
   onSelect?: (key: string) => void;
   disabled?: boolean;
@@ -49,13 +56,22 @@ export function QuestionCard({
         <img
           src={imageUrl}
           alt={imageAlt}
-          className="w-full rounded-[var(--radius-base)] bg-muted object-cover"
+          // `contain`, never `cover`: cropping is a correctness bug here, not a cosmetic one. A
+          // road sign clipped at the edges can become a different sign, and the arrow or number
+          // the question turns on is exactly what sits near the border.
+          className="max-h-64 w-full rounded-[var(--radius-base)] bg-muted object-contain"
         />
       ) : null}
 
-      <p className="text-balance text-lg/relaxed font-medium text-foreground">{stem}</p>
+      <p className="text-balance text-lg/relaxed font-medium text-foreground">
+        {stem}
+      </p>
 
-      <div role="radiogroup" aria-label={stem} className="flex flex-col gap-2.5">
+      <div
+        role="radiogroup"
+        aria-label={stem}
+        className="flex flex-col gap-2.5"
+      >
         {options.map((option) => {
           const selected = selectedKey === option.key;
           const isCorrect = reveal?.correctOptionKey === option.key;
@@ -73,20 +89,27 @@ export function QuestionCard({
                 "flex min-h-[3.25rem] w-full items-center gap-3 rounded-[var(--radius-control)] border px-4 py-3 text-left text-base/relaxed transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
                 "disabled:cursor-default",
-                selected && !reveal && "border-primary bg-accent text-accent-foreground",
+                selected &&
+                  !reveal &&
+                  "border-primary bg-accent text-accent-foreground",
                 !selected && !reveal && "border-border bg-card hover:bg-muted",
                 isCorrect &&
                   "border-[var(--status-success)] bg-[var(--status-success-soft)] text-[var(--status-success)]",
                 isWrongPick &&
                   "border-destructive bg-destructive/10 text-destructive",
-                reveal && !isCorrect && !isWrongPick && "border-border bg-card text-muted-foreground",
+                reveal &&
+                  !isCorrect &&
+                  !isWrongPick &&
+                  "border-border bg-card text-muted-foreground",
               )}
             >
               <span
                 aria-hidden
                 className={cn(
                   "grid size-7 shrink-0 place-items-center rounded-full border text-sm font-semibold",
-                  selected || isCorrect ? "border-current" : "border-border text-muted-foreground",
+                  selected || isCorrect
+                    ? "border-current"
+                    : "border-border text-muted-foreground",
                 )}
               >
                 {option.key.toUpperCase()}
@@ -98,7 +121,14 @@ export function QuestionCard({
       </div>
 
       {reveal?.explanation ? (
-        <p className="rounded-[var(--radius-control)] bg-muted px-3.5 py-3 text-sm/relaxed text-muted-foreground">
+        // KNOWN DEFECT (spec-08): the answer lock and this explanation arrive in two separate
+        // paints, so the content below shifts after the reveal. Spec-08 asks for CLS ~= 0 here and
+        // will need to land both in one update or reserve the space. The hook lets a test wait for
+        // the second paint instead of racing it.
+        <p
+          data-testid="explanation"
+          className="rounded-[var(--radius-control)] bg-muted px-3.5 py-3 text-sm/relaxed text-muted-foreground"
+        >
           {reveal.explanation}
         </p>
       ) : null}

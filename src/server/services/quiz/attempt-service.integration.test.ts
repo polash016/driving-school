@@ -1,6 +1,11 @@
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ConflictError, ExamStateError, ForbiddenError, NotFoundError } from "@/lib/errors";
+import {
+  ConflictError,
+  ExamStateError,
+  ForbiddenError,
+  NotFoundError,
+} from "@/lib/errors";
 import type { SessionUser } from "@/server/authz";
 import {
   categoryPerformance,
@@ -74,7 +79,21 @@ async function seedFixtures() {
   `);
 
   await db.user.createMany({
-    data: ["u1", "u2", "u3", "u4", "u10", "u11", "u12", "u13", "u14", "u15", "u20", "u21", "u22"].map((id) => ({
+    data: [
+      "u1",
+      "u2",
+      "u3",
+      "u4",
+      "u10",
+      "u11",
+      "u12",
+      "u13",
+      "u14",
+      "u15",
+      "u20",
+      "u21",
+      "u22",
+    ].map((id) => ({
       id,
       email: `${id}@test.local`,
       role: "STUDENT",
@@ -187,7 +206,9 @@ d("attempt lifecycle (integration)", () => {
     expect(attempt.questions).toHaveLength(6);
     expect(attempt.timeRemainingSec).toBe(90 * 60);
     expect(attempt.currentPosition).toBe(1);
-    expect(attempt.questions.filter((q) => q.topicSlug === "r1")).toHaveLength(3);
+    expect(attempt.questions.filter((q) => q.topicSlug === "r1")).toHaveLength(
+      3,
+    );
 
     const json = JSON.stringify(attempt);
     expect(json).not.toContain("correctOptionKey");
@@ -210,16 +231,34 @@ d("attempt lifecycle (integration)", () => {
   });
 
   it("two users at the same second receive different exams", async () => {
-    const a = await service.startQuiz("u1", { mode: "EXAM", licenseClassCode: "TB", locale: "en" });
-    const b = await service.startQuiz("u2", { mode: "EXAM", licenseClassCode: "TB", locale: "en" });
+    const a = await service.startQuiz("u1", {
+      mode: "EXAM",
+      licenseClassCode: "TB",
+      locale: "en",
+    });
+    const b = await service.startQuiz("u2", {
+      mode: "EXAM",
+      licenseClassCode: "TB",
+      locale: "en",
+    });
     const sig = (x: typeof a) =>
-      x.questions.map((q) => `${q.stem}|${q.options.map((o) => o.key).join("")}`);
+      x.questions.map(
+        (q) => `${q.stem}|${q.options.map((o) => o.key).join("")}`,
+      );
     expect(sig(a)).not.toEqual(sig(b));
   });
 
   it("seen-window: a user's next exam repeats no contentHash", async () => {
-    const first = await service.startQuiz("u3", { mode: "EXAM", licenseClassCode: "TB", locale: "en" });
-    const second = await service.startQuiz("u3", { mode: "EXAM", licenseClassCode: "TB", locale: "en" });
+    const first = await service.startQuiz("u3", {
+      mode: "EXAM",
+      licenseClassCode: "TB",
+      locale: "en",
+    });
+    const second = await service.startQuiz("u3", {
+      mode: "EXAM",
+      licenseClassCode: "TB",
+      locale: "en",
+    });
     const stems = (x: typeof first) => new Set(x.questions.map((q) => q.stem));
     const overlap = [...stems(first)].filter((s) => stems(second).has(s));
     expect(overlap).toEqual([]); // distinct variants → distinct stems in fixtures
@@ -227,7 +266,11 @@ d("attempt lifecycle (integration)", () => {
 
   it("answer autosave: EXAM ack reveals nothing; resume restores state cross-device", async () => {
     freshService();
-    const attempt = await service.startQuiz("u4", { mode: "EXAM", licenseClassCode: "TB", locale: "en" });
+    const attempt = await service.startQuiz("u4", {
+      mode: "EXAM",
+      licenseClassCode: "TB",
+      locale: "en",
+    });
     const q1 = attempt.questions[0];
 
     const ack = await service.answer("u4", {
@@ -249,46 +292,69 @@ d("attempt lifecycle (integration)", () => {
 
     clock.advanceSec(60);
     // "second device": fresh serve
-    const resumed = await service.serveAttempt("u4", { attemptId: attempt.id, locale: "en" });
+    const resumed = await service.serveAttempt("u4", {
+      attemptId: attempt.id,
+      locale: "en",
+    });
     expect(resumed.questions[0].answeredOptionKey).toBe(q1.options[1].key);
     expect(resumed.currentPosition).toBe(2);
     expect(resumed.timeRemainingSec).toBe(5400 - 60);
-    expect(resumed.questions.map((q) => q.stem)).toEqual(attempt.questions.map((q) => q.stem));
+    expect(resumed.questions.map((q) => q.stem)).toEqual(
+      attempt.questions.map((q) => q.stem),
+    );
     expect(JSON.stringify(resumed)).not.toContain("correctOptionKey");
   });
 
   it("submit grades server-side against the snapshot pass mark; resubmit is idempotent", async () => {
     freshService();
     gradedCalls.length = 0;
-    const attempt = await service.startQuiz("u1", { mode: "EXAM", licenseClassCode: "TB", locale: "en" });
+    const attempt = await service.startQuiz("u1", {
+      mode: "EXAM",
+      licenseClassCode: "TB",
+      locale: "en",
+    });
 
     // 4 correct ('a' is always correct in fixtures), 2 wrong
     for (const q of attempt.questions) {
       await service.answer("u1", {
         attemptId: attempt.id,
         position: q.position,
-        optionKey: q.position <= 4 ? "a" : q.options.find((o) => o.key !== "a")!.key,
+        optionKey:
+          q.position <= 4 ? "a" : q.options.find((o) => o.key !== "a")!.key,
         locale: "en",
       });
     }
 
-    const result = await service.submit("u1", { attemptId: attempt.id, locale: "en" });
+    const result = await service.submit("u1", {
+      attemptId: attempt.id,
+      locale: "en",
+    });
     expect(result.correctCount).toBe(4);
     expect(result.passMark).toBe(4);
     expect(result.passed).toBe(true);
     expect(result.review).toHaveLength(6);
     expect(result.review.filter((r) => r.correct)).toHaveLength(4);
     expect(result.topicBreakdown.reduce((s, t) => s + t.total, 0)).toBe(6);
-    expect(result.review[0].explanation.citations[0].sourceCode).toBe("trafikkreglene");
+    expect(result.review[0].explanation.citations[0].sourceCode).toBe(
+      "trafikkreglene",
+    );
     expect(gradedCalls).toEqual(["u1"]);
 
-    const again = await service.submit("u1", { attemptId: attempt.id, locale: "en" });
+    const again = await service.submit("u1", {
+      attemptId: attempt.id,
+      locale: "en",
+    });
     expect(again).toEqual(result);
     expect(gradedCalls).toEqual(["u1"]); // no double grading
 
     // post-submit answering is rejected
     await expect(
-      service.answer("u1", { attemptId: attempt.id, position: 1, optionKey: "a", locale: "en" }),
+      service.answer("u1", {
+        attemptId: attempt.id,
+        position: 1,
+        optionKey: "a",
+        locale: "en",
+      }),
     ).rejects.toBeInstanceOf(ExamStateError);
   });
 
@@ -301,7 +367,9 @@ d("attempt lifecycle (integration)", () => {
       locale: "nb",
     });
     expect(attempt.questions.length).toBeGreaterThan(0);
-    const wrongKey = attempt.questions[0].options.find((o) => o.key !== "a")!.key;
+    const wrongKey = attempt.questions[0].options.find(
+      (o) => o.key !== "a",
+    )!.key;
     const result = await service.answer("u2", {
       attemptId: attempt.id,
       position: 1,
@@ -318,14 +386,33 @@ d("attempt lifecycle (integration)", () => {
 
   it("expiry: interactions after the deadline auto-submit with EXPIRED status", async () => {
     freshService();
-    const attempt = await service.startQuiz("u4", { mode: "EXAM", licenseClassCode: "TB", locale: "en" });
-    await service.answer("u4", { attemptId: attempt.id, position: 1, optionKey: "a", locale: "en" });
-    await service.answer("u4", { attemptId: attempt.id, position: 2, optionKey: "a", locale: "en" });
+    const attempt = await service.startQuiz("u4", {
+      mode: "EXAM",
+      licenseClassCode: "TB",
+      locale: "en",
+    });
+    await service.answer("u4", {
+      attemptId: attempt.id,
+      position: 1,
+      optionKey: "a",
+      locale: "en",
+    });
+    await service.answer("u4", {
+      attemptId: attempt.id,
+      position: 2,
+      optionKey: "a",
+      locale: "en",
+    });
 
     clock.advanceSec(90 * 60 + 31); // past limit + grace
 
     await expect(
-      service.answer("u4", { attemptId: attempt.id, position: 3, optionKey: "a", locale: "en" }),
+      service.answer("u4", {
+        attemptId: attempt.id,
+        position: 3,
+        optionKey: "a",
+        locale: "en",
+      }),
     ).rejects.toBeInstanceOf(ExamStateError);
 
     const row = await db.examAttempt.findUniqueOrThrow({
@@ -336,14 +423,21 @@ d("attempt lifecycle (integration)", () => {
     expect(row.correctCount).toBe(2);
     expect(row.passed).toBe(false);
 
-    const served = await service.serveAttempt("u4", { attemptId: attempt.id, locale: "en" });
+    const served = await service.serveAttempt("u4", {
+      attemptId: attempt.id,
+      locale: "en",
+    });
     expect(served.status).toBe("EXPIRED");
     expect(served.timeRemainingSec).toBe(0);
   });
 
   it("IDOR guard: a foreign attempt reads as NotFound, never Forbidden-with-existence", async () => {
     freshService();
-    const attempt = await service.startQuiz("u1", { mode: "EXAM", licenseClassCode: "TB", locale: "en" });
+    const attempt = await service.startQuiz("u1", {
+      mode: "EXAM",
+      licenseClassCode: "TB",
+      locale: "en",
+    });
     await expect(
       service.serveAttempt("u2", { attemptId: attempt.id, locale: "en" }),
     ).rejects.toBeInstanceOf(NotFoundError);
@@ -357,9 +451,15 @@ d("candidate filtering by licence class", () => {
   it("does not hide class-tagged questions from a practice quiz", async () => {
     // Regression: practice passes `licenseClassId: null`, which used to be read as "questions
     // with no class" and hid every class-B question — most of a real bank.
-    const licenseClass = await db.licenseClass.findFirstOrThrow({ select: { id: true } });
+    const licenseClass = await db.licenseClass.findFirstOrThrow({
+      select: { id: true },
+    });
     const tagged = await db.masterItem.findFirst({
-      where: { status: "APPROVED", deletedAt: null, variants: { some: { isActive: true } } },
+      where: {
+        status: "APPROVED",
+        deletedAt: null,
+        variants: { some: { isActive: true } },
+      },
       select: { id: true, licenseClassId: true },
     });
     if (!tagged) return;
@@ -378,7 +478,10 @@ d("candidate filtering by licence class", () => {
     const slugs = roots.map((topic) => topic.slug);
 
     const unfiltered = await source.candidatesByTopic({ topicSlugs: slugs });
-    const practice = await source.candidatesByTopic({ topicSlugs: slugs, licenseClassId: null });
+    const practice = await source.candidatesByTopic({
+      topicSlugs: slugs,
+      licenseClassId: null,
+    });
 
     const total = (pools: Record<string, unknown[]>) =>
       Object.values(pools).reduce((sum, pool) => sum + pool.length, 0);
@@ -482,7 +585,10 @@ d("an answer is written once (developer decision 2026-08-25)", () => {
       }),
     ).rejects.toBeInstanceOf(ConflictError);
 
-    const submitted = await service.submit("u12", { attemptId: attempt.id, locale: "en" });
+    const submitted = await service.submit("u12", {
+      attemptId: attempt.id,
+      locale: "en",
+    });
     expect(submitted.review[0].correct).toBe(false);
   });
 
@@ -542,7 +648,11 @@ d("re-reading the feedback for an answered question", () => {
       locale: "en",
     });
     await expect(
-      service.revealAnswered("u15", { attemptId: practice.id, position: 2, locale: "en" }),
+      service.revealAnswered("u15", {
+        attemptId: practice.id,
+        position: 2,
+        locale: "en",
+      }),
     ).rejects.toBeInstanceOf(ConflictError);
 
     const exam = await service.startQuiz("u15", {
@@ -557,7 +667,11 @@ d("re-reading the feedback for an answered question", () => {
       locale: "en",
     });
     await expect(
-      service.revealAnswered("u15", { attemptId: exam.id, position: 1, locale: "en" }),
+      service.revealAnswered("u15", {
+        attemptId: exam.id,
+        position: 1,
+        locale: "en",
+      }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
@@ -639,7 +753,10 @@ d("resuming a test that was walked away from", () => {
     });
     await service.submit("u22", { attemptId: practice.id, locale: "en" });
 
-    const tests = await listAttemptHistory(db, session("u22"), "u22", { page: 1, pageSize: 20 });
+    const tests = await listAttemptHistory(db, session("u22"), "u22", {
+      page: 1,
+      pageSize: 20,
+    });
     expect(tests.items.some((item) => item.id === practice.id)).toBe(false);
 
     const everything = await listAttemptHistory(db, session("u22"), "u22", {
@@ -648,7 +765,9 @@ d("resuming a test that was walked away from", () => {
       onlyTests: false,
     });
     expect(everything.items.some((item) => item.id === practice.id)).toBe(true);
-    expect(everything.items.find((item) => item.id === practice.id)?.kind).toBe("PRACTICE");
+    expect(everything.items.find((item) => item.id === practice.id)?.kind).toBe(
+      "PRACTICE",
+    );
   });
 
   it("a configured test IS the record, and is named a test whatever its engine mode", async () => {
@@ -656,7 +775,13 @@ d("resuming a test that was walked away from", () => {
     const configured = await service.startQuiz(
       "u22",
       // One category only, so the other stays untested — the "not tested yet" case.
-      { mode: "TOPIC", questionCount: 3, topicSlugs: ["r1"], timed: false, locale: "en" },
+      {
+        mode: "TOPIC",
+        questionCount: 3,
+        topicSlugs: ["r1"],
+        timed: false,
+        locale: "en",
+      },
       {
         countsTowardGuarantee: false,
         setupSnapshot: { timed: false, questionCount: 3, topicSlugs: ["r1"] },
@@ -677,7 +802,10 @@ d("resuming a test that was walked away from", () => {
     }
     await service.submit("u22", { attemptId: configured.id, locale: "en" });
 
-    const history = await listAttemptHistory(db, session("u22"), "u22", { page: 1, pageSize: 20 });
+    const history = await listAttemptHistory(db, session("u22"), "u22", {
+      page: 1,
+      pageSize: 20,
+    });
     const row = history.items.find((item) => item.id === configured.id);
     expect(row?.kind).toBe("TEST");
     expect(row?.status).toBe("SUBMITTED");
@@ -685,14 +813,23 @@ d("resuming a test that was walked away from", () => {
 
     // …and it is what the category panel counts. Only answered questions are counted, so a
     // percentage means "of what you attempted", which is what makes it useful from question one.
-    const categories = await categoryPerformance(db, session("u22"), "u22", "en");
+    const categories = await categoryPerformance(
+      db,
+      session("u22"),
+      "u22",
+      "en",
+    );
     const tested = categories.filter((category) => category.answered > 0);
     expect(tested.length).toBeGreaterThan(0);
-    expect(tested.reduce((sum, category) => sum + category.answered, 0)).toBe(3);
+    expect(tested.reduce((sum, category) => sum + category.answered, 0)).toBe(
+      3,
+    );
     expect(tested.reduce((sum, category) => sum + category.correct, 0)).toBe(1);
     for (const category of categories) {
       expect(category.percent).toBe(
-        category.answered === 0 ? null : Math.round((category.correct / category.answered) * 100),
+        category.answered === 0
+          ? null
+          : Math.round((category.correct / category.answered) * 100),
       );
     }
     // Every root category is listed, including ones never tested — the gaps are the useful part.

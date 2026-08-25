@@ -11,7 +11,8 @@ import nb from "./messages/nb.json";
  * pruned key surfaces here instead of as raw "auth.errors.x" text in front of a student.
  */
 const SEARCH_ROOTS = [join(process.cwd(), "src", "server")];
-const KEY_PATTERN = /"((?:errors|auth\.errors|admin\.invites)\.[a-zA-Z0-9.]+)"/g;
+const KEY_PATTERN =
+  /"((?:errors|auth\.errors|admin\.invites)\.[a-zA-Z0-9.]+)"/g;
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -31,10 +32,15 @@ function resolve(messages: Record<string, unknown>, key: string): unknown {
 
 const references = new Map<string, string[]>();
 for (const root of SEARCH_ROOTS) {
-  for (const file of walk(root).filter((f) => /\.tsx?$/.test(f) && !f.includes(".test."))) {
+  for (const file of walk(root).filter(
+    (f) => /\.tsx?$/.test(f) && !f.includes(".test."),
+  )) {
     const source = readFileSync(file, "utf8");
     for (const [, key] of source.matchAll(KEY_PATTERN)) {
-      references.set(key, [...(references.get(key) ?? []), relative(process.cwd(), file)]);
+      references.set(key, [
+        ...(references.get(key) ?? []),
+        relative(process.cwd(), file),
+      ]);
     }
   }
 }
@@ -50,7 +56,10 @@ describe("runtime message keys", () => {
     ["nb", nb],
   ])("resolves every referenced key in %s", (_locale, messages) => {
     const missing = [...references.entries()]
-      .filter(([key]) => typeof resolve(messages as Record<string, unknown>, key) !== "string")
+      .filter(
+        ([key]) =>
+          typeof resolve(messages as Record<string, unknown>, key) !== "string",
+      )
       .map(([key, files]) => `${key} (${files.join(", ")})`);
 
     expect(missing).toEqual([]);

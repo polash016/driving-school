@@ -41,7 +41,12 @@ export async function examReadiness(
     select: { topicDistribution: true },
   });
   if (!blueprint) {
-    return { ready: false, required: licenseClass.questionCount, available: 0, shortfall: [] };
+    return {
+      ready: false,
+      required: licenseClass.questionCount,
+      available: 0,
+      shortfall: [],
+    };
   }
 
   const distribution = distributionSchema.parse(blueprint.topicDistribution);
@@ -55,7 +60,8 @@ export async function examReadiness(
   const byId = new Map(topics.map((topic) => [topic.id, topic]));
   const rootSlugOf = (topicId: string): string => {
     let node = byId.get(topicId);
-    while (node?.parentId && byId.has(node.parentId)) node = byId.get(node.parentId);
+    while (node?.parentId && byId.has(node.parentId))
+      node = byId.get(node.parentId);
     return node?.slug ?? "unknown";
   };
 
@@ -90,13 +96,20 @@ export async function examReadiness(
   }
 
   const shortfall = Object.entries(distribution)
-    .map(([topicSlug, need]) => ({ topicSlug, need, have: have.get(topicSlug) ?? 0 }))
+    .map(([topicSlug, need]) => ({
+      topicSlug,
+      need,
+      have: have.get(topicSlug) ?? 0,
+    }))
     .filter((row) => row.have < row.need)
     .sort((a, b) => b.need - b.have - (a.need - a.have));
 
   return {
     ready: shortfall.length === 0,
-    required: Object.values(distribution).reduce((sum, count) => sum + count, 0),
+    required: Object.values(distribution).reduce(
+      (sum, count) => sum + count,
+      0,
+    ),
     available: [...have.values()].reduce((sum, count) => sum + count, 0),
     shortfall,
   };

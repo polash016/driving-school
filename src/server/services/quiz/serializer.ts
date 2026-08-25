@@ -54,7 +54,10 @@ export function buildClientQuestion(
   // Translation is an OVERLAY: keys and their order come from the authored side, always, and a
   // translation contributes text and nothing else. A translated question missing an option would
   // otherwise have thrown here — which, in a live exam, means a 500 mid-attempt.
-  const localized = mergeQuestion(authored, row.translation as UnitPayload | undefined);
+  const localized = mergeQuestion(
+    authored,
+    row.translation as UnitPayload | undefined,
+  );
   const textByKey = new Map(localized.options.map((o) => [o.key, o.text]));
 
   const options = row.optionOrder.map((key) => {

@@ -12,7 +12,12 @@ describe("reciprocal rank fusion", () => {
       ["c", "d", "a"],
     ]);
     // "a" is 1st and 3rd; "c" is 3rd and 1st — both beat single-leg hits.
-    expect(fused.slice(0, 2).map((row) => row.id).sort()).toEqual(["a", "c"]);
+    expect(
+      fused
+        .slice(0, 2)
+        .map((row) => row.id)
+        .sort(),
+    ).toEqual(["a", "c"]);
     expect(fused.find((row) => row.id === "d")!.score).toBeLessThan(
       fused.find((row) => row.id === "a")!.score,
     );
@@ -26,8 +31,17 @@ describe("reciprocal rank fusion", () => {
 
   it("is indifferent to the legs' own score scales", () => {
     // Only ranks matter — a leg that returns huge cosine values cannot swamp the other.
-    const a = fuseRankings([["p", "q"], ["q", "p"]]);
-    const b = fuseRankings([["p", "q"], ["q", "p"]], 60);
+    const a = fuseRankings([
+      ["p", "q"],
+      ["q", "p"],
+    ]);
+    const b = fuseRankings(
+      [
+        ["p", "q"],
+        ["q", "p"],
+      ],
+      60,
+    );
     expect(a.map((r) => r.id)).toEqual(b.map((r) => r.id));
   });
 

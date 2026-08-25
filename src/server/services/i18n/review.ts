@@ -59,13 +59,19 @@ export interface ReviewQueueItem {
 export async function reviewQueue(
   db: PrismaClient,
   locale: string,
-  options: { entity?: TranslatableEntity; limit?: number; onlyFlagged?: boolean } = {},
+  options: {
+    entity?: TranslatableEntity;
+    limit?: number;
+    onlyFlagged?: boolean;
+  } = {},
 ): Promise<ReviewQueueItem[]> {
   const rows = await db.translation.findMany({
     where: {
       locale,
       ...(options.entity ? { entity: options.entity } : {}),
-      status: options.onlyFlagged ? "NEEDS_REVIEW" : { in: ["MACHINE", "NEEDS_REVIEW"] },
+      status: options.onlyFlagged
+        ? "NEEDS_REVIEW"
+        : { in: ["MACHINE", "NEEDS_REVIEW"] },
     },
     orderBy: [{ semanticScore: "asc" }, { createdAt: "asc" }],
     take: options.limit ?? 50,
@@ -114,14 +120,19 @@ export async function sourceFor(
         where: { id: entityId },
         select: { content: true },
       });
-      return ((item?.content as { en?: unknown } | null)?.en as UnitPayload) ?? null;
+      return (
+        ((item?.content as { en?: unknown } | null)?.en as UnitPayload) ?? null
+      );
     }
     case "ITEM_VARIANT": {
       const variant = await db.itemVariant.findUnique({
         where: { id: entityId },
         select: { content: true },
       });
-      return ((variant?.content as { en?: unknown } | null)?.en as UnitPayload) ?? null;
+      return (
+        ((variant?.content as { en?: unknown } | null)?.en as UnitPayload) ??
+        null
+      );
     }
     case "TOPIC": {
       const topic = await db.topic.findUnique({
@@ -178,7 +189,13 @@ export async function reviewTranslation(
   const input = reviewInputSchema.parse(rawInput);
   const row = await db.translation.findUnique({
     where: { id: input.id },
-    select: { id: true, locale: true, entity: true, entityId: true, qaFlags: true },
+    select: {
+      id: true,
+      locale: true,
+      entity: true,
+      entityId: true,
+      qaFlags: true,
+    },
   });
   if (!row) throw new NotFoundError({ id: input.id });
 
@@ -190,7 +207,13 @@ export async function reviewTranslation(
       reviewedAt: new Date(),
       reviewNote: input.note?.trim() || null,
     },
-    select: { id: true, status: true, locale: true, entity: true, entityId: true },
+    select: {
+      id: true,
+      status: true,
+      locale: true,
+      entity: true,
+      entityId: true,
+    },
   });
 
   // An approved question translation is what the student is actually served, so push it out to
@@ -203,10 +226,16 @@ export async function reviewTranslation(
   await auditLog({
     actorId: actor.id,
     action:
-      input.action === "APPROVE" ? AUDIT.translationApproved : AUDIT.translationRejected,
+      input.action === "APPROVE"
+        ? AUDIT.translationApproved
+        : AUDIT.translationRejected,
     entityType: "Translation",
     entityId: updated.id,
-    meta: { locale: updated.locale, entity: updated.entity, qaFlags: row.qaFlags },
+    meta: {
+      locale: updated.locale,
+      entity: updated.entity,
+      qaFlags: row.qaFlags,
+    },
   });
   return updated;
 }
@@ -225,7 +254,13 @@ export async function editTranslation(
   const input = editTranslationInputSchema.parse(rawInput);
   const row = await db.translation.findUnique({
     where: { id: input.id },
-    select: { id: true, locale: true, entity: true, entityId: true, sourceHash: true },
+    select: {
+      id: true,
+      locale: true,
+      entity: true,
+      entityId: true,
+      sourceHash: true,
+    },
   });
   if (!row) throw new NotFoundError({ id: input.id });
 
@@ -234,12 +269,12 @@ export async function editTranslation(
 
   const correctOptionKey =
     row.entity === "MASTER_ITEM"
-      ? (
+      ? ((
           await db.masterItem.findUnique({
             where: { id: row.entityId },
             select: { correctOptionKey: true },
           })
-        )?.correctOptionKey ?? undefined
+        )?.correctOptionKey ?? undefined)
       : undefined;
 
   const check = checkTranslation({
@@ -323,7 +358,9 @@ export async function translationsAcrossLanguages(
       status: true,
       qaFlags: true,
       semanticScore: true,
-      language: { select: { nativeName: true, englishName: true, direction: true } },
+      language: {
+        select: { nativeName: true, englishName: true, direction: true },
+      },
     },
     orderBy: { locale: "asc" },
   });

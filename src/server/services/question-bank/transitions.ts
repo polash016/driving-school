@@ -51,7 +51,10 @@ export function canTransition(from: ItemStatus, to: ItemStatus): boolean {
  * one reviewer who is not the author; AI drafts need however many the school's policy says
  * (default two).
  */
-export function requiredApprovals(provenance: Provenance, aiApprovalsRequired = 2): number {
+export function requiredApprovals(
+  provenance: Provenance,
+  aiApprovalsRequired = 2,
+): number {
   return provenance === "AI" ? aiApprovalsRequired : 1;
 }
 
@@ -90,10 +93,16 @@ export async function transitionItem(
       batchId: true,
       modelVersion: true,
       promptVersion: true,
+      // Part of the duplicate fingerprint: image and sign questions share a boilerplate stem and
+      // are told apart by the picture they are asked about.
+      sourceImageId: true,
     },
   });
   if (!item) {
-    throw new ConflictError({ itemId: input.id }, "admin.questions.errors.notFound");
+    throw new ConflictError(
+      { itemId: input.id },
+      "admin.questions.errors.notFound",
+    );
   }
   if (item.status === input.to) {
     throw new ConflictError(
@@ -173,7 +182,10 @@ export async function transitionItem(
       where: { masterItemId: item.id, itemVersion: item.version },
     });
     const policy = await getSecurityPolicy(db);
-    const required = requiredApprovals(item.createdBy, policy.aiApprovalsRequired);
+    const required = requiredApprovals(
+      item.createdBy,
+      policy.aiApprovalsRequired,
+    );
 
     if (approvals < required) {
       // Recorded, and that is a success for this reviewer — the question simply stays in review
@@ -227,7 +239,10 @@ export async function transitionItem(
   // A refusal is a teaching example: file it so the next generation run is shown what not to
   // write, along with the reviewer's own words when they left any (spec-05 amendment).
   if (input.to === "RETIRED" && reason) {
-    const content = item.content as { en?: { stem?: string }; nb?: { stem?: string } };
+    const content = item.content as {
+      en?: { stem?: string };
+      nb?: { stem?: string };
+    };
     await recordRejection(db, {
       source: "REVIEWER",
       stemEn: content?.en?.stem ?? "",
@@ -257,7 +272,13 @@ export async function transitionItem(
     },
   });
 
-  return { id: item.id, from: item.status, to: input.to, applied: true, ...result };
+  return {
+    id: item.id,
+    from: item.status,
+    to: input.to,
+    applied: true,
+    ...result,
+  };
 }
 
 /**
@@ -303,7 +324,10 @@ export async function bulkAction(
     try {
       if (input.action === "RETAG") {
         if (!input.topicId) {
-          throw new ValidationError({ itemId }, "admin.questions.errors.topicRequired");
+          throw new ValidationError(
+            { itemId },
+            "admin.questions.errors.topicRequired",
+          );
         }
         await db.masterItem.update({
           where: { id: itemId },
@@ -315,7 +339,12 @@ export async function bulkAction(
       }
 
       if (input.action === "RETIRE") {
-        await transitionItem(db, actor, { id: itemId, to: "RETIRED", reason: "OTHER" }, options);
+        await transitionItem(
+          db,
+          actor,
+          { id: itemId, to: "RETIRED", reason: "OTHER" },
+          options,
+        );
         outcomes.push({ itemId, outcome: "retired" });
         continue;
       }
@@ -326,17 +355,28 @@ export async function bulkAction(
         where: { id: itemId, deletedAt: null },
         select: { status: true },
       });
-      if (!current) throw new ConflictError({ itemId }, "admin.questions.errors.notFound");
+      if (!current)
+        throw new ConflictError({ itemId }, "admin.questions.errors.notFound");
       if (current.status === "APPROVED") {
         // Someone else got there first. That is the desired end state, not a failure to report.
         outcomes.push({ itemId, outcome: "approved" });
         continue;
       }
       if (current.status === "DRAFT" || current.status === "NEEDS_REVIEW") {
-        await transitionItem(db, actor, { id: itemId, to: "IN_REVIEW" }, options);
+        await transitionItem(
+          db,
+          actor,
+          { id: itemId, to: "IN_REVIEW" },
+          options,
+        );
       }
 
-      const result = await transitionItem(db, actor, { id: itemId, to: "APPROVED" }, options);
+      const result = await transitionItem(
+        db,
+        actor,
+        { id: itemId, to: "APPROVED" },
+        options,
+      );
       outcomes.push({
         itemId,
         outcome: result.applied ? "approved" : "awaitingApproval",
@@ -363,7 +403,9 @@ export async function bulkAction(
       action: input.action,
       requested: input.ids.length,
       approved: outcomes.filter((row) => row.outcome === "approved").length,
-      awaitingApproval: outcomes.filter((row) => row.outcome === "awaitingApproval").length,
+      awaitingApproval: outcomes.filter(
+        (row) => row.outcome === "awaitingApproval",
+      ).length,
       failed: outcomes.filter((row) => row.outcome === "failed").length,
     },
   });

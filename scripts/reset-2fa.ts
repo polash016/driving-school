@@ -9,7 +9,9 @@
  */
 import { PrismaClient } from "@prisma/client";
 
-(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(".env");
+(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(
+  ".env",
+);
 
 const db = new PrismaClient();
 
@@ -41,7 +43,9 @@ async function main(): Promise<void> {
     },
   });
 
-  console.log(`Cleared two-factor for ${email} (${revoked.count} session(s) revoked).`);
+  console.log(
+    `Cleared two-factor for ${email} (${revoked.count} session(s) revoked).`,
+  );
   console.log(
     user.role === "ADMIN"
       ? "Enrolment is forced at the next login."

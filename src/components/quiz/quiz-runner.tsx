@@ -39,11 +39,16 @@ export function QuizRunner({
     Object.fromEntries(
       attempt.questions
         .filter((question) => question.answeredOptionKey)
-        .map((question) => [question.position, question.answeredOptionKey as string]),
+        .map((question) => [
+          question.position,
+          question.answeredOptionKey as string,
+        ]),
     ),
   );
   const [index, setIndex] = useState(() => {
-    const firstUnanswered = attempt.questions.findIndex((q) => !q.answeredOptionKey);
+    const firstUnanswered = attempt.questions.findIndex(
+      (q) => !q.answeredOptionKey,
+    );
     return firstUnanswered === -1 ? 0 : firstUnanswered;
   });
   // Per question, because the student can navigate back to any answered one.
@@ -95,7 +100,15 @@ export function QuizRunner({
     return () => {
       cancelled = true;
     };
-  }, [index, isPractice, attempt.id, attempt.questions, answers, reveals, locale]);
+  }, [
+    index,
+    isPractice,
+    attempt.id,
+    attempt.questions,
+    answers,
+    reveals,
+    locale,
+  ]);
 
   const clock = useMemo(() => {
     if (remaining === null) return null;
@@ -145,16 +158,28 @@ export function QuizRunner({
     // navigator to the bottom with `mt-auto`: pretty when the content is short, but once a
     // practice explanation appears on a 390px screen the children overlapped and the buttons
     // underneath stopped being tappable. A reachable control beats a tidy one.
-    <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 py-6">
+    //
+    // `shrink-0` is the rest of that fix. This column is itself a flex child of `main.flex-1`, so
+    // flexbox will compress it to the viewport once the content is taller — and because it cannot
+    // actually give the space back, the question card overflows its shrunken box and paints over
+    // the navigator and the Next button beneath it. On a 390px screen with an image question and a
+    // revealed explanation that is the normal case, not an edge one, and it makes the primary
+    // control genuinely untappable rather than merely awkward.
+    <div className="mx-auto flex w-full max-w-md shrink-0 flex-col gap-4 px-4 py-6">
       <header className="flex items-center justify-between gap-3">
         <p className="text-sm font-medium text-muted-foreground">
-          {t("progress", { current: index + 1, total: attempt.questions.length })}
+          {t("progress", {
+            current: index + 1,
+            total: attempt.questions.length,
+          })}
         </p>
         {clock ? (
           <p
             className={cn(
               "font-mono text-sm font-semibold",
-              remaining !== null && remaining < 600 ? "text-[var(--status-warning)]" : "text-foreground",
+              remaining !== null && remaining < 600
+                ? "text-[var(--status-warning)]"
+                : "text-foreground",
             )}
             aria-label={t("timeRemaining")}
           >
@@ -172,12 +197,17 @@ export function QuizRunner({
       >
         <div
           className="h-full rounded-full bg-primary transition-[width] duration-300"
-          style={{ width: `${(answeredCount / attempt.questions.length) * 100}%` }}
+          style={{
+            width: `${(answeredCount / attempt.questions.length) * 100}%`,
+          }}
         />
       </div>
 
       {error ? (
-        <p role="alert" className="rounded-[var(--radius-control)] bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p
+          role="alert"
+          className="rounded-[var(--radius-control)] bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
           {error}
         </p>
       ) : null}
@@ -187,6 +217,7 @@ export function QuizRunner({
         options={question.options}
         selectedKey={answers[question.position] ?? null}
         imageUrl={question.imageUrl}
+        imageAlt={t("imageAlt")}
         reveal={reveal}
         onSelect={choose}
         disabled={pending || locked}
@@ -198,7 +229,10 @@ export function QuizRunner({
         </p>
       ) : null}
 
-      <nav aria-label={t("questionNavigator")} className="flex flex-wrap gap-1.5 pt-2">
+      <nav
+        aria-label={t("questionNavigator")}
+        className="flex flex-wrap gap-1.5 pt-2"
+      >
         {attempt.questions.map((item, position) => (
           <button
             key={item.position}
@@ -229,22 +263,33 @@ export function QuizRunner({
         </Button>
 
         {index < attempt.questions.length - 1 ? (
-          <Button type="button" size="lg" className="flex-1" onClick={() => go(index + 1)}>
+          <Button
+            type="button"
+            size="lg"
+            className="flex-1"
+            onClick={() => go(index + 1)}
+          >
             {t("next")}
           </Button>
         ) : (
           <form action={submitAction} className="flex-1">
             <input type="hidden" name="attemptId" value={attempt.id} />
             <input type="hidden" name="locale" value={locale} />
-            <Button type="submit" size="lg" className="w-full" disabled={pending}>
-              {allAnswered ? t("submit") : t("submitIncomplete", {
-                unanswered: attempt.questions.length - answeredCount,
-              })}
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              disabled={pending}
+            >
+              {allAnswered
+                ? t("submit")
+                : t("submitIncomplete", {
+                    unanswered: attempt.questions.length - answeredCount,
+                  })}
             </Button>
           </form>
         )}
       </div>
-
     </div>
   );
 }

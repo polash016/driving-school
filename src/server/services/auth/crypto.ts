@@ -23,7 +23,13 @@ const IV_BYTES = 12;
 
 function encryptionKey(): Buffer {
   return Buffer.from(
-    hkdfSync("sha256", env().AUTH_SECRET, "teoripro-auth-salt", ENCRYPTION_INFO, 32),
+    hkdfSync(
+      "sha256",
+      env().AUTH_SECRET,
+      "teoripro-auth-salt",
+      ENCRYPTION_INFO,
+      32,
+    ),
   );
 }
 

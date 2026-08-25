@@ -3,6 +3,7 @@
 **Import, don't reinvent:** Sign registry table + `contracts/models.ts` signSchema (seeded in spec-05), `kb.search` for "related rules with citations", quiz engine SIGN mode for "Quiz me on this group", feature flags from school.config.
 
 **Key decisions already made**
+
 - Signs catalog: group by `SignClass`, bilingual search over `name` Json (Postgres `ILIKE` on both locales is fine at registry scale — no index gymnastics needed), sign detail = SVG + meaning + related rules (`kb.search(sign name, limit 3)` cached per sign).
 - Road-markings catalog mirrors the sign pattern (add markings to the sign manifest with their own SignClass MARKERING — table already supports it).
 - Curriculum articles: DB-backed bilingual MDX-lite (store markdown per locale in a `CurriculumArticle` table — new small migration: slug unique, topicId, title Json, body Json, updatedById). Instructor-editable (spec-11 nav links to editor). Wrong-answer "Read more" links by topic slug.

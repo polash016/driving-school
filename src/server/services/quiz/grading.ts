@@ -31,7 +31,9 @@ export function gradeAttempt(
 ): GradeResult {
   const perQuestion = questions.map((q) => ({
     position: q.position,
-    correct: q.answeredOptionKey !== null && q.answeredOptionKey === q.correctOptionKey,
+    correct:
+      q.answeredOptionKey !== null &&
+      q.answeredOptionKey === q.correctOptionKey,
   }));
 
   const byTopic = new Map<string, TopicResult>();

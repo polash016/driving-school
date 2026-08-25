@@ -2,7 +2,10 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { createHash } from "node:crypto";
 import { logger } from "@/lib/logger";
 import { aiEmbed } from "@/server/ai/client";
-import { kbSearchInputSchema, kbSearchResultSchema } from "@/server/contracts/kb";
+import {
+  kbSearchInputSchema,
+  kbSearchResultSchema,
+} from "@/server/contracts/kb";
 import { cacheGet, cacheSet, keys } from "@/server/redis";
 
 /**
@@ -35,7 +38,10 @@ interface LegRow {
  * few queries constantly. Cached by query hash, invalidated only by expiry.
  */
 async function embedQuery(query: string): Promise<number[] | null> {
-  const hash = createHash("sha256").update(query.toLowerCase().trim()).digest("hex").slice(0, 32);
+  const hash = createHash("sha256")
+    .update(query.toLowerCase().trim())
+    .digest("hex")
+    .slice(0, 32);
   const cacheKey = keys.kbQueryEmbedding(hash);
 
   const cached = await cacheGet<number[]>(cacheKey);
@@ -104,7 +110,10 @@ export async function search(db: PrismaClient, rawInput: unknown) {
 }
 
 /** Pure fusion, exposed so the ranking rule can be tested without a database or an API key. */
-export function fuseRankings(legs: string[][], k = RRF_K): Array<{ id: string; score: number }> {
+export function fuseRankings(
+  legs: string[][],
+  k = RRF_K,
+): Array<{ id: string; score: number }> {
   const scores = new Map<string, number>();
   for (const leg of legs) {
     leg.forEach((id, rank) => {

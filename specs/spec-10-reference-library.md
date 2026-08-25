@@ -1,6 +1,7 @@
 # Spec 10 — Reference Library & Utilities
 
 ## In scope
+
 - Signs catalog: all signs from registry grouped by class, search (bilingual names), sign detail (SVG, meaning, related rules with citations), "Quiz me on this group" → Spec-07 sign mode.
 - Road-markings catalog: same pattern.
 - Curriculum articles: MDX or DB-backed bilingual pages per topic, editable by instructor, linked from wrong-answer "Read more".
@@ -8,6 +9,7 @@
 - Free public demo quiz (no auth): N questions from a demo pool, results teaser + school contact CTA; rate-limited per IP; noindex on result pages.
 
 ## Acceptance checklist
+
 - [ ] Every registry sign reachable via search in both languages.
 - [ ] Trailer calculator: 15+ unit-test cases incl. boundary weights, matches B/B96/BE rules.
 - [ ] Demo quiz works logged-out, cannot touch real student pool stats.

@@ -49,7 +49,9 @@ export const DEFAULT_SECURITY_POLICY: SecurityPolicy = {
   aiApprovalsRequired: 2,
 };
 
-export async function getSecurityPolicy(db: PrismaClient): Promise<SecurityPolicy> {
+export async function getSecurityPolicy(
+  db: PrismaClient,
+): Promise<SecurityPolicy> {
   const row = await db.setting.findUnique({
     where: { key: SETTING_KEY },
     select: { value: true },
@@ -60,7 +62,11 @@ export async function getSecurityPolicy(db: PrismaClient): Promise<SecurityPolic
     const parsed = securityPolicySchema.safeParse(row.value);
     // A corrupt setting must not silently weaken security — fall back to the strict default.
     if (parsed.success) policy = parsed.data;
-    else logger.error({ value: row.value }, "security policy unreadable — using strict default");
+    else
+      logger.error(
+        { value: row.value },
+        "security policy unreadable — using strict default",
+      );
   }
 
   return policy;
@@ -91,7 +97,10 @@ export async function setSecurityPolicy(
     meta: { from: previous, to: policy },
   });
   if (previous.adminTwoFactorRequired && !policy.adminTwoFactorRequired) {
-    logger.warn({ actorId: actor.id }, "admin two-factor requirement turned OFF");
+    logger.warn(
+      { actorId: actor.id },
+      "admin two-factor requirement turned OFF",
+    );
   }
   return policy;
 }

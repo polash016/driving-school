@@ -26,7 +26,14 @@ export const translateUnitsPrompt: PromptTemplate<{
 }> = {
   id: "translation.units",
   version: "1.0.0",
-  render: ({ targetLanguage, targetCode, styleNote, glossaryBlock, rejectedBlock, unitsJson }) =>
+  render: ({
+    targetLanguage,
+    targetCode,
+    styleNote,
+    glossaryBlock,
+    rejectedBlock,
+    unitsJson,
+  }) =>
     [
       `You are translating a Norwegian driving-theory examination into ${targetLanguage} (${targetCode}).`,
       "A student's result decides whether they may sit the official test, so a translation that shifts the meaning of a question is a legal problem, not a style problem.",
@@ -41,7 +48,7 @@ export const translateUnitsPrompt: PromptTemplate<{
       "7. The option named as correct must remain the ONLY defensible answer, and every other option must stay clearly wrong.",
       "8. Write for a learner driver: second person, plain, the same reading level as the source. Do not explain more than the source explains.",
       "",
-      "IF YOU CANNOT TRANSLATE FAITHFULLY, SAY SO. If a faithful translation would make two options mean the same thing, or would make a wrong option arguably correct, do NOT paraphrase your way around it — return that item with `\"issue\"` set to a short explanation and leave its text as best you can. A flagged item goes to a human; a quietly fudged one goes to a student.",
+      'IF YOU CANNOT TRANSLATE FAITHFULLY, SAY SO. If a faithful translation would make two options mean the same thing, or would make a wrong option arguably correct, do NOT paraphrase your way around it — return that item with `"issue"` set to a short explanation and leave its text as best you can. A flagged item goes to a human; a quietly fudged one goes to a student.',
       "",
       styleNote,
       glossaryBlock,
@@ -97,7 +104,22 @@ export const backTranslatePrompt: PromptTemplate<{
       "Preserve every key, including option keys, exactly.",
       "",
       "Return exactly this shape:",
-      JSON.stringify({ units: [{ id: "…", value: { stem: "…", options: [{ key: "a", text: "…" }], explanation: "…" } }] }, null, 2),
+      JSON.stringify(
+        {
+          units: [
+            {
+              id: "…",
+              value: {
+                stem: "…",
+                options: [{ key: "a", text: "…" }],
+                explanation: "…",
+              },
+            },
+          ],
+        },
+        null,
+        2,
+      ),
       "",
       "ITEMS:",
       unitsJson,
@@ -105,9 +127,12 @@ export const backTranslatePrompt: PromptTemplate<{
 };
 
 /** Renders the termbase into a prompt block. Empty when a language has no glossary yet. */
-export function glossaryBlock(glossary: Record<string, string> | null | undefined): string {
+export function glossaryBlock(
+  glossary: Record<string, string> | null | undefined,
+): string {
   const entries = Object.entries(glossary ?? {}).filter(
-    ([source, value]) => source.trim() && typeof value === "string" && value.trim(),
+    ([source, value]) =>
+      source.trim() && typeof value === "string" && value.trim(),
   );
   if (entries.length === 0) return "";
   return [
@@ -135,7 +160,9 @@ export function rejectedBlock(
       .map(
         (rejection, index) =>
           `${index + 1}. "${rejection.excerpt.slice(0, 160)}"${
-            rejection.note ? ` — reviewer: "${rejection.note.slice(0, 200)}"` : ""
+            rejection.note
+              ? ` — reviewer: "${rejection.note.slice(0, 200)}"`
+              : ""
           }`,
       ),
   ].join("\n");

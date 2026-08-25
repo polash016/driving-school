@@ -16,7 +16,11 @@ const d = describe.skipIf(!enabled);
 
 const RUN = randomBytes(3).toString("hex");
 const CODE = `zx-${RUN}`.slice(0, 8);
-const actor: SessionUser = { id: "", role: "ADMIN", email: `lang-${RUN}@example.no` };
+const actor: SessionUser = {
+  id: "",
+  role: "ADMIN",
+  email: `lang-${RUN}@example.no`,
+};
 
 beforeAll(async () => {
   if (!enabled) return;
@@ -59,7 +63,12 @@ d("adding a language", () => {
 
     const row = await db.language.findUniqueOrThrow({
       where: { code: CODE },
-      select: { urlPrefix: true, shortLabel: true, studentVisible: true, direction: true },
+      select: {
+        urlPrefix: true,
+        shortLabel: true,
+        studentVisible: true,
+        direction: true,
+      },
     });
     // The prefix map is compiled into the client bundle, so a custom prefix would make <Link>
     // and the proxy disagree — a redirect loop rather than an error message.
@@ -111,7 +120,9 @@ d("the coverage gate", () => {
     expect(coverage.ready).toBe(0);
     expect(coverage.percent).toBe(0);
     expect(coverage.complete).toBe(false);
-    expect(coverage.byEntity.some((entry) => entry.entity === "UI_MESSAGE")).toBe(true);
+    expect(
+      coverage.byEntity.some((entry) => entry.entity === "UI_MESSAGE"),
+    ).toBe(true);
   });
 
   it("refuses to show an unfinished language to students", async () => {
@@ -162,7 +173,9 @@ d("the coverage gate", () => {
       where: { code: CODE },
       select: { glossaryVersion: true },
     });
-    const units = await extractAll(db, { glossaryVersion: language.glossaryVersion });
+    const units = await extractAll(db, {
+      glossaryVersion: language.glossaryVersion,
+    });
     const unit = units.find((candidate) => candidate.entityId === topic.id);
     expect(unit).toBeDefined();
 
@@ -202,7 +215,9 @@ d("the coverage gate", () => {
       where: { code: CODE },
       select: { glossaryVersion: true },
     });
-    const units = await extractAll(db, { glossaryVersion: language.glossaryVersion });
+    const units = await extractAll(db, {
+      glossaryVersion: language.glossaryVersion,
+    });
     const unit = units.find((candidate) => candidate.entityId === topic.id)!;
 
     const row = await db.translation.create({

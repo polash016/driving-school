@@ -1,6 +1,10 @@
 import type { PrismaClient } from "@prisma/client";
 import { logger } from "@/lib/logger";
-import { BASE_MESSAGES, BUILTIN_MESSAGES, type MessageCatalogue } from "@/i18n/builtin";
+import {
+  BASE_MESSAGES,
+  BUILTIN_MESSAGES,
+  type MessageCatalogue,
+} from "@/i18n/builtin";
 import { isBuiltinLocale } from "@/lib/locale";
 import { cacheDel, cacheGet, cacheSet, keys } from "@/server/redis";
 
@@ -34,13 +38,18 @@ export function mergeMessages(base: Messages, overlay: Messages): Messages {
   for (const [key, value] of Object.entries(overlay)) {
     const existing = out[key];
     out[key] =
-      isPlainObject(existing) && isPlainObject(value) ? mergeMessages(existing, value) : value;
+      isPlainObject(existing) && isPlainObject(value)
+        ? mergeMessages(existing, value)
+        : value;
   }
   return out;
 }
 
 /** Turn `{a: {b: "x"}}` into `{"a.b": "x"}` — the shape translations are keyed by. */
-export function flattenMessages(messages: Messages, prefix = ""): Record<string, string> {
+export function flattenMessages(
+  messages: Messages,
+  prefix = "",
+): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(messages)) {
     const path = prefix ? `${prefix}.${key}` : key;
@@ -109,16 +118,23 @@ export async function getMessages(
     const flat: Record<string, string> = {};
     for (const row of rows) {
       const text = (row.value as { text?: unknown } | null)?.text;
-      if (typeof text === "string" && text.length > 0) flat[row.entityId] = text;
+      if (typeof text === "string" && text.length > 0)
+        flat[row.entityId] = text;
     }
 
     // English underneath, so the result has every key by construction — see the note above.
-    const merged = mergeMessages(BASE_MESSAGES as Messages, expandMessages(flat)) as MessageCatalogue;
+    const merged = mergeMessages(
+      BASE_MESSAGES as Messages,
+      expandMessages(flat),
+    ) as MessageCatalogue;
     await cacheSet(keys.i18nMessages(locale), merged, CACHE_TTL_SEC);
     return merged;
   } catch (error) {
     // English is always a correct answer here. A broken catalogue must not break the page.
-    logger.error({ error, locale }, "message catalogue unreadable — serving English");
+    logger.error(
+      { error, locale },
+      "message catalogue unreadable — serving English",
+    );
     return BASE_MESSAGES;
   }
 }

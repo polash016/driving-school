@@ -31,7 +31,9 @@ const explanation = {
   citations: [{ sourceCode: "trafikkreglene", ref: "§ 7" }],
 };
 
-function servedRow(overrides: Partial<ServedQuestionRow> = {}): ServedQuestionRow {
+function servedRow(
+  overrides: Partial<ServedQuestionRow> = {},
+): ServedQuestionRow {
   return {
     position: 1,
     optionOrder: ["c", "a", "b"],
@@ -73,7 +75,11 @@ describe("anti-leak serializer (SECURITY INVARIANT)", () => {
       timeRemainingSec: null,
       questions: [servedRow()],
     });
-    expect(attempt.questions[0].options.map((o) => o.key)).toEqual(["c", "a", "b"]);
+    expect(attempt.questions[0].options.map((o) => o.key)).toEqual([
+      "c",
+      "a",
+      "b",
+    ]);
     expect(attempt.questions[0].options[0].text).toBe("Forkjørsrett");
     expect(attempt.questions[0].stem).toBe("Hva gjelder ved skiltet?");
   });
@@ -98,9 +104,8 @@ describe("anti-leak serializer (SECURITY INVARIANT)", () => {
   });
 
   it("the .strict() contracts themselves reject any extra field (guards future serializer refactors)", async () => {
-    const { clientQuestionSchema, clientAttemptSchema } = await import(
-      "@/server/contracts/quiz"
-    );
+    const { clientQuestionSchema, clientAttemptSchema } =
+      await import("@/server/contracts/quiz");
     const validQuestion = {
       position: 1,
       type: "TEXT",

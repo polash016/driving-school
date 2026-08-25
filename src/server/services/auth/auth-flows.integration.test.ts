@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { AuthError, ConflictError, TotpSetupRequiredError, ValidationError } from "@/lib/errors";
+import {
+  AuthError,
+  ConflictError,
+  TotpSetupRequiredError,
+  ValidationError,
+} from "@/lib/errors";
 import { db } from "@/server/db";
 import { keys, redis } from "@/server/redis";
 import { capturedMail, clearCapturedMail } from "@/server/email/mailer";
@@ -15,8 +20,17 @@ import { hashPassword } from "./password";
 import { encryptSecret } from "./crypto";
 import { importStudentsCsv } from "./csv-import";
 import { resendVerification, verifyEmail } from "./email-verification";
-import { consumeInvite, createInvite, previewInvite, revokeInvite } from "./invites";
-import { changePassword, requestPasswordReset, resetPassword } from "./password-reset";
+import {
+  consumeInvite,
+  createInvite,
+  previewInvite,
+  revokeInvite,
+} from "./invites";
+import {
+  changePassword,
+  requestPasswordReset,
+  resetPassword,
+} from "./password-reset";
 import { registerViaInvite } from "./registration";
 import { isSessionValid, listSessions, revokeSession } from "./sessions";
 import { currentTotpCode, generateTotpSecret } from "./totp";
@@ -61,7 +75,10 @@ async function makeAdmin(): Promise<string> {
   return user.id;
 }
 
-async function tokenFor(userId: string, type: "EMAIL_VERIFY" | "PASSWORD_RESET") {
+async function tokenFor(
+  userId: string,
+  type: "EMAIL_VERIFY" | "PASSWORD_RESET",
+) {
   return db.authToken.findFirst({
     where: { userId, type, consumedAt: null },
     orderBy: { createdAt: "desc" },
@@ -105,7 +122,12 @@ d("invites", () => {
   it("previews a bound invite without leaking counts or ids", async () => {
     adminId ??= await makeAdmin();
     const bound = email("bound");
-    const invite = await createInvite(db, adminId, { role: "STUDENT" }, { email: bound });
+    const invite = await createInvite(
+      db,
+      adminId,
+      { role: "STUDENT" },
+      { email: bound },
+    );
 
     expect(await previewInvite(db, invite.token)).toEqual({
       valid: true,
@@ -121,7 +143,10 @@ d("invites", () => {
 
   it("lets exactly one of two concurrent registrations claim a single-use invite", async () => {
     adminId ??= await makeAdmin();
-    const invite = await createInvite(db, adminId, { role: "STUDENT", maxUses: 1 });
+    const invite = await createInvite(db, adminId, {
+      role: "STUDENT",
+      maxUses: 1,
+    });
 
     const results = await Promise.allSettled([
       registerViaInvite(db, {
@@ -144,7 +169,9 @@ d("invites", () => {
 
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     const rejected = results.find((r) => r.status === "rejected");
-    expect((rejected as PromiseRejectedResult).reason).toBeInstanceOf(ConflictError);
+    expect((rejected as PromiseRejectedResult).reason).toBeInstanceOf(
+      ConflictError,
+    );
 
     const row = await db.inviteLink.findUniqueOrThrow({
       where: { token: invite.token },
@@ -158,7 +185,10 @@ d("invites", () => {
 
     const revoked = await createInvite(db, adminId, { role: "STUDENT" });
     await revokeInvite(db, adminId, revoked.id);
-    const expired = await createInvite(db, adminId, { role: "STUDENT", expiresInDays: 1 });
+    const expired = await createInvite(db, adminId, {
+      role: "STUDENT",
+      expiresInDays: 1,
+    });
     const bound = await createInvite(
       db,
       adminId,
@@ -175,7 +205,13 @@ d("invites", () => {
 
     await expect(
       db.$transaction((tx) =>
-        consumeInvite(tx, db.inviteLink.fields, expired.token, email("x"), future),
+        consumeInvite(
+          tx,
+          db.inviteLink.fields,
+          expired.token,
+          email("x"),
+          future,
+        ),
       ),
     ).rejects.toMatchObject({ messageKey: "auth.errors.inviteExpired" });
 
@@ -232,10 +268,16 @@ d("registration and verification", () => {
     const [mail] = capturedMail();
     expect(mail.to).toBe(studentEmail);
     expect(mail.subject).toBe("Bekreft e-postadressen din");
-    expect(mail.text).toContain(`/no/verify-email?token=${registered.verificationToken}`);
+    expect(mail.text).toContain(
+      `/no/verify-email?token=${registered.verificationToken}`,
+    );
 
     await expect(
-      verifyCredentials(db, { email: studentEmail, password: PASSWORD }, from()),
+      verifyCredentials(
+        db,
+        { email: studentEmail, password: PASSWORD },
+        from(),
+      ),
     ).rejects.toMatchObject({ messageKey: "auth.errors.emailNotVerified" });
 
     await verifyEmail(db, registered.verificationToken);
@@ -246,9 +288,9 @@ d("registration and verification", () => {
     expect(verified.emailVerifiedAt).not.toBeNull();
 
     // Single use: the same link cannot be replayed.
-    await expect(verifyEmail(db, registered.verificationToken)).rejects.toBeInstanceOf(
-      ValidationError,
-    );
+    await expect(
+      verifyEmail(db, registered.verificationToken),
+    ).rejects.toBeInstanceOf(ValidationError);
 
     const audits = await db.auditLog.findMany({
       where: { actorId: registered.userId },
@@ -263,7 +305,10 @@ d("registration and verification", () => {
 
   it("refuses a second account for the same address", async () => {
     adminId ??= await makeAdmin();
-    const invite = await createInvite(db, adminId, { role: "STUDENT", maxUses: 5 });
+    const invite = await createInvite(db, adminId, {
+      role: "STUDENT",
+      maxUses: 5,
+    });
     const dupe = email("dupe");
     const input = {
       inviteToken: invite.token,
@@ -310,27 +355,45 @@ d("login", () => {
     );
 
     const authenticated = await consumeLoginTicket(db, ticketId);
-    expect(authenticated).toMatchObject({ id: user.id, email: user.email, role: "STUDENT" });
+    expect(authenticated).toMatchObject({
+      id: user.id,
+      email: user.email,
+      role: "STUDENT",
+    });
 
     const session = await db.userSession.findUniqueOrThrow({
       where: { id: authenticated.sessionId },
       select: { userId: true, ip: true, userAgent: true, revokedAt: true },
     });
-    expect(session).toMatchObject({ userId: user.id, ip: "203.0.113.10", revokedAt: null });
+    expect(session).toMatchObject({
+      userId: user.id,
+      ip: "203.0.113.10",
+      revokedAt: null,
+    });
     expect(await isSessionValid(db, authenticated.sessionId)).toBe(true);
 
     // The ticket is spent: a replay cannot mint a second session.
-    await expect(consumeLoginTicket(db, ticketId)).rejects.toBeInstanceOf(AuthError);
+    await expect(consumeLoginTicket(db, ticketId)).rejects.toBeInstanceOf(
+      AuthError,
+    );
   });
 
   it("gives the same generic error for a wrong password and an unknown address", async () => {
     const user = await verifiedStudent("login-wrong");
 
     await expect(
-      verifyCredentials(db, { email: user.email, password: "totally-wrong-1" }, from()),
+      verifyCredentials(
+        db,
+        { email: user.email, password: "totally-wrong-1" },
+        from(),
+      ),
     ).rejects.toMatchObject({ messageKey: "auth.errors.invalidCredentials" });
     await expect(
-      verifyCredentials(db, { email: email("nobody"), password: PASSWORD }, from()),
+      verifyCredentials(
+        db,
+        { email: email("nobody"), password: PASSWORD },
+        from(),
+      ),
     ).rejects.toMatchObject({ messageKey: "auth.errors.invalidCredentials" });
 
     const failures = await db.auditLog.findMany({
@@ -427,7 +490,9 @@ d("login", () => {
     expect(rejected.messageKey).toBe("auth.errors.totpInvalid");
     expect(await pendingTotpSetup(db, setupTicket)).toBeNull();
 
-    const retryTicket = String((rejected.meta as { ticketId: string }).ticketId);
+    const retryTicket = String(
+      (rejected.meta as { ticketId: string }).ticketId,
+    );
     const login = await completeTotpSetup(
       db,
       retryTicket,
@@ -471,14 +536,20 @@ d("sessions", () => {
       );
 
     const phone = await session("Mozilla/5.0 (Linux; Android 13; Pixel 7)");
-    const laptop = await session("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)");
+    const laptop = await session(
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)",
+    );
 
     const listed = await listSessions(db, user.id, phone.sessionId);
     expect(listed).toHaveLength(2);
     expect(listed.filter((s) => s.current)).toHaveLength(1);
     expect(listed.find((s) => s.current)?.id).toBe(phone.sessionId);
 
-    const sessionUser: SessionUser = { id: user.id, role: "STUDENT", email: user.email };
+    const sessionUser: SessionUser = {
+      id: user.id,
+      role: "STUDENT",
+      email: user.email,
+    };
     await revokeSession(db, sessionUser, laptop.sessionId);
 
     expect(await isSessionValid(db, laptop.sessionId)).toBe(false);
@@ -510,8 +581,13 @@ d("sessions", () => {
 
     const victim = await consumeLoginTicket(
       db,
-      (await verifyCredentials(db, { email: owner.email, password: PASSWORD }, from()))
-        .ticketId,
+      (
+        await verifyCredentials(
+          db,
+          { email: owner.email, password: PASSWORD },
+          from(),
+        )
+      ).ticketId,
     );
 
     await expect(
@@ -532,14 +608,21 @@ d("password reset", () => {
         email: email("reset"),
         passwordHash: await hashPassword(PASSWORD),
         emailVerifiedAt: new Date(),
-        profile: { create: { firstName: "Reset", lastName: "Me", preferredLocale: "en" } },
+        profile: {
+          create: { firstName: "Reset", lastName: "Me", preferredLocale: "en" },
+        },
       },
       select: { id: true, email: true },
     });
     const session = await consumeLoginTicket(
       db,
-      (await verifyCredentials(db, { email: user.email, password: PASSWORD }, from()))
-        .ticketId,
+      (
+        await verifyCredentials(
+          db,
+          { email: user.email, password: PASSWORD },
+          from(),
+        )
+      ).ticketId,
     );
 
     await requestPasswordReset(db, { email: user.email });
@@ -555,7 +638,11 @@ d("password reset", () => {
       verifyCredentials(db, { email: user.email, password: PASSWORD }, from()),
     ).rejects.toMatchObject({ messageKey: "auth.errors.invalidCredentials" });
     await expect(
-      verifyCredentials(db, { email: user.email, password: "nytt-passord-2026" }, from()),
+      verifyCredentials(
+        db,
+        { email: user.email, password: "nytt-passord-2026" },
+        from(),
+      ),
     ).resolves.toMatchObject({ ticketId: expect.any(String) });
     expect(await isSessionValid(db, session.sessionId)).toBe(false);
 
@@ -636,7 +723,10 @@ d("CSV import", () => {
       `${fresh};Duplicate;Row`,
     ].join("\r\n");
 
-    const result = await importStudentsCsv(db, adminId, { csv, expiresInDays: 7 });
+    const result = await importStudentsCsv(db, adminId, {
+      csv,
+      expiresInDays: 7,
+    });
 
     expect(result.invited).toBe(1);
     expect(result.skipped).toBe(3);
@@ -662,7 +752,10 @@ d("CSV import", () => {
   it("rejects a file with no email column", async () => {
     adminId ??= await makeAdmin();
     await expect(
-      importStudentsCsv(db, adminId, { csv: "name;phone\nKari;123", expiresInDays: 14 }),
+      importStudentsCsv(db, adminId, {
+        csv: "name;phone\nKari;123",
+        expiresInDays: 14,
+      }),
     ).rejects.toMatchObject({ messageKey: "admin.invites.errors.csvNoEmail" });
   });
 });

@@ -12,7 +12,9 @@ import { randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/server/services/auth/password";
 
-(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(".env");
+(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(
+  ".env",
+);
 
 const db = new PrismaClient();
 
@@ -40,7 +42,9 @@ async function main(): Promise<void> {
       role: "ADMIN",
       emailVerifiedAt: now,
       isActive: true,
-      profile: { create: { firstName: "Admin", lastName: email.split("@")[0] } },
+      profile: {
+        create: { firstName: "Admin", lastName: email.split("@")[0] },
+      },
     },
     update: {
       passwordHash,

@@ -49,7 +49,12 @@ export async function rotateKeyAction(
 ): Promise<ActionResult> {
   const user = await requireUser("ADMIN");
   try {
-    await rotateProviderKey(db, user, field(formData, "providerId"), field(formData, "apiKey"));
+    await rotateProviderKey(
+      db,
+      user,
+      field(formData, "providerId"),
+      field(formData, "apiKey"),
+    );
     revalidatePath("/admin/ai");
     return { ok: true };
   } catch (error) {

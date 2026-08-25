@@ -95,7 +95,9 @@ export async function languageCoverage(
     };
   }
 
-  const units = await extractAll(db, { glossaryVersion: language.glossaryVersion });
+  const units = await extractAll(db, {
+    glossaryVersion: language.glossaryVersion,
+  });
   const rows = await db.translation.findMany({
     where: { locale },
     select: { entity: true, entityId: true, sourceHash: true, status: true },
@@ -104,16 +106,22 @@ export async function languageCoverage(
   const servable: TranslationStatus[] = language.requiresApproval
     ? ["APPROVED"]
     : ["APPROVED", "MACHINE"];
-  const byKey = new Map(rows.map((row) => [`${row.entity}:${row.entityId}`, row]));
+  const byKey = new Map(
+    rows.map((row) => [`${row.entity}:${row.entityId}`, row]),
+  );
 
   const totals = new Map<string, CoverageRow>();
   let ready = 0;
   let flagged = 0;
 
   for (const unit of units) {
-    const entry =
-      totals.get(unit.entity) ??
-      { entity: unit.entity, total: 0, translated: 0, approved: 0, flagged: 0 };
+    const entry = totals.get(unit.entity) ?? {
+      entity: unit.entity,
+      total: 0,
+      translated: 0,
+      approved: 0,
+      flagged: 0,
+    };
     entry.total++;
 
     const current = byKey.get(`${unit.entity}:${unit.entityId}`);
@@ -138,7 +146,9 @@ export async function languageCoverage(
     ready,
     flagged,
     percent: total === 0 ? 0 : Math.floor((ready / total) * 100),
-    byEntity: [...totals.values()].sort((a, b) => a.entity.localeCompare(b.entity)),
+    byEntity: [...totals.values()].sort((a, b) =>
+      a.entity.localeCompare(b.entity),
+    ),
     complete: total > 0 && ready === total,
   };
 }
@@ -182,7 +192,10 @@ export async function createLanguage(
     select: { code: true },
   });
   if (existing) {
-    throw new ConflictError({ code: input.code }, "admin.languages.errors.alreadyExists");
+    throw new ConflictError(
+      { code: input.code },
+      "admin.languages.errors.alreadyExists",
+    );
   }
 
   const language = await db.language.create({
@@ -221,11 +234,20 @@ export async function updateLanguage(
   const input = updateLanguageInputSchema.parse(rawInput);
   const current = await db.language.findUniqueOrThrow({
     where: { code: input.code },
-    select: { code: true, isBuiltIn: true, studentVisible: true, requiresApproval: true },
+    select: {
+      code: true,
+      isBuiltIn: true,
+      studentVisible: true,
+      requiresApproval: true,
+    },
   });
 
   // Rule 2: the gate on student visibility is coverage, not intent.
-  if (input.studentVisible === true && !current.studentVisible && !current.isBuiltIn) {
+  if (
+    input.studentVisible === true &&
+    !current.studentVisible &&
+    !current.isBuiltIn
+  ) {
     const coverage = await languageCoverage(db, input.code);
     if (!coverage.complete) {
       throw new ValidationError(
@@ -241,8 +263,12 @@ export async function updateLanguage(
       ...(input.requiresApproval !== undefined
         ? { requiresApproval: input.requiresApproval }
         : {}),
-      ...(input.studentVisible !== undefined ? { studentVisible: input.studentVisible } : {}),
-      ...(input.qaSampleRate !== undefined ? { qaSampleRate: input.qaSampleRate } : {}),
+      ...(input.studentVisible !== undefined
+        ? { studentVisible: input.studentVisible }
+        : {}),
+      ...(input.qaSampleRate !== undefined
+        ? { qaSampleRate: input.qaSampleRate }
+        : {}),
       ...(input.styleNote !== undefined ? { styleNote: input.styleNote } : {}),
       ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
     },
@@ -251,7 +277,8 @@ export async function updateLanguage(
 
   await invalidateRegistry();
   // Changing the approval policy changes which strings are servable, so the catalogue is stale.
-  if (input.requiresApproval !== undefined) await invalidateMessages(input.code);
+  if (input.requiresApproval !== undefined)
+    await invalidateMessages(input.code);
 
   await auditLog({
     actorId: actor.id,

@@ -41,7 +41,10 @@ const captureTransport: MailTransport = {
 
 const logTransport: MailTransport = {
   async send(message) {
-    logger.info({ to: message.to, subject: message.subject }, "mail (log transport)");
+    logger.info(
+      { to: message.to, subject: message.subject },
+      "mail (log transport)",
+    );
   },
 };
 
@@ -50,7 +53,9 @@ let smtp: Transporter | undefined;
 function smtpTransport(): MailTransport {
   return {
     async send(message) {
-      smtp ??= nodemailer.createTransport(env().SMTP_URL ?? "smtp://localhost:1025");
+      smtp ??= nodemailer.createTransport(
+        env().SMTP_URL ?? "smtp://localhost:1025",
+      );
       await smtp.sendMail({ from: env().EMAIL_FROM, ...message });
     },
   };
@@ -76,7 +81,10 @@ export async function sendMail(message: MailMessage): Promise<boolean> {
     await mailTransport().send(message);
     return true;
   } catch (error) {
-    logger.error({ to: message.to, subject: message.subject, error }, "mail send failed");
+    logger.error(
+      { to: message.to, subject: message.subject, error },
+      "mail send failed",
+    );
     return false;
   }
 }

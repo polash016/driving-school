@@ -33,7 +33,10 @@ describe("gradeAttempt properties", () => {
       fc.property(questionsArb, (questions) => {
         const grade = gradeAttempt(questions, null);
         const totals = grade.topicBreakdown.reduce((s, t) => s + t.total, 0);
-        const corrects = grade.topicBreakdown.reduce((s, t) => s + t.correct, 0);
+        const corrects = grade.topicBreakdown.reduce(
+          (s, t) => s + t.correct,
+          0,
+        );
         expect(totals).toBe(questions.length);
         expect(corrects).toBe(grade.correctCount);
         for (const t of grade.topicBreakdown) {
@@ -58,22 +61,28 @@ describe("gradeAttempt properties", () => {
 
   it("pass rule matches the configured mark exactly (correcting one wrong answer never lowers the score)", () => {
     fc.assert(
-      fc.property(questionsArb, fc.integer({ min: 1, max: 60 }), (questions, passMark) => {
-        const grade = gradeAttempt(questions, passMark);
-        expect(grade.passed).toBe(grade.correctCount >= passMark);
+      fc.property(
+        questionsArb,
+        fc.integer({ min: 1, max: 60 }),
+        (questions, passMark) => {
+          const grade = gradeAttempt(questions, passMark);
+          expect(grade.passed).toBe(grade.correctCount >= passMark);
 
-        const wrongIdx = questions.findIndex(
-          (q) => q.answeredOptionKey !== q.correctOptionKey,
-        );
-        if (wrongIdx >= 0) {
-          const improved: GradableQuestion[] = questions.map((q, i) =>
-            i === wrongIdx ? { ...q, answeredOptionKey: q.correctOptionKey } : q,
+          const wrongIdx = questions.findIndex(
+            (q) => q.answeredOptionKey !== q.correctOptionKey,
           );
-          expect(gradeAttempt(improved, passMark).correctCount).toBe(
-            grade.correctCount + 1,
-          );
-        }
-      }),
+          if (wrongIdx >= 0) {
+            const improved: GradableQuestion[] = questions.map((q, i) =>
+              i === wrongIdx
+                ? { ...q, answeredOptionKey: q.correctOptionKey }
+                : q,
+            );
+            expect(gradeAttempt(improved, passMark).correctCount).toBe(
+              grade.correctCount + 1,
+            );
+          }
+        },
+      ),
     );
   });
 
@@ -94,7 +103,12 @@ describe("gradeAttempt properties", () => {
   it("unanswered questions are wrong, never correct", () => {
     const grade = gradeAttempt(
       [
-        { position: 1, topicSlug: "t", correctOptionKey: "a", answeredOptionKey: null },
+        {
+          position: 1,
+          topicSlug: "t",
+          correctOptionKey: "a",
+          answeredOptionKey: null,
+        },
       ],
       1,
     );

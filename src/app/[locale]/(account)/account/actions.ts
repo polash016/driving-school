@@ -29,7 +29,10 @@ export async function changePasswordAction(
       user.id,
       String(formData.get("currentPassword") ?? ""),
       String(formData.get("newPassword") ?? ""),
-      { ...(await requestContext()), currentSessionId: (await getCurrentSessionId()) ?? undefined },
+      {
+        ...(await requestContext()),
+        currentSessionId: (await getCurrentSessionId()) ?? undefined,
+      },
     );
     revalidatePath("/account/security");
     return { ok: true };

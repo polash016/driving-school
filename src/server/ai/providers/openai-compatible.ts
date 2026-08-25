@@ -16,7 +16,9 @@ import {
 
 const chatSchema = z.object({
   model: z.string().optional(),
-  choices: z.array(z.object({ message: z.object({ content: z.string() }) })).min(1),
+  choices: z
+    .array(z.object({ message: z.object({ content: z.string() }) }))
+    .min(1),
   usage: z
     .object({
       prompt_tokens: z.number().optional(),
@@ -30,7 +32,10 @@ const embedSchema = z.object({
 });
 
 function endpoint(credentials: ProviderCredentials, path: string): string {
-  const base = (credentials.baseUrl ?? "https://api.openai.com/v1").replace(/\/$/, "");
+  const base = (credentials.baseUrl ?? "https://api.openai.com/v1").replace(
+    /\/$/,
+    "",
+  );
   return `${base}${path}`;
 }
 
@@ -74,7 +79,9 @@ export const openAiCompatibleAdapter: ProviderAdapter = {
       body: JSON.stringify({ model: request.model, input: request.input }),
     });
     if (!response.ok) throw classify(response.status, await response.text());
-    return embedSchema.parse(await response.json()).data.map((row) => row.embedding);
+    return embedSchema
+      .parse(await response.json())
+      .data.map((row) => row.embedding);
   },
 
   async ping(credentials, model): Promise<void> {

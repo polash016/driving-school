@@ -35,13 +35,13 @@ $ curl -s localhost:3000/ar | grep -o '<html lang="[^"]*" dir="[^"]*"'
 This is the part that mattered most. Translations are an overlay in their own table; the content
 JSON, the content hash, the stem embedding and the generated search column are untouched.
 
-| | |
-|---|---|
-| `ItemVariant.contentHash` values | unchanged — seen-windows and the unique index intact |
-| `tp_item_variant_immutable` / `tp_approved_item_frozen` | never fired; nothing tried to edit frozen content |
-| `MasterItem.searchText` generated column | untouched; `prisma/migrations.test.ts` still green |
-| `stemEmbedding` and its 0.94 / 0.85 thresholds | untouched, so the dedupe calibration still holds |
-| Existing `preferredLocale` data | preserved — 8 rows before, 8 rows after, values identical |
+|                                                         |                                                           |
+| ------------------------------------------------------- | --------------------------------------------------------- |
+| `ItemVariant.contentHash` values                        | unchanged — seen-windows and the unique index intact      |
+| `tp_item_variant_immutable` / `tp_approved_item_frozen` | never fired; nothing tried to edit frozen content         |
+| `MasterItem.searchText` generated column                | untouched; `prisma/migrations.test.ts` still green        |
+| `stemEmbedding` and its 0.94 / 0.85 thresholds          | untouched, so the dedupe calibration still holds          |
+| Existing `preferredLocale` data                         | preserved — 8 rows before, 8 rows after, values identical |
 
 That last one was a near miss worth recording: `prisma migrate diff` proposed
 `ALTER TABLE "Profile" DROP COLUMN "preferredLocale", ADD COLUMN … DEFAULT 'en'` for the enum → text
@@ -202,7 +202,7 @@ Totals: **321 unit/integration**, **26 e2e**, `tsc` and `eslint` clean.
 ### The board
 
 `/admin/languages` (ADMIN) lists every language with its coverage as **numbers, not just a bar** —
-because English is merged underneath every catalogue, a half-translated language *looks* finished
+because English is merged underneath every catalogue, a half-translated language _looks_ finished
 to anyone who cannot read it. "412 of 698" is the only honest way to state it.
 
 Per language: check what is left (no AI call, shows the estimated cost first), translate a slice,

@@ -140,8 +140,13 @@ export function assembleQuiz(input: {
     optionOrder: shuffle(rng, candidate.optionKeys),
   }));
 
-  const difficultyMix: Record<DifficultyBand, number> = { easy: 0, medium: 0, hard: 0 };
-  for (const candidate of selected) difficultyMix[bandOf(candidate.difficulty)]++;
+  const difficultyMix: Record<DifficultyBand, number> = {
+    easy: 0,
+    medium: 0,
+    hard: 0,
+  };
+  for (const candidate of selected)
+    difficultyMix[bandOf(candidate.difficulty)]++;
 
   return {
     questions,
@@ -154,12 +159,17 @@ export function assembleQuiz(input: {
 /** Whole numbers of questions per band, largest-remainder so the parts sum to the total. */
 function allocateBandBudget(total: number): Map<DifficultyBand, number> {
   const bands: DifficultyBand[] = ["easy", "medium", "hard"];
-  const exact = bands.map((band) => ({ band, exact: total * DIFFICULTY_TARGET[band] }));
+  const exact = bands.map((band) => ({
+    band,
+    exact: total * DIFFICULTY_TARGET[band],
+  }));
   const budget = new Map<DifficultyBand, number>(
     exact.map((entry) => [entry.band, Math.floor(entry.exact)]),
   );
   let assigned = [...budget.values()].reduce((a, b) => a + b, 0);
-  for (const entry of [...exact].sort((a, b) => (b.exact % 1) - (a.exact % 1))) {
+  for (const entry of [...exact].sort(
+    (a, b) => (b.exact % 1) - (a.exact % 1),
+  )) {
     if (assigned >= total) break;
     budget.set(entry.band, (budget.get(entry.band) ?? 0) + 1);
     assigned++;
@@ -209,8 +219,15 @@ function pickForTopic(ctx: {
   warnings: string[];
   topicSlug: string;
 }): VariantCandidate[] {
-  const { rng, seenHashes, usedMasterIds, usedConceptGroups, bandBudget, warnings, topicSlug } =
-    ctx;
+  const {
+    rng,
+    seenHashes,
+    usedMasterIds,
+    usedConceptGroups,
+    bandBudget,
+    warnings,
+    topicSlug,
+  } = ctx;
 
   // Deterministic base order, then seeded shuffle so ties break randomly-but-reproducibly.
   const poolShuffled = shuffle(
@@ -239,7 +256,8 @@ function pickForTopic(ctx: {
   const eligible = (c: VariantCandidate): boolean => {
     if (usedMasterIds.has(c.masterItemId)) return false;
     // A re-phrasing of something already on this paper is, to the student, the same question.
-    if (c.conceptGroupId && usedConceptGroups.has(c.conceptGroupId)) return false;
+    if (c.conceptGroupId && usedConceptGroups.has(c.conceptGroupId))
+      return false;
     return true;
   };
 
@@ -290,10 +308,13 @@ function pickForTopic(ctx: {
   let filled = take(tiers.unseenOther, rest);
   filled += take(tiers.unseenImage, rest - filled);
   if (filled < rest) {
-    const reused = take(tiers.seenOther, rest - filled) +
+    const reused =
+      take(tiers.seenOther, rest - filled) +
       take(tiers.seenImage, rest - filled);
     if (reused > 0)
-      warnings.push(`${topicSlug}: pool thin — reused ${reused} seen variant(s)`);
+      warnings.push(
+        `${topicSlug}: pool thin — reused ${reused} seen variant(s)`,
+      );
     filled += reused;
   }
   if (picked.length < ctx.count) {

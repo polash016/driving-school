@@ -83,7 +83,11 @@ export function assertPasswordPolicy(password: string, email?: string): void {
     );
   }
   const localPart = email?.split("@")[0]?.trim().toLowerCase();
-  if (localPart && localPart.length >= 3 && password.toLowerCase().includes(localPart)) {
+  if (
+    localPart &&
+    localPart.length >= 3 &&
+    password.toLowerCase().includes(localPart)
+  ) {
     throw new ValidationError(
       { field: "password", reason: "contains email" },
       "auth.errors.passwordSameAsEmail",

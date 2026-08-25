@@ -31,7 +31,13 @@ export default async function LanguageReviewPage({
 
   const language = await db.language.findUnique({
     where: { code },
-    select: { code: true, englishName: true, nativeName: true, direction: true, isBuiltIn: true },
+    select: {
+      code: true,
+      englishName: true,
+      nativeName: true,
+      direction: true,
+      isBuiltIn: true,
+    },
   });
   if (!language || language.isBuiltIn) notFound();
 
@@ -68,14 +74,19 @@ export default async function LanguageReviewPage({
             {language.englishName}
           </span>
         </h1>
-        <p className="text-sm/relaxed text-muted-foreground">{t("reviewSubtitle")}</p>
+        <p className="text-sm/relaxed text-muted-foreground">
+          {t("reviewSubtitle")}
+        </p>
       </header>
 
       <Card className="[--card-spacing:--spacing(4)]">
         <CardContent className="space-y-2">
           <p className="text-sm text-foreground">
-            {t("coverageCount", { ready: coverage.ready, total: coverage.total })} ·{" "}
-            {coverage.percent}%
+            {t("coverageCount", {
+              ready: coverage.ready,
+              total: coverage.total,
+            })}{" "}
+            · {coverage.percent}%
             {coverage.flagged > 0
               ? ` · ${t("flaggedCount", { count: coverage.flagged })}`
               : ""}

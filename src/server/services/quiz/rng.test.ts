@@ -33,7 +33,11 @@ describe("seeded rng", () => {
 
   it("shuffle is deterministic per seed and differs across seeds", () => {
     const items = Array.from({ length: 20 }, (_, i) => i);
-    expect(shuffle(createRng("s1"), items)).toEqual(shuffle(createRng("s1"), items));
-    expect(shuffle(createRng("s1"), items)).not.toEqual(shuffle(createRng("s2"), items));
+    expect(shuffle(createRng("s1"), items)).toEqual(
+      shuffle(createRng("s1"), items),
+    );
+    expect(shuffle(createRng("s1"), items)).not.toEqual(
+      shuffle(createRng("s2"), items),
+    );
   });
 });

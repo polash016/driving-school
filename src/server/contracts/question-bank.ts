@@ -41,14 +41,31 @@ export const upsertItemInputSchema = z
     content: editableContentSchema,
     correctOptionKey: z.string().min(1).max(8),
     legalCitations: z.array(legalCitationSchema).min(0),
-    sourceImageId: idSchema.optional(),
+    /**
+     * Nullable, not merely optional: switching a question back to TEXT must be able to say "no
+     * picture" explicitly. Omitting the field would leave the old link in place, and the exam
+     * screen would go on rendering an image the author had just removed.
+     */
+    sourceImageId: idSchema.nullish(),
   })
   .strict()
   .superRefine((item, ctx) => {
+    // An image or sign question without a picture is not answerable. Caught here rather than at
+    // the quality gate so an author sees it while editing, not on the way to review.
+    if (item.type !== "TEXT" && !item.sourceImageId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["sourceImageId"],
+        message: "admin.questions.errors.imageRequired",
+      });
+    }
     for (const locale of ["en", "nb"] as const) {
       const keys = item.content[locale].options.map((o) => o.key);
       if (new Set(keys).size !== keys.length) {
-        ctx.addIssue({ code: "custom", message: `${locale}: duplicate option keys` });
+        ctx.addIssue({
+          code: "custom",
+          message: `${locale}: duplicate option keys`,
+        });
       }
       if (!keys.includes(item.correctOptionKey)) {
         ctx.addIssue({
@@ -60,7 +77,10 @@ export const upsertItemInputSchema = z
     const enKeys = item.content.en.options.map((o) => o.key).join(",");
     const nbKeys = item.content.nb.options.map((o) => o.key).join(",");
     if (enKeys !== nbKeys) {
-      ctx.addIssue({ code: "custom", message: "option keys differ across locales" });
+      ctx.addIssue({
+        code: "custom",
+        message: "option keys differ across locales",
+      });
     }
   });
 
@@ -83,18 +103,20 @@ export const bulkActionInputSchema = z
   })
   .strict();
 
-export const itemListRowSchema = masterItemSchema.pick({
-  id: true,
-  type: true,
-  status: true,
-  topicId: true,
-  difficulty: true,
-  version: true,
-  createdBy: true,
-}).extend({
-  stemPreview: z.string(),
-  updatedAt: z.date(),
-});
+export const itemListRowSchema = masterItemSchema
+  .pick({
+    id: true,
+    type: true,
+    status: true,
+    topicId: true,
+    difficulty: true,
+    version: true,
+    createdBy: true,
+  })
+  .extend({
+    stemPreview: z.string(),
+    updatedAt: z.date(),
+  });
 
 // ── Sets, curation and accuracy (spec-04 amendment) ─────────────────────────
 
@@ -111,7 +133,12 @@ export const rejectionReasonSchema = z.enum([
 export type RejectionReasonValue = z.infer<typeof rejectionReasonSchema>;
 
 export const batchKindSchema = z.enum(["IMAGE", "THEORY", "MANUAL"]);
-export const batchStatusSchema = z.enum(["PENDING", "RUNNING", "READY", "FAILED"]);
+export const batchStatusSchema = z.enum([
+  "PENDING",
+  "RUNNING",
+  "READY",
+  "FAILED",
+]);
 
 export const listBatchesInputSchema = paginationInputSchema
   .extend({
@@ -212,7 +239,9 @@ export const accuracyStatsSchema = z
     /** AI-authored items only — human-authored items have no acceptance rate to measure. */
     rows: z.array(accuracyRowSchema),
     reasons: z.array(
-      z.object({ reason: rejectionReasonSchema, count: z.int().min(0) }).strict(),
+      z
+        .object({ reason: rejectionReasonSchema, count: z.int().min(0) })
+        .strict(),
     ),
     totals: batchCountsSchema,
   })
@@ -241,8 +270,12 @@ export const itemExportSchema = z
     // incomplete row comes back as a per-row failure rather than a silently broken question.
     correctOptionKey: z.string(),
     content: z.object({
-      en: localizedQuestionSchema.extend({ explanation: z.string().default("") }),
-      nb: localizedQuestionSchema.extend({ explanation: z.string().default("") }),
+      en: localizedQuestionSchema.extend({
+        explanation: z.string().default(""),
+      }),
+      nb: localizedQuestionSchema.extend({
+        explanation: z.string().default(""),
+      }),
     }),
     legalCitations: z.array(legalCitationSchema),
   })

@@ -129,7 +129,9 @@ export async function accuracyStats(
         approved,
         rate: reviewed === 0 ? 0 : approved / reviewed,
         medianHoursToReview:
-          row.medianhours === null ? null : Math.max(0, Number(row.medianhours)),
+          row.medianhours === null
+            ? null
+            : Math.max(0, Number(row.medianhours)),
       };
     }),
     reasons: reasons

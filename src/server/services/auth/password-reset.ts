@@ -110,7 +110,10 @@ export async function changePassword(
     where: { id: userId },
     select: { email: true, passwordHash: true },
   });
-  if (!user.passwordHash || !(await verifyPassword(user.passwordHash, currentPassword))) {
+  if (
+    !user.passwordHash ||
+    !(await verifyPassword(user.passwordHash, currentPassword))
+  ) {
     throw new AuthError({ userId }, "auth.errors.invalidCredentials");
   }
   assertPasswordPolicy(newPassword, user.email);

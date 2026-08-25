@@ -24,10 +24,10 @@ export function SecurityPolicyForm({
   const tErrors = useTranslations();
   const [required, setRequired] = useState(policy.adminTwoFactorRequired);
   const [approvals, setApprovals] = useState(policy.aiApprovalsRequired);
-  const [state, formAction] = useActionState<ActionResult | undefined, FormData>(
-    saveSecurityPolicyAction,
-    undefined,
-  );
+  const [state, formAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(saveSecurityPolicyAction, undefined);
 
   return (
     <Card className="[--card-spacing:--spacing(5)]">
@@ -35,7 +35,9 @@ export function SecurityPolicyForm({
         <CardTitle className="text-base">{t("twoFactorTitle")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {state?.ok === false ? <FormAlert>{tErrors(state.messageKey)}</FormAlert> : null}
+        {state?.ok === false ? (
+          <FormAlert>{tErrors(state.messageKey)}</FormAlert>
+        ) : null}
         {state?.ok ? <FormAlert tone="success">{t("saved")}</FormAlert> : null}
 
         <form action={formAction} className="space-y-4">

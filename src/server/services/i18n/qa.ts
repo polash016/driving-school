@@ -3,7 +3,11 @@ import { logger } from "@/lib/logger";
 import { aiEmbed, aiJson } from "@/server/ai/client";
 import { backTranslatePrompt } from "@/server/ai/prompts/translation";
 import { cosine } from "@/server/services/question-bank/similarity";
-import { isQuestionEntity, type QuestionPayload, type UnitPayload } from "./units";
+import {
+  isQuestionEntity,
+  type QuestionPayload,
+  type UnitPayload,
+} from "./units";
 import type { TranslatableEntity } from "@prisma/client";
 
 /**
@@ -62,7 +66,9 @@ const backTranslationSchema = z.object({
       id: z.string(),
       value: z.object({
         stem: z.string().optional(),
-        options: z.array(z.object({ key: z.string(), text: z.string() })).optional(),
+        options: z
+          .array(z.object({ key: z.string(), text: z.string() }))
+          .optional(),
         explanation: z.string().optional(),
         name: z.string().optional(),
         meaning: z.string().optional(),
@@ -126,7 +132,10 @@ export async function semanticCheck(input: {
     });
     back = response.data;
   } catch (error) {
-    logger.warn({ error, locale: input.locale }, "back-translation unavailable — flagging for review");
+    logger.warn(
+      { error, locale: input.locale },
+      "back-translation unavailable — flagging for review",
+    );
     for (const unit of input.units) {
       results.set(unit.id, {
         id: unit.id,
@@ -142,7 +151,10 @@ export async function semanticCheck(input: {
 
   // One embedding call for the whole batch: every string that needs comparing, in order.
   const texts: string[] = [];
-  const index = new Map<string, { stem: [number, number]; options: Array<[string, number, number]> }>();
+  const index = new Map<
+    string,
+    { stem: [number, number]; options: Array<[string, number, number]> }
+  >();
   for (const unit of input.units) {
     const backValue = backById.get(unit.id);
     if (!backValue) continue;
@@ -150,7 +162,10 @@ export async function semanticCheck(input: {
     const backStem = stemOf(backValue as UnitPayload);
     if (!sourceStem || !backStem) continue;
 
-    const entry: { stem: [number, number]; options: Array<[string, number, number]> } = {
+    const entry: {
+      stem: [number, number];
+      options: Array<[string, number, number]>;
+    } = {
       stem: [texts.push(sourceStem) - 1, texts.push(backStem) - 1],
       options: [],
     };
@@ -158,7 +173,9 @@ export async function semanticCheck(input: {
     if (isQuestionEntity(unit.entity)) {
       const sourceOptions = (unit.source as QuestionPayload).options ?? [];
       const backOptions = (backValue as QuestionPayload).options ?? [];
-      const backByKey = new Map(backOptions.map((option) => [option.key, option.text]));
+      const backByKey = new Map(
+        backOptions.map((option) => [option.key, option.text]),
+      );
       for (const option of sourceOptions) {
         const backText = backByKey.get(option.key);
         if (!backText) continue;
@@ -176,7 +193,10 @@ export async function semanticCheck(input: {
   try {
     vectors = texts.length > 0 ? await aiEmbed(texts) : [];
   } catch (error) {
-    logger.warn({ error, locale: input.locale }, "QA embeddings unavailable — flagging for review");
+    logger.warn(
+      { error, locale: input.locale },
+      "QA embeddings unavailable — flagging for review",
+    );
     for (const unit of input.units) {
       results.set(unit.id, {
         id: unit.id,
@@ -204,11 +224,17 @@ export async function semanticCheck(input: {
     const sourceStem = texts[entry.stem[0]];
     const score = cosine(vectors[entry.stem[0]], vectors[entry.stem[1]]);
     const longEnough = sourceStem.length >= MIN_CHARS_FOR_DRIFT;
-    if (longEnough && score < SEMANTIC_FLAG_THRESHOLD) flags.push("SEMANTIC_DRIFT");
+    if (longEnough && score < SEMANTIC_FLAG_THRESHOLD)
+      flags.push("SEMANTIC_DRIFT");
 
     // Answer integrity: each translated option must still be nearest to its own source option.
     // A swap here means the key now points at a different meaning — the failure that matters.
-    const pairings: Array<{ key: string; nearest: string; self: number; best: number }> = [];
+    const pairings: Array<{
+      key: string;
+      nearest: string;
+      self: number;
+      best: number;
+    }> = [];
     for (const [key, sourceIndex, backIndex] of entry.options) {
       const backVector = vectors[backIndex];
       let nearest = key;

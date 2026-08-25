@@ -14,7 +14,9 @@ import { rebalanceToAvailability } from "../src/server/services/quiz/attempt-ser
 import { examReadiness } from "../src/server/services/assessment/exam-readiness";
 import { redis } from "../src/server/redis";
 
-(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(".env");
+(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(
+  ".env",
+);
 const db = new PrismaClient();
 
 async function main(): Promise<void> {
@@ -51,7 +53,10 @@ async function main(): Promise<void> {
   const conceptOf = new Map<string, string>();
   for (const list of Object.values(candidates)) {
     for (const candidate of list) {
-      conceptOf.set(candidate.masterItemId, candidate.conceptGroupId ?? candidate.masterItemId);
+      conceptOf.set(
+        candidate.masterItemId,
+        candidate.conceptGroupId ?? candidate.masterItemId,
+      );
     }
   }
 
@@ -71,7 +76,9 @@ async function main(): Promise<void> {
 
     const masters = new Set(result.questions.map((q) => q.masterItemId));
     const concepts = new Set(
-      result.questions.map((q) => conceptOf.get(q.masterItemId) ?? q.masterItemId),
+      result.questions.map(
+        (q) => conceptOf.get(q.masterItemId) ?? q.masterItemId,
+      ),
     );
     const bands = { easy: 0, medium: 0, hard: 0 };
     for (const question of result.questions) {
@@ -82,7 +89,8 @@ async function main(): Promise<void> {
     }
 
     for (const question of result.questions) {
-      const concept = conceptOf.get(question.masterItemId) ?? question.masterItemId;
+      const concept =
+        conceptOf.get(question.masterItemId) ?? question.masterItemId;
       if (concept === question.masterItemId) continue; // not part of a group
       const seen = phrasingsByConcept.get(concept) ?? new Set<string>();
       seen.add(question.masterItemId);
@@ -106,12 +114,16 @@ async function main(): Promise<void> {
     for (const warning of result.warnings) console.log(`      ${warning}`);
   }
 
-  const varied = [...phrasingsByConcept.values()].filter((set) => set.size > 1).length;
+  const varied = [...phrasingsByConcept.values()].filter(
+    (set) => set.size > 1,
+  ).length;
   console.log(
     `\n${varied} of ${phrasingsByConcept.size} grouped rule(s) were asked in different words ` +
       `across these papers — two students meet the same rule, not the same sentence.`,
   );
-  console.log(failures === 0 ? "All papers clean." : `${failures} paper(s) failed.`);
+  console.log(
+    failures === 0 ? "All papers clean." : `${failures} paper(s) failed.`,
+  );
   process.exitCode = failures === 0 ? 0 : 1;
 }
 

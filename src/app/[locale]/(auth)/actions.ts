@@ -5,7 +5,12 @@ import { env } from "@/lib/env";
 import { TotpSetupRequiredError } from "@/lib/errors";
 import { localePath } from "@/lib/locale-url";
 import { redirect } from "@/i18n/navigation";
-import { getCurrentSessionId, getSessionUser, signIn, signOut } from "@/server/auth";
+import {
+  getCurrentSessionId,
+  getSessionUser,
+  signIn,
+  signOut,
+} from "@/server/auth";
 import type { ActionError, ActionResult } from "@/server/contracts/common";
 import { db } from "@/server/db";
 import { toActionError } from "@/server/http/action-result";
@@ -113,7 +118,12 @@ export async function completeTotpSetupAction(
         messageKey: "auth.errors.sessionExpired",
       } satisfies ActionError;
     }
-    const result = await completeTotpSetup(db, ticketId, field(formData, "code"), ctx);
+    const result = await completeTotpSetup(
+      db,
+      ticketId,
+      field(formData, "code"),
+      ctx,
+    );
     loginTicket = result.ticketId;
   } catch (error) {
     return toActionError(error);
@@ -164,7 +174,8 @@ export async function forgotPasswordAction(
     // Everything except a rate-limit block reports success: whether an address exists is
     // not something this endpoint may reveal.
     const mapped = toActionError(error);
-    if (mapped.code === "RATE_LIMITED" || mapped.code === "VALIDATION") return mapped;
+    if (mapped.code === "RATE_LIMITED" || mapped.code === "VALIDATION")
+      return mapped;
   }
   return { ok: true };
 }
@@ -216,7 +227,8 @@ export async function resendVerificationAction(
     await resendVerification(db, email);
   } catch (error) {
     const mapped = toActionError(error);
-    if (mapped.code === "RATE_LIMITED" || mapped.code === "VALIDATION") return mapped;
+    if (mapped.code === "RATE_LIMITED" || mapped.code === "VALIDATION")
+      return mapped;
   }
   return { ok: true };
 }

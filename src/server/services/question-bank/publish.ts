@@ -42,7 +42,11 @@ function templateContent(item: PublishableItem): TemplateContent {
   const content = item.content as TemplateContent;
   for (const locale of ["en", "nb"] as const) {
     const side = content?.[locale];
-    if (!side?.stem || !Array.isArray(side.options) || side.options.length < 2) {
+    if (
+      !side?.stem ||
+      !Array.isArray(side.options) ||
+      side.options.length < 2
+    ) {
       throw new ValidationError(
         { itemId: item.id, locale },
         "admin.questions.errors.contentIncomplete",

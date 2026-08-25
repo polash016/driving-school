@@ -17,19 +17,27 @@ export async function ResumeCard({ attempt }: { attempt: ResumableAttempt }) {
     getTranslations("history"),
   ]);
 
-  const progress = Math.round((attempt.answeredCount / attempt.questionCount) * 100);
+  const progress = Math.round(
+    (attempt.answeredCount / attempt.questionCount) * 100,
+  );
   const minutesLeft =
-    attempt.timeRemainingSec === null ? null : Math.ceil(attempt.timeRemainingSec / 60);
+    attempt.timeRemainingSec === null
+      ? null
+      : Math.ceil(attempt.timeRemainingSec / 60);
 
   return (
     <Card className="border-primary/30 bg-accent/40">
       <CardContent className="space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-0.5">
-            <p className="text-sm font-medium text-foreground">{t("inProgressTitle")}</p>
+            <p className="text-sm font-medium text-foreground">
+              {t("inProgressTitle")}
+            </p>
             <p className="text-xs text-muted-foreground">
               {tHistory(`kind.${attempt.kind}`)}
-              {minutesLeft !== null ? ` · ${t("timeLeft", { minutes: minutesLeft })}` : ""}
+              {minutesLeft !== null
+                ? ` · ${t("timeLeft", { minutes: minutesLeft })}`
+                : ""}
             </p>
           </div>
           <p className="shrink-0 text-sm font-semibold tabular-nums text-foreground">

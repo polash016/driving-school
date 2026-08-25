@@ -17,7 +17,9 @@
     "invites": "Invitasjoner",
     "history": "Mine prøver",
     "ai": "KI-leverandører",
-    "languages": "Språk"
+    "languages": "Språk",
+    "images": "Bilder",
+    "signs": "Skilt"
   },
   "language": {
     "label": "Språk",
@@ -33,7 +35,6 @@
     "shellNote": "Treningsdashbordet ditt er på vei. Trafikkskolen din gir deg beskjed når det åpner.",
     "signedOutNote": "Trafikkskolen din sender deg en invitasjon for å komme i gang.",
     "logIn": "Logg inn",
-    "practice": "Prøveeksamen",
     "mockExam": "Prøve",
     "mockExamLocked": "Prøven er ikke klar ennå",
     "topicPractice": "Øv på ett tema",
@@ -53,7 +54,14 @@
     "categorySubtitle": "Fra prøvene du har tatt — øving teller ikke med.",
     "categoryEmpty": "Ikke prøvd ennå",
     "categoryScore": "{correct} av {answered} riktig",
-    "categoryNothingYet": "Ta en prøve, så dukker kategoriene dine opp her."
+    "categoryNothingYet": "Ta en prøve, så dukker kategoriene dine opp her.",
+    "theoryTest": "Teoriprøve",
+    "theoryTestEmpty": "Teoriprøven er ikke klar",
+    "imageQuiz": "Bildeoppgaver",
+    "imageQuizEmpty": "Bildeoppgaver er ikke klare",
+    "signTest": "Skiltprøve",
+    "signTestEmpty": "Skiltprøven er ikke klar",
+    "tileEmptyHint": "Ingen godkjente spørsmål av denne typen ennå. Skolen din legger dem inn i administrasjonspanelet."
   },
   "errors": {
     "validation": "Noe av informasjonen du oppga er ikke gyldig. Sjekk og prøv igjen.",
@@ -325,7 +333,8 @@
         "approvedIsFrozen": "Godkjente spørsmål kan ikke redigeres. Trekk dette tilbake og godkjenn en erstatning.",
         "onlyApprovedReplaceable": "Bare et godkjent spørsmål kan erstattes.",
         "selfApproval": "Du kan ikke godkjenne ditt eget spørsmål — det trenger en annen vurderer.",
-        "secondApproverNeeded": "Registrert. Et KI-skrevet spørsmål trenger en vurderer til før det tas i bruk."
+        "secondApproverNeeded": "Registrert. Et KI-skrevet spørsmål trenger en vurderer til før det tas i bruk.",
+        "imageRequired": "Et bilde- eller skiltspørsmål må ha et bilde."
       },
       "rows": {
         "imported": "Importert som utkast",
@@ -344,7 +353,16 @@
       "reviewQueueLink": "Vurder ett om gangen",
       "bulkReviewHint": "Filtrer på tilstand, velg siden, og gjør alt i én operasjon. Kvalitetssjekkene og tokravet til vurderere gjelder fortsatt for hvert spørsmål.",
       "awaitingMyReview": "Venter på min vurdering ({count})",
-      "filterDrafts": "Utkast"
+      "filterDrafts": "Utkast",
+      "type": "Type",
+      "types": {
+        "TEXT": "Tekst",
+        "IMAGE": "Bilde",
+        "SIGN": "Skilt"
+      },
+      "image": "Bilde",
+      "imageEmpty": "Ingen bilder ennå. Last opp under Bilder, eller fyll skiltregisteret.",
+      "imageRequired": "Velg et bilde — et bilde- eller skiltspørsmål trenger ett."
     },
     "review": {
       "title": "Vurderingskø",
@@ -611,6 +629,49 @@
       "inEveryLanguage": "Dette spørsmålet på alle språk",
       "field": "Felt",
       "stemRow": "Spørsmål"
+    },
+    "images": {
+      "title": "Bilder",
+      "subtitle": "Fotografier spørsmål kan stilles om. Opplastinger er private og vises bare for innloggede elever.",
+      "upload": "Last opp bilder",
+      "uploading": "Laster opp …",
+      "choose": "Velg filer",
+      "attest": "Jeg bekrefter at skolen har rett til å bruke disse bildene.",
+      "attestRequired": "Bekreft bruksretten før du laster opp.",
+      "empty": "Ingen bilder er lastet opp ennå.",
+      "emptyBody": "Legg til et trafikkbilde her, og knytt det så til et spørsmål i spørsmålseditoren.",
+      "uploaded": "{count} bilde(r) lastet opp.",
+      "duplicate": "{count} lignet på et bilde som allerede finnes i biblioteket.",
+      "failed": "{count} kunne ikke lastes opp.",
+      "questionsFromImage": "Spørsmål fra dette bildet",
+      "noQuestions": "Ingen spørsmål bruker dette bildet ennå.",
+      "delete": "Slett",
+      "deleted": "Bildet er slettet.",
+      "dimensions": "{width}×{height}",
+      "uploadedBy": "Lastet opp av {name}",
+      "limits": "JPEG, PNG eller WebP. Inntil {maxMb} MB hver, {maxBatch} om gangen."
+    },
+    "signs": {
+      "title": "Skiltregister",
+      "subtitle": "Skiltene skiltprøven bruker. Foreløpige rader må fortsatt kontrolleres av en person.",
+      "empty": "Skiltregisteret er tomt.",
+      "emptyBody": "Kjør pnpm signs:extract, deretter pnpm signs:enrich og pnpm db:seed-signs.",
+      "provisionalOnly": "Bare til kontroll",
+      "all": "Alle skilt",
+      "provisionalBadge": "Foreløpig",
+      "code": "Kode",
+      "class": "Gruppe",
+      "nameEn": "Navn (engelsk)",
+      "nameNb": "Navn (norsk)",
+      "meaningEn": "Betydning (engelsk)",
+      "meaningNb": "Betydning (norsk)",
+      "active": "Vises for elever",
+      "markReviewed": "Merk som kontrollert",
+      "save": "Lagre skilt",
+      "saved": "Skiltet er lagret.",
+      "search": "Søk i skilt",
+      "count": "{shown} av {total} skilt",
+      "sourceNote": "Kilde"
     }
   },
   "emails": {
@@ -704,6 +765,7 @@
       "errors": {
         "noCategories": "Velg minst én kategori å bli prøvd i."
       }
-    }
+    },
+    "imageAlt": "Bilde til dette spørsmålet"
   }
 }

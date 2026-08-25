@@ -3,12 +3,14 @@
 **Status:** approved via master plan (see DECISIONS.md 2026-08-24 · Fable/Opus work split). Executed by Fable.
 
 ## Stack resolution
+
 - create-next-app produced **Next 16.3 / React 19.2 / Tailwind v4 / TS strict** — satisfies "Next.js 15+". Tailwind v4 is CSS-first: our `config/theme.css` defines all tokens as CSS custom properties; `globals.css` maps them into Tailwind via `@theme inline`. No `tailwind.config` needed.
 - Dark mode: class strategy via `next-themes` (`attribute="class"`), token overrides under `.dark`.
 - Toast: shadcn's current toast is **sonner** (Toast component deprecated upstream) — restyled to tokens.
 
 ## Files
-- `config/school.config.ts` — typed + zod-validated, frozen; name, orgNr, domain, logo, languages, licenseClasses (B: 45/90/38 as *seed defaults* — runtime values come from DB in spec-02+), featureFlags (signTest, trailerCalculator, passGuarantee, studentPayments), aiBudget.
+
+- `config/school.config.ts` — typed + zod-validated, frozen; name, orgNr, domain, logo, languages, licenseClasses (B: 45/90/38 as _seed defaults_ — runtime values come from DB in spec-02+), featureFlags (signTest, trailerCalculator, passGuarantee, studentPayments), aiBudget.
 - `config/theme.css` — full token system: brand primary/accent slots, surface/border/text scale, semantic success/warning/danger, radii, shadows, spacing base, type scale; `.dark` overrides.
 - `src/app/globals.css` — imports theme.css, maps tokens via `@theme inline`.
 - `src/i18n/{routing.ts,request.ts,navigation.ts}` + `src/i18n/messages/{en,nb}.json`; `src/middleware.ts` (locale negotiation, cookie persistence). URL prefixes: `/en`, `/no` (locale `nb`).
@@ -20,6 +22,7 @@
 - `.prettierrc`, `pnpm format`/`test`/`e2e` scripts.
 
 ## Test plan → acceptance checklist mapping
+
 - Build/lint/strict → `pnpm build`, `pnpm lint`.
 - Config swap → change name/color in config, verify via e2e text/CSS var (manual + documented).
 - /en + /no render, switcher persists, no hardcoded strings → e2e + key-parity test + grep.

@@ -13,10 +13,17 @@ function item(overrides: Record<string, unknown> = {}) {
   ];
   return {
     content: {
-      en: { stem: "Who has right of way?", options, explanation: "The right-hand rule applies." },
+      en: {
+        stem: "Who has right of way?",
+        options,
+        explanation: "The right-hand rule applies.",
+      },
       nb: {
         stem: "Hvem har forkjørsrett?",
-        options: options.map((option) => ({ ...option, text: `${option.text} (nb)` })),
+        options: options.map((option) => ({
+          ...option,
+          text: `${option.text} (nb)`,
+        })),
         explanation: "Høyreregelen gjelder.",
       },
     },
@@ -36,21 +43,30 @@ describe("question quality gate", () => {
   it("blocks a question with no legal reference", () => {
     const report = checkItemQuality(item({ legalCitations: [] }));
     expect(report.passed).toBe(false);
-    expect(report.errors.map((error) => error.code)).toContain("CITATION_MISSING");
+    expect(report.errors.map((error) => error.code)).toContain(
+      "CITATION_MISSING",
+    );
   });
 
   it("blocks a missing or unmarked answer", () => {
-    expect(checkItemQuality(item({ correctOptionKey: null })).errors.map((e) => e.code)).toContain(
-      "ANSWER_MISSING",
-    );
-    expect(checkItemQuality(item({ correctOptionKey: "z" })).errors.map((e) => e.code)).toContain(
-      "ANSWER_UNKNOWN",
-    );
+    expect(
+      checkItemQuality(item({ correctOptionKey: null })).errors.map(
+        (e) => e.code,
+      ),
+    ).toContain("ANSWER_MISSING");
+    expect(
+      checkItemQuality(item({ correctOptionKey: "z" })).errors.map(
+        (e) => e.code,
+      ),
+    ).toContain("ANSWER_UNKNOWN");
   });
 
   it("blocks options that cannot be graded unambiguously", () => {
     const withAllOfTheAbove = item();
-    withAllOfTheAbove.content.en.options.push({ key: "d", text: "All of the above" });
+    withAllOfTheAbove.content.en.options.push({
+      key: "d",
+      text: "All of the above",
+    });
     withAllOfTheAbove.content.nb.options.push({ key: "d", text: "Alle over" });
 
     const report = checkItemQuality(withAllOfTheAbove);
@@ -61,22 +77,30 @@ describe("question quality gate", () => {
   it("blocks duplicate options, empty options and too few options", () => {
     const duplicate = item();
     duplicate.content.en.options[1].text = duplicate.content.en.options[0].text;
-    expect(checkItemQuality(duplicate).errors.map((e) => e.code)).toContain("DUPLICATE_OPTIONS");
+    expect(checkItemQuality(duplicate).errors.map((e) => e.code)).toContain(
+      "DUPLICATE_OPTIONS",
+    );
 
     const empty = item();
     empty.content.en.options[1].text = "  ";
-    expect(checkItemQuality(empty).errors.map((e) => e.code)).toContain("EMPTY_OPTION");
+    expect(checkItemQuality(empty).errors.map((e) => e.code)).toContain(
+      "EMPTY_OPTION",
+    );
 
     const thin = item();
     thin.content.en.options = thin.content.en.options.slice(0, 2);
     thin.content.nb.options = thin.content.nb.options.slice(0, 2);
-    expect(checkItemQuality(thin).errors.map((e) => e.code)).toContain("TOO_FEW_OPTIONS");
+    expect(checkItemQuality(thin).errors.map((e) => e.code)).toContain(
+      "TOO_FEW_OPTIONS",
+    );
   });
 
   it("blocks option letters that differ between languages", () => {
     const mismatched = item();
     mismatched.content.nb.options[2].key = "x";
-    expect(checkItemQuality(mismatched).errors.map((e) => e.code)).toContain("KEY_MISMATCH");
+    expect(checkItemQuality(mismatched).errors.map((e) => e.code)).toContain(
+      "KEY_MISMATCH",
+    );
   });
 
   it("blocks a missing explanation and an unfilled placeholder", () => {
@@ -88,7 +112,9 @@ describe("question quality gate", () => {
 
     const placeholder = item();
     placeholder.content.en.stem = "What is the limit in {{area}}?";
-    expect(checkItemQuality(placeholder).errors.map((e) => e.code)).toContain("PLACEHOLDER_LEFT");
+    expect(checkItemQuality(placeholder).errors.map((e) => e.code)).toContain(
+      "PLACEHOLDER_LEFT",
+    );
   });
 
   it("warns when the correct answer is conspicuously longer than the distractors", () => {
@@ -98,7 +124,9 @@ describe("question quality gate", () => {
     const report = checkItemQuality(tell);
 
     expect(report.passed).toBe(true); // a warning, not a block
-    expect(report.warnings.map((warning) => warning.code)).toContain("LENGTH_TELL");
+    expect(report.warnings.map((warning) => warning.code)).toContain(
+      "LENGTH_TELL",
+    );
   });
 
   it("fingerprints stems so a reworded-but-identical question is caught", () => {

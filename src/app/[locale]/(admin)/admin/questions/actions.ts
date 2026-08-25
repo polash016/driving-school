@@ -6,14 +6,21 @@ import type { ImportResult } from "@/server/contracts/question-bank";
 import { redirect } from "@/i18n/navigation";
 import { requireUser } from "@/server/auth/require-user";
 import { db } from "@/server/db";
-import { schoolConfig, type AppLocale } from "../../../../../../config/school.config";
+import {
+  schoolConfig,
+  type AppLocale,
+} from "../../../../../../config/school.config";
 import { toActionError } from "@/server/http/action-result";
 import {
   attachItemsToBatch,
   createBatch,
   detachItem,
 } from "@/server/services/question-bank/batches";
-import { exportItems, importItems, itemsToCsv } from "@/server/services/question-bank/io";
+import {
+  exportItems,
+  importItems,
+  itemsToCsv,
+} from "@/server/services/question-bank/io";
 import { generateTheoryQuestions } from "@/server/services/generation/theory";
 import { deleteItem, upsertItem } from "@/server/services/question-bank/items";
 import {
@@ -134,8 +141,10 @@ export async function importItemsAction(
   const user = await requireUser("ADMIN");
   try {
     const file = formData.get("file");
-    const payload = file instanceof File ? await file.text() : String(file ?? "");
-    const format = file instanceof File && file.name.endsWith(".json") ? "json" : "csv";
+    const payload =
+      file instanceof File ? await file.text() : String(file ?? "");
+    const format =
+      file instanceof File && file.name.endsWith(".json") ? "json" : "csv";
     const result = await importItems(db, user, { format, payload });
     revalidatePath("/admin/questions");
     return { ok: true, data: result };
@@ -144,7 +153,9 @@ export async function importItemsAction(
   }
 }
 
-export async function exportItemsAction(): Promise<ActionResult<{ csv: string }>> {
+export async function exportItemsAction(): Promise<
+  ActionResult<{ csv: string }>
+> {
   await requireUser("ADMIN");
   try {
     return { ok: true, data: { csv: itemsToCsv(await exportItems(db, {})) } };
@@ -194,7 +205,9 @@ export async function detachFromSetAction(
 ): Promise<ActionResult> {
   const user = await requireUser("INSTRUCTOR");
   try {
-    await detachItem(db, user, { itemId: String(formData.get("itemId") ?? "") });
+    await detachItem(db, user, {
+      itemId: String(formData.get("itemId") ?? ""),
+    });
     revalidatePath("/admin/sets");
     return { ok: true };
   } catch (error) {

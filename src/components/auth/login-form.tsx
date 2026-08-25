@@ -23,10 +23,10 @@ export function LoginForm() {
   const tVerify = useTranslations("auth.verify");
   const locale = useLocale();
   const [email, setEmail] = useState("");
-  const [state, formAction] = useActionState<ActionResult | undefined, FormData>(
-    loginAction,
-    undefined,
-  );
+  const [state, formAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(loginAction, undefined);
   const [resendState, resendAction] = useActionState<
     ActionResult | undefined,
     FormData

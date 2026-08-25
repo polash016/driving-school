@@ -39,8 +39,17 @@ export async function startQuizAction(
       ...(mode === "EXAM"
         ? { licenseClassCode: String(formData.get("licenseClassCode") ?? "B") }
         : {}),
-      ...(mode !== "EXAM" ? { questionCount: Number(formData.get("questionCount") ?? 10) } : {}),
-      ...(formData.get("topicSlug") ? { topicSlugs: [String(formData.get("topicSlug"))] } : {}),
+      ...(mode !== "EXAM"
+        ? { questionCount: Number(formData.get("questionCount") ?? 10) }
+        : {}),
+      ...(formData.get("topicSlug")
+        ? { topicSlugs: [String(formData.get("topicSlug"))] }
+        : {}),
+      // What separates the Image Quiz tile from the Theory Test tile — same engine, one filter.
+      // Parsed by the contract, so an unrecognised value is rejected rather than silently ignored.
+      ...(formData.get("itemType")
+        ? { itemType: String(formData.get("itemType")) }
+        : {}),
     });
     attemptId = attempt.id;
   } catch (error) {
@@ -143,7 +152,10 @@ export async function startConfiguredQuizAction(
   const locale = String(formData.get("locale") ?? "en") as AppLocale;
 
   const topicSlugs = formData.getAll("topicSlugs").map(String).filter(Boolean);
-  const questionCount = Math.min(90, Math.max(1, Number(formData.get("questionCount") ?? 45)));
+  const questionCount = Math.min(
+    90,
+    Math.max(1, Number(formData.get("questionCount") ?? 45)),
+  );
   const timed = formData.get("timed") === "on";
 
   const totalTopicCount = await db.topic.count({

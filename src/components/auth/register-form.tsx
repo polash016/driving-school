@@ -20,10 +20,10 @@ export function RegisterForm({
   const t = useTranslations("auth.register");
   const tErrors = useTranslations();
   const locale = useLocale();
-  const [state, formAction] = useActionState<ActionResult | undefined, FormData>(
-    registerAction,
-    undefined,
-  );
+  const [state, formAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(registerAction, undefined);
 
   if (state?.ok) {
     return (
@@ -59,7 +59,12 @@ export function RegisterForm({
           required
           autoFocus
         />
-        <Field label={t("lastName")} name="lastName" autoComplete="family-name" required />
+        <Field
+          label={t("lastName")}
+          name="lastName"
+          autoComplete="family-name"
+          required
+        />
       </div>
       <Field
         label={t("email")}

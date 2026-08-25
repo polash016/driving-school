@@ -3,6 +3,7 @@ import { ItemEditor } from "@/components/admin/questions/item-editor";
 import { pickBilingualText } from "@/lib/i18n-content";
 import { requireUser } from "@/server/auth/require-user";
 import { db } from "@/server/db";
+import { listPickableImages } from "@/server/services/images/library";
 import type { AppLocale } from "../../../../../../../config/school.config";
 
 export default async function NewQuestionPage({
@@ -14,14 +15,18 @@ export default async function NewQuestionPage({
   setRequestLocale(locale);
   await requireUser("INSTRUCTOR");
 
-  const [t, topics, licenseClasses] = await Promise.all([
+  const [t, topics, licenseClasses, images] = await Promise.all([
     getTranslations("admin.questions"),
     db.topic.findMany({
       where: { deletedAt: null },
       select: { id: true, name: true },
       orderBy: { sortOrder: "asc" },
     }),
-    db.licenseClass.findMany({ select: { id: true, code: true }, orderBy: { sortOrder: "asc" } }),
+    db.licenseClass.findMany({
+      select: { id: true, code: true },
+      orderBy: { sortOrder: "asc" },
+    }),
+    listPickableImages(db),
   ]);
 
   return (
@@ -30,7 +35,9 @@ export default async function NewQuestionPage({
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
           {t("editorTitleNew")}
         </h1>
-        <p className="text-sm/relaxed text-muted-foreground">{t("editorSubtitle")}</p>
+        <p className="text-sm/relaxed text-muted-foreground">
+          {t("editorSubtitle")}
+        </p>
       </header>
       <ItemEditor
         topics={topics.map((topic) => ({
@@ -38,6 +45,7 @@ export default async function NewQuestionPage({
           label: pickBilingualText(topic.name, locale as AppLocale),
         }))}
         licenseClasses={licenseClasses}
+        images={images}
       />
     </div>
   );

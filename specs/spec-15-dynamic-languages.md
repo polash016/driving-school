@@ -8,7 +8,7 @@ changes, and serves students in that language. No redeploy, no code change, no s
 
 ## Why this is not a config change
 
-The platform is bilingual *by construction*: `en` and `nb` are a Prisma enum, two separate Zod
+The platform is bilingual _by construction_: `en` and `nb` are a Prisma enum, two separate Zod
 enums, a Postgres GENERATED column whose SQL literally names `'en'` and `'nb'`, and a `{ en, nb }`
 JSON shape on every content column with both keys required. Language has to become runtime data.
 

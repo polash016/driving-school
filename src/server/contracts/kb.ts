@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { idSchema } from "./common";
-import { factTypeSchema, kbSourceKindSchema, legalCitationSchema } from "./models";
+import {
+  factTypeSchema,
+  kbSourceKindSchema,
+  legalCitationSchema,
+} from "./models";
 
 /** Knowledge-base & facts contracts (spec-05). */
 

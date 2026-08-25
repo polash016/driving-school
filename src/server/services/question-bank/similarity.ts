@@ -42,7 +42,9 @@ export interface SimilarityVerdict {
 }
 
 /** Embeds question stems (both locales together — a rule is the same rule in either language). */
-export async function embedStems(stems: Array<{ en: string; nb: string }>): Promise<number[][]> {
+export async function embedStems(
+  stems: Array<{ en: string; nb: string }>,
+): Promise<number[][]> {
   return aiEmbed(stems.map((stem) => `${stem.en}\n${stem.nb}`));
 }
 
@@ -128,27 +130,44 @@ export async function storeStemEmbedding(
 export async function backfillEmbeddings(
   db: PrismaClient,
   batchSize = 32,
-): Promise<{ embedded: number; repeats: Array<{ id: string; matchedItemId: string; similarity: number }> }> {
-  const pending = await db.$queryRaw<Array<{ id: string; content: unknown }>>(Prisma.sql`
+): Promise<{
+  embedded: number;
+  repeats: Array<{ id: string; matchedItemId: string; similarity: number }>;
+}> {
+  const pending = await db.$queryRaw<
+    Array<{ id: string; content: unknown }>
+  >(Prisma.sql`
     SELECT "id", "content" FROM "MasterItem"
      WHERE "deletedAt" IS NULL AND "stemEmbedding" IS NULL
      ORDER BY "createdAt" ASC
   `);
 
-  const repeats: Array<{ id: string; matchedItemId: string; similarity: number }> = [];
+  const repeats: Array<{
+    id: string;
+    matchedItemId: string;
+    similarity: number;
+  }> = [];
   let embedded = 0;
 
   for (let start = 0; start < pending.length; start += batchSize) {
     const batch = pending.slice(start, start + batchSize);
     const stems = batch.map((row) => {
-      const content = row.content as { en?: { stem?: string }; nb?: { stem?: string } };
+      const content = row.content as {
+        en?: { stem?: string };
+        nb?: { stem?: string };
+      };
       return { en: content?.en?.stem ?? "", nb: content?.nb?.stem ?? "" };
     });
     const vectors = await embedStems(stems);
 
     for (const [index, row] of batch.entries()) {
       const verdict = await classifyAgainstPool(db, vectors[index], row.id);
-      await storeStemEmbedding(db, row.id, vectors[index], verdict.conceptGroupId ?? null);
+      await storeStemEmbedding(
+        db,
+        row.id,
+        vectors[index],
+        verdict.conceptGroupId ?? null,
+      );
       if (verdict.kind === "repeat" && verdict.matchedItemId) {
         repeats.push({
           id: row.id,
@@ -180,7 +199,9 @@ export async function findRepeatPairs(
   db: PrismaClient,
   threshold = REPEAT_THRESHOLD,
 ): Promise<SimilarPair[]> {
-  const rows = await db.$queryRaw<Array<{ id: string; matchedItemId: string; similarity: number }>>(
+  const rows = await db.$queryRaw<
+    Array<{ id: string; matchedItemId: string; similarity: number }>
+  >(
     Prisma.sql`
       SELECT a."id",
              n."id"       AS "matchedItemId",
@@ -224,7 +245,9 @@ export async function findSimilarPairs(
   threshold: number,
   perItem = 5,
 ): Promise<SimilarPair[]> {
-  const rows = await db.$queryRaw<Array<{ id: string; matchedItemId: string; similarity: number }>>(
+  const rows = await db.$queryRaw<
+    Array<{ id: string; matchedItemId: string; similarity: number }>
+  >(
     Prisma.sql`
       SELECT a."id",
              n."id"       AS "matchedItemId",
@@ -270,7 +293,9 @@ export async function findSimilarPairs(
  * Needed as a pass of its own because a group assigned at write time only saw the questions that
  * existed then — and removing a repeat can make its neighbour the new nearest match.
  */
-export async function regroupAlternates(db: PrismaClient): Promise<{ groups: number; items: number }> {
+export async function regroupAlternates(
+  db: PrismaClient,
+): Promise<{ groups: number; items: number }> {
   const pairs = (await findSimilarPairs(db, ALTERNATE_THRESHOLD)).filter(
     (pair) => pair.similarity < REPEAT_THRESHOLD,
   );
@@ -279,7 +304,8 @@ export async function regroupAlternates(db: PrismaClient): Promise<{ groups: num
   // threshold — which is exactly the answer complete linkage needs from it.
   const edge = new Map<string, number>();
   const keyOf = (a: string, b: string) => [a, b].sort().join("|");
-  for (const pair of pairs) edge.set(keyOf(pair.id, pair.matchedItemId), pair.similarity);
+  for (const pair of pairs)
+    edge.set(keyOf(pair.id, pair.matchedItemId), pair.similarity);
 
   const clusterOf = new Map<string, string[]>();
   const clusterFor = (id: string): string[] => clusterOf.get(id) ?? [id];
@@ -289,7 +315,9 @@ export async function regroupAlternates(db: PrismaClient): Promise<{ groups: num
     const a = clusterFor(pair.id);
     const b = clusterFor(pair.matchedItemId);
     if (a === b) continue;
-    const linked = a.every((x) => b.every((y) => (edge.get(keyOf(x, y)) ?? 0) >= ALTERNATE_THRESHOLD));
+    const linked = a.every((x) =>
+      b.every((y) => (edge.get(keyOf(x, y)) ?? 0) >= ALTERNATE_THRESHOLD),
+    );
     if (!linked) continue;
     const merged = [...a, ...b];
     for (const id of merged) clusterOf.set(id, merged);
@@ -329,7 +357,10 @@ export async function regroupAlternates(db: PrismaClient): Promise<{ groups: num
 
   // Anything no longer near anything else must lose its group, or it blocks a sibling for nothing.
   await db.masterItem.updateMany({
-    where: { conceptGroupId: { not: null }, id: { notIn: grouped.length > 0 ? grouped : ["-"] } },
+    where: {
+      conceptGroupId: { not: null },
+      id: { notIn: grouped.length > 0 ? grouped : ["-"] },
+    },
     data: { conceptGroupId: null },
   });
 

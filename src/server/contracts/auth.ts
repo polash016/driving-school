@@ -99,7 +99,9 @@ export const revokeSessionInputSchema = z
   .object({ sessionId: idSchema })
   .strict();
 
-export const revokeInviteInputSchema = z.object({ inviteId: idSchema }).strict();
+export const revokeInviteInputSchema = z
+  .object({ inviteId: idSchema })
+  .strict();
 
 export const importStudentsInputSchema = z
   .object({
@@ -144,7 +146,9 @@ export const loginTicketSchema = z
   .object({ ticketId: z.string().min(1) })
   .strict();
 
-export type RegisterViaInviteInput = z.infer<typeof registerViaInviteInputSchema>;
+export type RegisterViaInviteInput = z.infer<
+  typeof registerViaInviteInputSchema
+>;
 export type LoginInput = z.infer<typeof loginInputSchema>;
 export type CreateInviteInput = z.infer<typeof createInviteInputSchema>;
 export type Invite = z.infer<typeof inviteSchema>;

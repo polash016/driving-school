@@ -48,7 +48,10 @@ export default async function RegisterPage({
       title={t("title")}
       subtitle={t("subtitle", { school: schoolConfig.school.name })}
     >
-      <RegisterForm inviteToken={invite} presetEmail={preview.email ?? undefined} />
+      <RegisterForm
+        inviteToken={invite}
+        presetEmail={preview.email ?? undefined}
+      />
     </AuthShell>
   );
 }

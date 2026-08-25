@@ -29,7 +29,9 @@ const responseSchema = z.object({
   candidates: z
     .array(
       z.object({
-        content: z.object({ parts: z.array(z.object({ text: z.string().optional() })) }),
+        content: z.object({
+          parts: z.array(z.object({ text: z.string().optional() })),
+        }),
       }),
     )
     .min(1),
@@ -53,7 +55,10 @@ function toGeminiParts(content: ChatRequest["messages"][number]["content"]) {
       : {
           // Gemini takes image bytes inline; a data: URL carries both mime type and payload.
           inline_data: {
-            mime_type: part.image_url.url.slice(5, part.image_url.url.indexOf(";")),
+            mime_type: part.image_url.url.slice(
+              5,
+              part.image_url.url.indexOf(";"),
+            ),
             data: part.image_url.url.slice(part.image_url.url.indexOf(",") + 1),
           },
         },
@@ -65,15 +70,22 @@ export const googleAdapter: ProviderAdapter = {
 
   async chat(credentials, request: ChatRequest): Promise<ChatResponse> {
     const base = (credentials.baseUrl ?? DEFAULT_BASE).replace(/\/$/, "");
-    const system = request.messages.find((message) => message.role === "system");
-    const user = request.messages.filter((message) => message.role !== "system");
+    const system = request.messages.find(
+      (message) => message.role === "system",
+    );
+    const user = request.messages.filter(
+      (message) => message.role !== "system",
+    );
 
     // Gemini rejects a request whose `contents` is empty ("contents is not specified"), so a
     // prompt that is purely a system instruction — which is most of ours — becomes the user turn.
     const useSystemAsContent = user.length === 0 && Boolean(system);
     const contents = useSystemAsContent
       ? [{ role: "user", parts: toGeminiParts(system!.content) }]
-      : user.map((message) => ({ role: "user", parts: toGeminiParts(message.content) }));
+      : user.map((message) => ({
+          role: "user",
+          parts: toGeminiParts(message.content),
+        }));
 
     const response = await fetch(
       `${base}/models/${request.model}:generateContent?key=${credentials.apiKey}`,
@@ -98,7 +110,9 @@ export const googleAdapter: ProviderAdapter = {
     const parsed = responseSchema.parse(await response.json());
 
     return {
-      text: parsed.candidates[0].content.parts.map((part) => part.text ?? "").join(""),
+      text: parsed.candidates[0].content.parts
+        .map((part) => part.text ?? "")
+        .join(""),
       model: request.model,
       promptTokens: parsed.usageMetadata?.promptTokenCount ?? 0,
       completionTokens: parsed.usageMetadata?.candidatesTokenCount ?? 0,
@@ -122,11 +136,15 @@ export const googleAdapter: ProviderAdapter = {
       },
     );
     if (!response.ok) throw classify(response.status, await response.text());
-    const vectors = embedSchema.parse(await response.json()).embeddings.map((row) => row.values);
+    const vectors = embedSchema
+      .parse(await response.json())
+      .embeddings.map((row) => row.values);
 
     // Fail loudly rather than writing a vector the column cannot hold: a silent dimension
     // mismatch would corrupt the knowledge base one chunk at a time.
-    const wrong = vectors.find((vector) => vector.length !== EMBEDDING_DIMENSIONS);
+    const wrong = vectors.find(
+      (vector) => vector.length !== EMBEDDING_DIMENSIONS,
+    );
     if (wrong) {
       throw new ProviderError(
         `embedding model returned ${wrong.length} dimensions, expected ${EMBEDDING_DIMENSIONS}`,

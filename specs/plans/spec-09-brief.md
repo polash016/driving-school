@@ -5,6 +5,7 @@
 **Import, don't reinvent:** `contracts/dashboard.ts` (`dashboardAggregateSchema` — includes `masteryPercent: null` = "Not started" neutral pill, `action: RESUME|REVIEW` = exactly one button per test card), cache helpers + `keys.dashAgg` (invalidation already fired by the engine's `onGraded`), `remainingSeconds` for in-progress cards.
 
 **Key decisions already made**
+
 - ONE aggregate query path: `dashboardService.getAggregate(userId, locale)` → single Redis read (`tp:dash:agg`), miss → one batched Prisma round (mastery via `TopicMastery_userId_idx`, history via `ExamAttempt_userId_startedAt_idx`, homework via deadline indexes) → cacheSet 24h. Target <100ms.
 - TopicMastery update: transactional on grading — extend the engine's `gradeAndClose` via a second hook or do it inside `onGraded` (recommended: a `progressService.applyGradedAttempt(attemptId)` called from `onGraded`, updating mastery (recency-weighted rolling window over `recentOutcomes` ring buffer), ReadinessSnapshot, and SM-2 `MistakeCard`s for wrong answers — one transaction, THEN cache invalidation).
 - Readiness v1 (document the formula in the plan): `0.5·recencyWeightedMockPassRate + 0.3·topicCoverage(green share) + 0.2·volumeFactor(min(1, answered/300))`, ×100.

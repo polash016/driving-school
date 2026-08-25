@@ -18,17 +18,22 @@ const source: QuestionPayload = {
     { key: "b", text: "A speed adapted to the conditions, below the limit" },
     { key: "c", text: "Exactly 60 km/h" },
   ],
-  explanation: "Under trafikkreglene § 11 no. 1 you must adapt your speed to the conditions.",
+  explanation:
+    "Under trafikkreglene § 11 no. 1 you must adapt your speed to the conditions.",
 };
 
 const good: QuestionPayload = {
   stem: "La señal indica 80 km/h y la carretera está mojada. ¿Qué velocidad debes llevar?",
   options: [
     { key: "a", text: "80 km/h, tal como indica la señal" },
-    { key: "b", text: "Una velocidad adaptada a las condiciones, por debajo del límite" },
+    {
+      key: "b",
+      text: "Una velocidad adaptada a las condiciones, por debajo del límite",
+    },
     { key: "c", text: "Exactamente 60 km/h" },
   ],
-  explanation: "Según trafikkreglene § 11 no. 1 debes adaptar la velocidad a las condiciones.",
+  explanation:
+    "Según trafikkreglene § 11 no. 1 debes adaptar la velocidad a las condiciones.",
 };
 
 function check(translated: QuestionPayload, locale = "es") {
@@ -50,7 +55,9 @@ describe("the deterministic translation gate", () => {
     const drifted = {
       ...good,
       options: good.options.map((option) =>
-        option.key === "a" ? { ...option, text: "60 km/h, tal como indica la señal" } : option,
+        option.key === "a"
+          ? { ...option, text: "60 km/h, tal como indica la señal" }
+          : option,
       ),
     };
     expect(blockingCodes(check(drifted))).toContain("NUMBER_DRIFT");
@@ -86,7 +93,8 @@ describe("the deterministic translation gate", () => {
   it("refuses a translated legal reference — a § is an address, not prose", () => {
     const mangled = {
       ...good,
-      explanation: "Según las reglas de tráfico artículo 11 número 1 debes adaptar la velocidad.",
+      explanation:
+        "Según las reglas de tráfico artículo 11 número 1 debes adaptar la velocidad.",
     };
     expect(blockingCodes(check(mangled))).toContain("CITATION_DRIFT");
   });
@@ -99,7 +107,12 @@ describe("the deterministic translation gate", () => {
     // A model that answers in English for an Arabic request is a silent, total failure.
     expect(
       blockingCodes(
-        checkTranslation({ entity: "MASTER_ITEM", locale: "ar", source, translated: good }),
+        checkTranslation({
+          entity: "MASTER_ITEM",
+          locale: "ar",
+          source,
+          translated: good,
+        }),
       ),
     ).toContain("UNTRANSLATED");
   });
@@ -135,8 +148,12 @@ describe("the deterministic translation gate", () => {
       },
       translated: { text: "Empieza." },
     });
-    expect(result.issues.some((issue) => issue.code === "LENGTH_OUTLIER")).toBe(true);
-    expect(result.issues.find((issue) => issue.code === "LENGTH_OUTLIER")?.blocking).toBe(false);
+    expect(result.issues.some((issue) => issue.code === "LENGTH_OUTLIER")).toBe(
+      true,
+    );
+    expect(
+      result.issues.find((issue) => issue.code === "LENGTH_OUTLIER")?.blocking,
+    ).toBe(false);
     expect(result.passed).toBe(true);
   });
 });
@@ -152,7 +169,10 @@ describe("serving a translation", () => {
   it("renders a missing option in English rather than throwing", () => {
     // This is the case that used to 500 a live exam page. One English option is survivable;
     // a crashed exam is not.
-    const partial = { ...good, options: good.options.filter((option) => option.key !== "c") };
+    const partial = {
+      ...good,
+      options: good.options.filter((option) => option.key !== "c"),
+    };
     const merged = mergeQuestion(source, partial);
     expect(merged.options.map((option) => option.key)).toEqual(["a", "b", "c"]);
     expect(merged.options[2].text).toBe("Exactly 60 km/h");
@@ -178,22 +198,34 @@ describe("serving a translation", () => {
   });
 
   it("falls back for a name-shaped unit", () => {
-    expect(mergeName("Right of way", { name: "Prioridad de paso" })).toBe("Prioridad de paso");
+    expect(mergeName("Right of way", { name: "Prioridad de paso" })).toBe(
+      "Prioridad de paso",
+    );
     expect(mergeName("Right of way", undefined)).toBe("Right of way");
     expect(mergeName("Right of way", { name: "  " })).toBe("Right of way");
   });
 });
 
 describe("staleness and reuse", () => {
-  const unit = { entity: "TOPIC" as const, en: { name: "Right of way" }, nb: { name: "Vikeplikt" } };
+  const unit = {
+    entity: "TOPIC" as const,
+    en: { name: "Right of way" },
+    nb: { name: "Vikeplikt" },
+  };
 
   it("is stable across key order, so nothing looks stale for no reason", () => {
-    const reordered = { entity: "TOPIC" as const, nb: { name: "Vikeplikt" }, en: { name: "Right of way" } };
+    const reordered = {
+      entity: "TOPIC" as const,
+      nb: { name: "Vikeplikt" },
+      en: { name: "Right of way" },
+    };
     expect(hashUnit(unit, 1)).toBe(hashUnit(reordered, 1));
   });
 
   it("changes when the source text changes", () => {
-    expect(hashUnit({ ...unit, en: { name: "Priority" } }, 1)).not.toBe(hashUnit(unit, 1));
+    expect(hashUnit({ ...unit, en: { name: "Priority" } }, 1)).not.toBe(
+      hashUnit(unit, 1),
+    );
   });
 
   it("changes when the glossary changes — new terminology means re-translating", () => {

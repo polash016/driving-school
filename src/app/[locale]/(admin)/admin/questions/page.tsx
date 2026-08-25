@@ -27,12 +27,14 @@ export default async function QuestionsPage({
       {
         page: Number(query.page ?? 1),
         pageSize: 20,
-      ...(query.status ? { status: query.status } : {}),
-      ...(query.type ? { type: query.type } : {}),
-      ...(query.topicSlug ? { topicSlug: query.topicSlug } : {}),
-      ...(query.difficulty ? { difficulty: Number(query.difficulty) } : {}),
-      ...(query.search ? { search: query.search } : {}),
-        ...(query.languageIncomplete === "1" ? { languageIncomplete: true } : {}),
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.type ? { type: query.type } : {}),
+        ...(query.topicSlug ? { topicSlug: query.topicSlug } : {}),
+        ...(query.difficulty ? { difficulty: Number(query.difficulty) } : {}),
+        ...(query.search ? { search: query.search } : {}),
+        ...(query.languageIncomplete === "1"
+          ? { languageIncomplete: true }
+          : {}),
         ...(query.awaitingMyReview === "1" ? { awaitingMyReview: true } : {}),
       },
       user.id,
@@ -41,7 +43,13 @@ export default async function QuestionsPage({
     // table that cannot name a question's topic is worse than no column at all.
     db.topic.findMany({
       where: { deletedAt: null },
-      select: { id: true, slug: true, name: true, parentId: true, sortOrder: true },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        parentId: true,
+        sortOrder: true,
+      },
       orderBy: { sortOrder: "asc" },
     }),
   ]);
@@ -64,22 +72,34 @@ export default async function QuestionsPage({
     { id: root.id, slug: root.slug, label: nameOf(root) },
     ...topics
       .filter((topic) => topic.parentId === root.id)
-      .map((child) => ({ id: child.id, slug: child.slug, label: `— ${nameOf(child)}` })),
+      .map((child) => ({
+        id: child.id,
+        slug: child.slug,
+        label: `— ${nameOf(child)}`,
+      })),
   ]);
   // Orphans (a topic whose parent was removed) must still be nameable in the table.
   const listed = new Set(topicOptions.map((option) => option.id));
   topicOptions.push(
     ...topics
       .filter((topic) => !listed.has(topic.id))
-      .map((topic) => ({ id: topic.id, slug: topic.slug, label: nameOf(topic) })),
+      .map((topic) => ({
+        id: topic.id,
+        slug: topic.slug,
+        label: nameOf(topic),
+      })),
   );
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-8">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1.5">
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">{t("title")}</h1>
-          <p className="text-sm/relaxed text-muted-foreground">{t("subtitle")}</p>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+            {t("title")}
+          </h1>
+          <p className="text-sm/relaxed text-muted-foreground">
+            {t("subtitle")}
+          </p>
         </div>
         <Button asChild>
           <Link href="/admin/questions/new">{t("new")}</Link>

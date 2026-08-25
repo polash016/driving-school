@@ -9,7 +9,10 @@ import type { SessionUser } from "@/server/authz";
 import { pickBilingualText } from "@/lib/i18n-content";
 import { search } from "@/server/services/kb/search";
 import { checkItemQuality } from "@/server/services/question-bank/validation";
-import { buildRejectionLessons, recordRejection } from "@/server/services/question-bank/rejections";
+import {
+  buildRejectionLessons,
+  recordRejection,
+} from "@/server/services/question-bank/rejections";
 import {
   classifyAgainstPool,
   cosine,
@@ -61,7 +64,11 @@ const candidateSchema = z.object({
  */
 const generationResponseSchema = z.union([
   z.object({ questions: z.array(candidateSchema).min(1).max(10) }),
-  z.array(candidateSchema).min(1).max(10).transform((questions) => ({ questions })),
+  z
+    .array(candidateSchema)
+    .min(1)
+    .max(10)
+    .transform((questions) => ({ questions })),
 ]);
 
 export interface GenerationOutcome {
@@ -234,7 +241,11 @@ export async function generateTheoryQuestions(
       legalCitations: candidate.citations,
     });
     if (!quality.passed) {
-      await refuse(candidate, quality.errors.map((issue) => issue.code), "GATE");
+      await refuse(
+        candidate,
+        quality.errors.map((issue) => issue.code),
+        "GATE",
+      );
       continue;
     }
 
@@ -277,7 +288,12 @@ export async function generateTheoryQuestions(
       select: { id: true },
     });
 
-    await storeStemEmbedding(db, created.id, embedding, verdict.conceptGroupId ?? null);
+    await storeStemEmbedding(
+      db,
+      created.id,
+      embedding,
+      verdict.conceptGroupId ?? null,
+    );
     keptEmbeddings.push(embedding);
     accepted++;
   }
@@ -311,7 +327,12 @@ export async function generateTheoryQuestions(
   });
 
   logger.info(
-    { batchId: batch.id, topic: topic.slug, accepted, rejected: rejected.length },
+    {
+      batchId: batch.id,
+      topic: topic.slug,
+      accepted,
+      rejected: rejected.length,
+    },
     "theory questions generated",
   );
 

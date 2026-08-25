@@ -26,10 +26,10 @@ export function SetDetail({ set }: { set: BatchDetail }) {
   const t = useTranslations("admin.sets");
   const tQuestions = useTranslations("admin.questions");
   const tErrors = useTranslations();
-  const [detachState, detachAction] = useActionState<ActionResult | undefined, FormData>(
-    detachFromSetAction,
-    undefined,
-  );
+  const [detachState, detachAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(detachFromSetAction, undefined);
   const [transitionState, transitionAction] = useActionState<
     ActionResult<TransitionOutcome> | undefined,
     FormData
@@ -48,7 +48,9 @@ export function SetDetail({ set }: { set: BatchDetail }) {
         <span className="text-muted-foreground">
           {set.acceptanceRate === null
             ? t("acceptanceUnknown")
-            : t("acceptance", { percent: Math.round(set.acceptanceRate * 100) })}
+            : t("acceptance", {
+                percent: Math.round(set.acceptanceRate * 100),
+              })}
         </span>
         <span className="ml-auto flex gap-2">
           {set.counts.inReview > 0 ? (
@@ -71,7 +73,9 @@ export function SetDetail({ set }: { set: BatchDetail }) {
       {detachState?.ok === false ? (
         <FormAlert>{tErrors(detachState.messageKey)}</FormAlert>
       ) : null}
-      {detachState?.ok ? <FormAlert tone="success">{t("removed")}</FormAlert> : null}
+      {detachState?.ok ? (
+        <FormAlert tone="success">{t("removed")}</FormAlert>
+      ) : null}
       {transitionState?.ok === false ? (
         <FormAlert>{tErrors(transitionState.messageKey)}</FormAlert>
       ) : null}
@@ -111,7 +115,10 @@ export function SetDetail({ set }: { set: BatchDetail }) {
                     ) : null}
                     <form action={detachAction}>
                       <input type="hidden" name="itemId" value={item.id} />
-                      <SubmitButton label={t("removeFromSet")} variant="ghost" />
+                      <SubmitButton
+                        label={t("removeFromSet")}
+                        variant="ghost"
+                      />
                     </form>
                   </div>
                 </CardContent>

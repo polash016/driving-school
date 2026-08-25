@@ -6,9 +6,19 @@ import { requireUser } from "@/server/auth/require-user";
 import type { ActionResult } from "@/server/contracts/common";
 import { db } from "@/server/db";
 import { toActionError } from "@/server/http/action-result";
-import { createLanguage, updateLanguage } from "@/server/services/i18n/languages";
-import { editTranslation, reviewTranslation } from "@/server/services/i18n/review";
-import { executeRun, planRun, type RunProgress } from "@/server/services/i18n/runs";
+import {
+  createLanguage,
+  updateLanguage,
+} from "@/server/services/i18n/languages";
+import {
+  editTranslation,
+  reviewTranslation,
+} from "@/server/services/i18n/review";
+import {
+  executeRun,
+  planRun,
+  type RunProgress,
+} from "@/server/services/i18n/runs";
 import type { TranslatableEntity } from "@prisma/client";
 
 /**
@@ -23,7 +33,9 @@ import type { TranslatableEntity } from "@prisma/client";
 
 function optionalString(formData: FormData, key: string): string | undefined {
   const value = formData.get(key);
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : undefined;
 }
 
 export async function addLanguageAction(
@@ -33,7 +45,9 @@ export async function addLanguageAction(
   const user = await requireUser("ADMIN");
   try {
     await createLanguage(db, user, {
-      code: String(formData.get("code") ?? "").trim().toLowerCase(),
+      code: String(formData.get("code") ?? "")
+        .trim()
+        .toLowerCase(),
       englishName: String(formData.get("englishName") ?? "").trim(),
       nativeName: String(formData.get("nativeName") ?? "").trim(),
       shortLabel: String(formData.get("shortLabel") ?? "").trim(),
@@ -149,7 +163,9 @@ export async function reviewTranslationAction(
     await reviewTranslation(db, user, {
       id: String(formData.get("id") ?? ""),
       action: formData.get("action") === "REJECT" ? "REJECT" : "APPROVE",
-      ...(optionalString(formData, "note") ? { note: optionalString(formData, "note") } : {}),
+      ...(optionalString(formData, "note")
+        ? { note: optionalString(formData, "note") }
+        : {}),
     });
     revalidatePath(`/admin/languages/${formData.get("code") ?? ""}`);
     return { ok: true };
@@ -167,7 +183,9 @@ export async function editTranslationAction(
     await editTranslation(db, user, {
       id: String(formData.get("id") ?? ""),
       value: JSON.parse(String(formData.get("value") ?? "{}")),
-      ...(optionalString(formData, "note") ? { note: optionalString(formData, "note") } : {}),
+      ...(optionalString(formData, "note")
+        ? { note: optionalString(formData, "note") }
+        : {}),
     });
     revalidatePath(`/admin/languages/${formData.get("code") ?? ""}`);
     return { ok: true };

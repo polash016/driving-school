@@ -21,7 +21,9 @@ import { schoolConfig } from "../../config/school.config";
 export const routing = defineRouting({
   locales: [...BUILTIN_LOCALES],
   // The config value is a BCP-47 string now; the compiled set is what this object routes over.
-  defaultLocale: (BUILTIN_LOCALES as readonly string[]).includes(schoolConfig.locales.default)
+  defaultLocale: (BUILTIN_LOCALES as readonly string[]).includes(
+    schoolConfig.locales.default,
+  )
     ? (schoolConfig.locales.default as (typeof BUILTIN_LOCALES)[number])
     : "en",
   localePrefix: {

@@ -42,7 +42,9 @@ const OPTION_SEP = "|";
 const KEY_SEP = ":";
 
 function encodeOptions(options: { key: string; text: string }[]): string {
-  return options.map((option) => `${option.key}${KEY_SEP}${option.text}`).join(OPTION_SEP);
+  return options
+    .map((option) => `${option.key}${KEY_SEP}${option.text}`)
+    .join(OPTION_SEP);
 }
 
 function decodeOptions(encoded: string): { key: string; text: string }[] {
@@ -53,9 +55,15 @@ function decodeOptions(encoded: string): { key: string; text: string }[] {
     .map((part) => {
       const index = part.indexOf(KEY_SEP);
       if (index < 1) {
-        throw new ValidationError({ part }, "admin.questions.errors.optionFormat");
+        throw new ValidationError(
+          { part },
+          "admin.questions.errors.optionFormat",
+        );
       }
-      return { key: part.slice(0, index).trim(), text: part.slice(index + 1).trim() };
+      return {
+        key: part.slice(0, index).trim(),
+        text: part.slice(index + 1).trim(),
+      };
     });
 }
 
@@ -194,7 +202,9 @@ export async function importItems(
     select: { id: true, slug: true },
   });
   const topicBySlug = new Map(topics.map((topic) => [topic.slug, topic.id]));
-  const licenseClasses = await db.licenseClass.findMany({ select: { id: true, code: true } });
+  const licenseClasses = await db.licenseClass.findMany({
+    select: { id: true, code: true },
+  });
   const classByCode = new Map(licenseClasses.map((row) => [row.code, row.id]));
 
   const rows: ImportResult["rows"] = [];

@@ -17,7 +17,9 @@
     "invites": "Invitations",
     "history": "My tests",
     "ai": "AI providers",
-    "languages": "Languages"
+    "languages": "Languages",
+    "images": "Images",
+    "signs": "Signs"
   },
   "language": {
     "label": "Language",
@@ -33,7 +35,6 @@
     "shellNote": "Your training dashboard is on its way. Your driving school will let you know when it opens.",
     "signedOutNote": "Your driving school will send you an invitation to get started.",
     "logIn": "Log in",
-    "practice": "Mock exam",
     "mockExam": "Test",
     "mockExamLocked": "Test not ready yet",
     "topicPractice": "Practise one topic",
@@ -53,7 +54,14 @@
     "categorySubtitle": "From the tests you have sat — practice is not counted.",
     "categoryEmpty": "Not tested yet",
     "categoryScore": "{correct} of {answered} correct",
-    "categoryNothingYet": "Sit a test and your categories will show up here."
+    "categoryNothingYet": "Sit a test and your categories will show up here.",
+    "theoryTest": "Theory test",
+    "theoryTestEmpty": "Theory test not ready",
+    "imageQuiz": "Image quiz",
+    "imageQuizEmpty": "Image quiz not ready",
+    "signTest": "Sign test",
+    "signTestEmpty": "Sign test not ready",
+    "tileEmptyHint": "No approved questions of this kind yet. Your school adds them in the admin panel."
   },
   "errors": {
     "validation": "Some of the information you entered is not valid. Please check and try again.",
@@ -325,7 +333,8 @@
         "approvedIsFrozen": "Approved questions cannot be edited. Retire this one and approve a replacement.",
         "onlyApprovedReplaceable": "Only an approved question can be replaced.",
         "selfApproval": "You cannot approve your own question — it needs another reviewer.",
-        "secondApproverNeeded": "Recorded. An AI-written question needs a second reviewer before it goes live."
+        "secondApproverNeeded": "Recorded. An AI-written question needs a second reviewer before it goes live.",
+        "imageRequired": "An image or sign question must have a picture."
       },
       "rows": {
         "imported": "Imported as draft",
@@ -344,7 +353,16 @@
       "reviewQueueLink": "Review one at a time",
       "bulkReviewHint": "Filter to a state, select the page, and act on all of it at once. The quality checks and the two-reviewer rule still apply to every question.",
       "awaitingMyReview": "Waiting for my review ({count})",
-      "filterDrafts": "Drafts"
+      "filterDrafts": "Drafts",
+      "type": "Type",
+      "types": {
+        "TEXT": "Text",
+        "IMAGE": "Image",
+        "SIGN": "Sign"
+      },
+      "image": "Picture",
+      "imageEmpty": "No pictures yet. Upload one under Images, or seed the sign registry.",
+      "imageRequired": "Pick a picture — an image or sign question needs one."
     },
     "review": {
       "title": "Review queue",
@@ -611,6 +629,49 @@
       "inEveryLanguage": "This question in every language",
       "field": "Field",
       "stemRow": "Question"
+    },
+    "images": {
+      "title": "Images",
+      "subtitle": "Photographs questions can be asked about. Uploads are private and served only to signed-in students.",
+      "upload": "Upload images",
+      "uploading": "Uploading…",
+      "choose": "Choose files",
+      "attest": "I confirm the school has the right to use these images.",
+      "attestRequired": "Confirm the usage rights before uploading.",
+      "empty": "No images uploaded yet.",
+      "emptyBody": "Add a traffic photograph here, then attach it to a question in the question editor.",
+      "uploaded": "{count} image(s) uploaded.",
+      "duplicate": "{count} looked like a duplicate of an image already in the library.",
+      "failed": "{count} could not be uploaded.",
+      "questionsFromImage": "Questions from this image",
+      "noQuestions": "No questions use this image yet.",
+      "delete": "Delete",
+      "deleted": "Image deleted.",
+      "dimensions": "{width}×{height}",
+      "uploadedBy": "Uploaded by {name}",
+      "limits": "JPEG, PNG or WebP. Up to {maxMb} MB each, {maxBatch} at a time."
+    },
+    "signs": {
+      "title": "Sign registry",
+      "subtitle": "The signs the sign test draws on. Provisional rows still need a person to check them.",
+      "empty": "The sign registry is empty.",
+      "emptyBody": "Run pnpm signs:extract, then pnpm signs:enrich, then pnpm db:seed-signs.",
+      "provisionalOnly": "Needs review only",
+      "all": "All signs",
+      "provisionalBadge": "Provisional",
+      "code": "Code",
+      "class": "Group",
+      "nameEn": "Name (English)",
+      "nameNb": "Name (Norwegian)",
+      "meaningEn": "Meaning (English)",
+      "meaningNb": "Meaning (Norwegian)",
+      "active": "Shown to students",
+      "markReviewed": "Mark as reviewed",
+      "save": "Save sign",
+      "saved": "Sign saved.",
+      "search": "Search signs",
+      "count": "{shown} of {total} signs",
+      "sourceNote": "Source"
     }
   },
   "emails": {
@@ -704,6 +765,7 @@
       "errors": {
         "noCategories": "Choose at least one category to be tested on."
       }
-    }
+    },
+    "imageAlt": "Picture for this question"
   }
 }

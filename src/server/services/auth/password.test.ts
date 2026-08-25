@@ -28,23 +28,34 @@ describe("password hashing", () => {
 
   it("verifies the right password and rejects the wrong one", async () => {
     const hash = await hashPassword("correct horse battery staple");
-    await expect(verifyPassword(hash, "correct horse battery staple")).resolves.toBe(true);
-    await expect(verifyPassword(hash, "Correct horse battery staple")).resolves.toBe(false);
+    await expect(
+      verifyPassword(hash, "correct horse battery staple"),
+    ).resolves.toBe(true);
+    await expect(
+      verifyPassword(hash, "Correct horse battery staple"),
+    ).resolves.toBe(false);
   });
 
   it("salts each hash — identical passwords never share a digest", async () => {
-    const [a, b] = await Promise.all([hashPassword("samesame123"), hashPassword("samesame123")]);
+    const [a, b] = await Promise.all([
+      hashPassword("samesame123"),
+      hashPassword("samesame123"),
+    ]);
     expect(a).not.toBe(b);
   });
 
   it("treats a malformed stored hash as a failed verification, not a crash", async () => {
-    await expect(verifyPassword("not-a-hash", "whatever123")).resolves.toBe(false);
+    await expect(verifyPassword("not-a-hash", "whatever123")).resolves.toBe(
+      false,
+    );
   });
 });
 
 describe("password policy", () => {
   it("accepts a reasonable password", () => {
-    expect(() => assertPasswordPolicy("bratsberg-sving-42", "kari@example.no")).not.toThrow();
+    expect(() =>
+      assertPasswordPolicy("bratsberg-sving-42", "kari@example.no"),
+    ).not.toThrow();
   });
 
   it.each([
@@ -65,7 +76,9 @@ describe("password policy", () => {
       assertPasswordPolicy("kariNordmann2026", "kariNordmann@example.no");
       throw new Error("expected policy violation");
     } catch (error) {
-      expect((error as ValidationError).messageKey).toBe("auth.errors.passwordSameAsEmail");
+      expect((error as ValidationError).messageKey).toBe(
+        "auth.errors.passwordSameAsEmail",
+      );
     }
   });
 });

@@ -18,7 +18,10 @@ const bilingualValueSchema = z.object({ en: z.string(), nb: z.string() });
 
 const slotSchema = z.discriminatedUnion("kind", [
   /** Paired bilingual text choices — index i of en corresponds to index i of nb. */
-  z.object({ kind: z.literal("choice"), values: z.array(bilingualValueSchema).min(1) }),
+  z.object({
+    kind: z.literal("choice"),
+    values: z.array(bilingualValueSchema).min(1),
+  }),
   /** Numeric choices, shared across locales. */
   z.object({ kind: z.literal("number"), values: z.array(z.number()).min(1) }),
   /** Pinned to the facts table — deterministic, respects legal ground truth. */
@@ -29,7 +32,10 @@ export const parameterSlotsSchema = z.object({
   slots: z.record(z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]*$/), slotSchema),
   constraints: z
     .array(
-      z.object({ type: z.literal("distinct"), slots: z.array(z.string()).min(2) }),
+      z.object({
+        type: z.literal("distinct"),
+        slots: z.array(z.string()).min(2),
+      }),
     )
     .default([]),
 });

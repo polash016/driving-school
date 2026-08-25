@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { classify, type ChatRequest, type ChatResponse, type ProviderAdapter } from "./types";
+import {
+  classify,
+  type ChatRequest,
+  type ChatResponse,
+  type ProviderAdapter,
+} from "./types";
 
 /**
  * Anthropic Claude (spec-05). Native: the system prompt is a top-level field rather than a
@@ -11,9 +16,14 @@ const API_VERSION = "2023-06-01";
 
 const responseSchema = z.object({
   model: z.string().optional(),
-  content: z.array(z.object({ type: z.string(), text: z.string().optional() })).min(1),
+  content: z
+    .array(z.object({ type: z.string(), text: z.string().optional() }))
+    .min(1),
   usage: z
-    .object({ input_tokens: z.number().optional(), output_tokens: z.number().optional() })
+    .object({
+      input_tokens: z.number().optional(),
+      output_tokens: z.number().optional(),
+    })
     .optional(),
 });
 
@@ -22,8 +32,12 @@ export const anthropicAdapter: ProviderAdapter = {
 
   async chat(credentials, request: ChatRequest): Promise<ChatResponse> {
     const base = (credentials.baseUrl ?? DEFAULT_BASE).replace(/\/$/, "");
-    const system = request.messages.find((message) => message.role === "system");
-    const user = request.messages.filter((message) => message.role !== "system");
+    const system = request.messages.find(
+      (message) => message.role === "system",
+    );
+    const user = request.messages.filter(
+      (message) => message.role !== "system",
+    );
 
     const response = await fetch(`${base}/messages`, {
       method: "POST",

@@ -20,10 +20,10 @@ export function TotpSetupForm({
   const t = useTranslations("auth.twoFactor");
   const tErrors = useTranslations();
   const locale = useLocale();
-  const [state, formAction] = useActionState<ActionResult | undefined, FormData>(
-    completeTotpSetupAction,
-    undefined,
-  );
+  const [state, formAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(completeTotpSetupAction, undefined);
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
@@ -39,11 +39,19 @@ export function TotpSetupForm({
       </ol>
 
       <div className="flex justify-center rounded-[var(--radius-control)] bg-white p-3">
-        <Image src={qrDataUrl} alt={t("qrAlt")} width={200} height={200} unoptimized />
+        <Image
+          src={qrDataUrl}
+          alt={t("qrAlt")}
+          width={200}
+          height={200}
+          unoptimized
+        />
       </div>
 
       <div className="space-y-1.5">
-        <p className="text-sm font-medium text-foreground">{t("secretLabel")}</p>
+        <p className="text-sm font-medium text-foreground">
+          {t("secretLabel")}
+        </p>
         <p className="rounded-[var(--radius-control)] bg-muted px-3 py-2 font-mono text-sm break-all text-foreground">
           {secret}
         </p>

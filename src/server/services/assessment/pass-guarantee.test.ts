@@ -8,7 +8,11 @@ import { evaluateGuarantee, QUALIFYING_CRITERIA } from "./pass-guarantee";
 describe("pass guarantee eligibility", () => {
   it("counts a full-length test across every category", () => {
     expect(
-      evaluateGuarantee({ questionCount: 45, selectedTopicCount: 7, totalTopicCount: 7 }),
+      evaluateGuarantee({
+        questionCount: 45,
+        selectedTopicCount: 7,
+        totalTopicCount: 7,
+      }),
     ).toEqual({ counts: true, reasons: [] });
   });
 
@@ -44,7 +48,11 @@ describe("pass guarantee eligibility", () => {
 
   it("counts a longer-than-required test", () => {
     expect(
-      evaluateGuarantee({ questionCount: 60, selectedTopicCount: 7, totalTopicCount: 7 }).counts,
+      evaluateGuarantee({
+        questionCount: 60,
+        selectedTopicCount: 7,
+        totalTopicCount: 7,
+      }).counts,
     ).toBe(true);
   });
 

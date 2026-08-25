@@ -39,7 +39,11 @@ describe("provider configuration", () => {
 
   it("rejects an implausibly short key", () => {
     expect(() =>
-      createProviderInputSchema.parse({ kind: "ANTHROPIC", label: "Claude", apiKey: "short" }),
+      createProviderInputSchema.parse({
+        kind: "ANTHROPIC",
+        label: "Claude",
+        apiKey: "short",
+      }),
     ).toThrow();
   });
 

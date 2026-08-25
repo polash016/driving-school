@@ -1,9 +1,11 @@
 # Spec 04 — Question Bank CRUD & Review Workflow
 
 ## Objective
+
 Admin/instructor manage the item lifecycle: DRAFT → IN_REVIEW → APPROVED → RETIRED.
 
 ## In scope
+
 - Admin question-bank browser: server-paginated table, filters (topic, status, type, difficulty, language completeness), search, bulk actions (approve, retire, re-tag).
 - Item editor: bilingual side-by-side editing (EN/NB), options editor enforcing exactly-one-correct, legal citation picker (from KB refs), difficulty, topic, preview exactly as student sees it (both languages, light/dark).
 - Review queue UI: split view, keyboard shortcuts (A approve, E edit, R reject with reason), rejection reasons stored.
@@ -11,6 +13,7 @@ Admin/instructor manage the item lifecycle: DRAFT → IN_REVIEW → APPROVED →
 - Import/export JSON + CSV.
 
 ## Acceptance checklist
+
 - [ ] Lifecycle transitions enforced server-side (invalid transitions rejected + tested).
 - [ ] Editing approved item creates v+1; old attempts still render old version.
 - [ ] Table stays <150ms p95 at 10k seeded items (measure with seeded data).
@@ -20,27 +23,28 @@ Admin/instructor manage the item lifecycle: DRAFT → IN_REVIEW → APPROVED →
 
 ## Amendment — 2026-08-24 (approved; see DECISIONS.md · spec-04 · Question sets)
 
-The question bank is also the instrument for judging AI output, so it gains the *set* as a first-class
+The question bank is also the instrument for judging AI output, so it gains the _set_ as a first-class
 object: the group of questions one generation run produced from one image or one topic.
 
 ### Added scope
+
 - **`GenerationBatch`** model (kind IMAGE/THEORY/MANUAL, status, source image or topic, requested count,
   provider + model + prompt version, creator) and `MasterItem.batchId`. A set is the unit you review,
   curate and measure.
 - **Set detail screen**: the image or topic that produced it, every candidate with its validator report
-  and provenance, per-question Keep / Retire, and *Revise with AI* / *Generate more* controls rendered
+  and provenance, per-question Keep / Retire, and _Revise with AI_ / _Generate more_ controls rendered
   disabled with an explanatory tooltip until spec-06 makes them live (D4).
 - **Accuracy dashboard**: human acceptance rate by model, by prompt version and by topic; ranked
   rejection reasons; trend over time. Aggregated from existing `MasterItem` provenance columns —
   rejected items are RETIRED, never deleted, so the denominator survives.
 
 ### Added acceptance checklist
+
 - [ ] Set detail lists exactly the items of that batch grouped by status; Keep/Retire changes that set
       only, and the change is audit-logged.
 - [ ] Accuracy figures match an independently computed seeded fixture (per model, per prompt version).
 - [ ] Set detail and the accuracy query stay <150ms p95 at 10k items, served by
       `MasterItem_batchId_status_idx` (state the plan in EXPLAIN evidence).
-
 
 ---
 
@@ -51,11 +55,13 @@ teoriprøve. That makes a wrong question, or an alterable result, a safety probl
 cosmetic one.
 
 ### Superseded
+
 - ~~"Editing approved item creates v+1; old attempts still render old version"~~ — an **APPROVED
   question is now frozen**. Corrections retire it and approve a linked replacement
   (`MasterItem.replacesId`). Old attempts keep rendering their own snapshot either way.
 
 ### Added scope
+
 - **Two-person sign-off** (`ItemApproval`): two distinct reviewers for an AI-drafted question, one
   non-author reviewer for a human-written one. Approvals are keyed to the item version, so editing
   a draft voids sign-offs collected for the older text.
@@ -72,6 +78,7 @@ cosmetic one.
   it was sat, with the student's answers against the correct ones.
 
 ### Added acceptance checklist
+
 - [ ] An AI-drafted question needs two different reviewers; the same reviewer twice does not
       count, and an author cannot approve their own work.
 - [ ] Editing an approved question is refused by the service **and** by the database; the

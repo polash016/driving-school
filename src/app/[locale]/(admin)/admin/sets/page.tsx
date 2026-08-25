@@ -31,7 +31,9 @@ export default async function SetsPage({
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-8">
       <header className="space-y-1.5">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">{t("title")}</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          {t("title")}
+        </h1>
         <p className="text-sm/relaxed text-muted-foreground">{t("subtitle")}</p>
       </header>
       <SetBoard
@@ -39,7 +41,10 @@ export default async function SetsPage({
         topics={topics
           .filter((topic) => !topic.parentId)
           .flatMap((root) => [
-            { id: root.id, label: pickBilingualText(root.name, locale as AppLocale) },
+            {
+              id: root.id,
+              label: pickBilingualText(root.name, locale as AppLocale),
+            },
             ...topics
               .filter((child) => child.parentId === root.id)
               .map((child) => ({

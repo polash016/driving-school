@@ -40,13 +40,17 @@ const inProtectedGroup = (file: string) =>
 describe("app router auth coverage", () => {
   it("covers every page and layout in a protected route group", () => {
     const uncovered = files
-      .filter((file) => /\/(page|layout)\.tsx$/.test(file) && inProtectedGroup(file))
+      .filter(
+        (file) => /\/(page|layout)\.tsx$/.test(file) && inProtectedGroup(file),
+      )
       .filter((file) => {
         if (read(file).includes("requireUser(")) return false;
         // A page may rely on its group's layout instead of repeating the call.
         const group = PROTECTED_GROUPS.find((g) => file.includes(`${g}/`))!;
         const layout = `${file.slice(0, file.indexOf(group) + group.length)}/layout.tsx`;
-        return !files.includes(layout) || !read(layout).includes("requireUser(");
+        return (
+          !files.includes(layout) || !read(layout).includes("requireUser(")
+        );
       })
       .map(rel);
 

@@ -25,10 +25,22 @@ const enabled = Boolean(process.env.TEST_DATABASE_URL);
 const d = describe.skipIf(!enabled);
 
 const RUN = randomUUID().slice(0, 8);
-const actor: SessionUser = { id: "", role: "ADMIN", email: `qb-${RUN}@example.no` };
+const actor: SessionUser = {
+  id: "",
+  role: "ADMIN",
+  email: `qb-${RUN}@example.no`,
+};
 /** Approval needs someone other than the author (spec-04b): nobody vouches for their own work. */
-const reviewer: SessionUser = { id: "", role: "ADMIN", email: `qb-rev-${RUN}@example.no` };
-const reviewer2: SessionUser = { id: "", role: "ADMIN", email: `qb-rev2-${RUN}@example.no` };
+const reviewer: SessionUser = {
+  id: "",
+  role: "ADMIN",
+  email: `qb-rev-${RUN}@example.no`,
+};
+const reviewer2: SessionUser = {
+  id: "",
+  role: "ADMIN",
+  email: `qb-rev2-${RUN}@example.no`,
+};
 
 let topicId = "";
 let topicSlug = "";
@@ -42,7 +54,10 @@ function content(stem: string, options = ["Yield", "Continue", "Stop"]) {
     },
     nb: {
       stem: `${stem} (nb) [${RUN}]`,
-      options: options.map((text, index) => ({ key: "abc"[index], text: `${text} (nb)` })),
+      options: options.map((text, index) => ({
+        key: "abc"[index],
+        text: `${text} (nb)`,
+      })),
       explanation: `Fordi regelen sier det [${RUN}].`,
     },
   };
@@ -55,7 +70,9 @@ function content(stem: string, options = ["Yield", "Continue", "Stop"]) {
 async function approve(itemId: string, provenance: "AI" | "HUMAN" = "HUMAN") {
   await transitionItem(db, actor, { id: itemId, to: "IN_REVIEW" });
   if (provenance === "AI") {
-    await transitionItem(db, reviewer, { id: itemId, to: "APPROVED" }).catch(() => undefined);
+    await transitionItem(db, reviewer, { id: itemId, to: "APPROVED" }).catch(
+      () => undefined,
+    );
     return transitionItem(db, reviewer2, { id: itemId, to: "APPROVED" });
   }
   return transitionItem(db, reviewer, { id: itemId, to: "APPROVED" });
@@ -104,7 +121,9 @@ afterAll(async () => {
     select: { id: true },
   });
   const ids = items.map((item) => item.id);
-  await db.examAttemptQuestion.deleteMany({ where: { variant: { masterItemId: { in: ids } } } });
+  await db.examAttemptQuestion.deleteMany({
+    where: { variant: { masterItemId: { in: ids } } },
+  });
   await db.itemVariant.deleteMany({ where: { masterItemId: { in: ids } } });
   await db.masterItem.deleteMany({ where: { id: { in: ids } } });
   await db.generationBatch.deleteMany({ where: { createdById: actor.id } });
@@ -116,7 +135,11 @@ afterAll(async () => {
 
 d("publishing (D1: approval makes an item servable)", () => {
   it("creates a variant on approval that the engine can actually serve", async () => {
-    const item = await upsertItem(db, actor, itemInput("Who has right of way here?"));
+    const item = await upsertItem(
+      db,
+      actor,
+      itemInput("Who has right of way here?"),
+    );
     await transitionItem(db, actor, { id: item.id, to: "IN_REVIEW" });
 
     // Before approval the engine sees nothing.
@@ -126,15 +149,25 @@ d("publishing (D1: approval makes an item servable)", () => {
       (before[topicSlug] ?? []).some((c) => c.masterItemId === item.id),
     ).toBe(false);
 
-    const result = await transitionItem(db, reviewer, { id: item.id, to: "APPROVED" });
+    const result = await transitionItem(db, reviewer, {
+      id: item.id,
+      to: "APPROVED",
+    });
     expect(result.variantsCreated).toBe(1);
 
     const after = await source.candidatesByTopic({ topicSlugs: [topicSlug] });
-    expect((after[topicSlug] ?? []).some((c) => c.masterItemId === item.id)).toBe(true);
+    expect(
+      (after[topicSlug] ?? []).some((c) => c.masterItemId === item.id),
+    ).toBe(true);
 
     const variant = await db.itemVariant.findFirstOrThrow({
       where: { masterItemId: item.id },
-      select: { correctOptionKey: true, isActive: true, masterVersion: true, source: true },
+      select: {
+        correctOptionKey: true,
+        isActive: true,
+        masterVersion: true,
+        source: true,
+      },
     });
     expect(variant).toMatchObject({
       correctOptionKey: "a",
@@ -147,13 +180,22 @@ d("publishing (D1: approval makes an item servable)", () => {
   it("is idempotent: re-approving reuses the variant instead of duplicating it", async () => {
     const item = await upsertItem(db, actor, itemInput("Idempotent publish"));
     await approve(item.id);
-    await transitionItem(db, reviewer, { id: item.id, to: "RETIRED", reason: "DUPLICATE" });
+    await transitionItem(db, reviewer, {
+      id: item.id,
+      to: "RETIRED",
+      reason: "DUPLICATE",
+    });
     await transitionItem(db, actor, { id: item.id, to: "DRAFT" });
     await transitionItem(db, actor, { id: item.id, to: "IN_REVIEW" });
-    const again = await transitionItem(db, reviewer, { id: item.id, to: "APPROVED" });
+    const again = await transitionItem(db, reviewer, {
+      id: item.id,
+      to: "APPROVED",
+    });
 
     expect(again.variantsCreated).toBe(1); // reused + reactivated, not a second row
-    expect(await db.itemVariant.count({ where: { masterItemId: item.id } })).toBe(1);
+    expect(
+      await db.itemVariant.count({ where: { masterItemId: item.id } }),
+    ).toBe(1);
   });
 
   it("stops serving a retired item without touching what was already served", async () => {
@@ -176,7 +218,10 @@ d("publishing (D1: approval makes an item servable)", () => {
       where: { id: item.id },
       select: { reviewReason: true, status: true },
     });
-    expect(stored).toMatchObject({ status: "RETIRED", reviewReason: "AMBIGUOUS_DISTRACTOR" });
+    expect(stored).toMatchObject({
+      status: "RETIRED",
+      reviewReason: "AMBIGUOUS_DISTRACTOR",
+    });
   });
 
   it("refuses to approve an item whose answer key is not among its options", async () => {
@@ -194,7 +239,9 @@ d("publishing (D1: approval makes an item servable)", () => {
     await expect(
       transitionItem(db, reviewer, { id: item.id, to: "APPROVED" }),
     ).rejects.toBeInstanceOf(ValidationError);
-    expect(await db.itemVariant.count({ where: { masterItemId: item.id } })).toBe(0);
+    expect(
+      await db.itemVariant.count({ where: { masterItemId: item.id } }),
+    ).toBe(0);
   });
 });
 
@@ -224,7 +271,12 @@ d("lifecycle enforcement", () => {
 
     // The same edge is allowed when spec-05's law-change watcher drives it.
     await expect(
-      transitionItem(db, actor, { id: item.id, to: "NEEDS_REVIEW" }, { systemInitiated: true }),
+      transitionItem(
+        db,
+        actor,
+        { id: item.id, to: "NEEDS_REVIEW" },
+        { systemInitiated: true },
+      ),
     ).resolves.toMatchObject({ to: "NEEDS_REVIEW" });
   });
 });
@@ -239,12 +291,18 @@ d("versioning and immutability", () => {
     const after = await getItem(db, item.id);
     expect(after.version).toBe(2);
     expect(
-      await db.itemApproval.count({ where: { masterItemId: item.id, itemVersion: 2 } }),
+      await db.itemApproval.count({
+        where: { masterItemId: item.id, itemVersion: 2 },
+      }),
     ).toBe(0);
   });
 
   it("freezes an approved question and keeps a served attempt byte-identical", async () => {
-    const item = await upsertItem(db, actor, itemInput("Frozen after approval"));
+    const item = await upsertItem(
+      db,
+      actor,
+      itemInput("Frozen after approval"),
+    );
     await approve(item.id);
 
     const variant = await db.itemVariant.findFirstOrThrow({
@@ -282,11 +340,15 @@ d("versioning and immutability", () => {
     // Editing is refused outright (spec-04b): corrections go through retire-and-replace.
     await expect(
       upsertItem(db, actor, itemInput("Trying to edit", { id: item.id })),
-    ).rejects.toMatchObject({ messageKey: "admin.questions.errors.approvedIsFrozen" });
+    ).rejects.toMatchObject({
+      messageKey: "admin.questions.errors.approvedIsFrozen",
+    });
 
     const served = await db.examAttemptQuestion.findFirstOrThrow({
       where: { attemptId: attempt.id },
-      select: { variant: { select: { content: true, correctOptionKey: true } } },
+      select: {
+        variant: { select: { content: true, correctOptionKey: true } },
+      },
     });
     expect(served.variant.content).toEqual(variant.content);
     expect(served.variant.correctOptionKey).toBe(variant.correctOptionKey);
@@ -294,7 +356,9 @@ d("versioning and immutability", () => {
     await db.$executeRawUnsafe(
       'ALTER TABLE "ExamAttemptQuestion" DISABLE TRIGGER "attempt_question_immutable"',
     );
-    await db.examAttemptQuestion.deleteMany({ where: { attemptId: attempt.id } });
+    await db.examAttemptQuestion.deleteMany({
+      where: { attemptId: attempt.id },
+    });
     await db.$executeRawUnsafe(
       'ALTER TABLE "ExamAttemptQuestion" ENABLE TRIGGER "attempt_question_immutable"',
     );
@@ -325,18 +389,27 @@ d("versioning and immutability", () => {
         questionCountSnapshot: 1,
         startedAt: new Date(),
         questions: {
-          create: { variantId: variant.id, position: 1, topicId, optionOrder: ["a"] },
+          create: {
+            variantId: variant.id,
+            position: 1,
+            topicId,
+            optionOrder: ["a"],
+          },
         },
       },
       select: { id: true },
     });
 
-    await expect(deleteItem(db, actor, item.id)).rejects.toBeInstanceOf(ConflictError);
+    await expect(deleteItem(db, actor, item.id)).rejects.toBeInstanceOf(
+      ConflictError,
+    );
 
     await db.$executeRawUnsafe(
       'ALTER TABLE "ExamAttemptQuestion" DISABLE TRIGGER "attempt_question_immutable"',
     );
-    await db.examAttemptQuestion.deleteMany({ where: { attemptId: attempt.id } });
+    await db.examAttemptQuestion.deleteMany({
+      where: { attemptId: attempt.id },
+    });
     await db.$executeRawUnsafe(
       'ALTER TABLE "ExamAttemptQuestion" ENABLE TRIGGER "attempt_question_immutable"',
     );
@@ -357,8 +430,14 @@ d("sets", () => {
       upsertItem(db, actor, itemInput("Set item three")),
     ]);
 
-    await attachItemsToBatch(db, actor, { batchId: setA.id, itemIds: [one.id, two.id] });
-    await attachItemsToBatch(db, actor, { batchId: setB.id, itemIds: [three.id] });
+    await attachItemsToBatch(db, actor, {
+      batchId: setA.id,
+      itemIds: [one.id, two.id],
+    });
+    await attachItemsToBatch(db, actor, {
+      batchId: setB.id,
+      itemIds: [three.id],
+    });
 
     // A question belongs to the set it came from.
     await expect(
@@ -367,12 +446,18 @@ d("sets", () => {
 
     await approve(one.id);
     await transitionItem(db, actor, { id: two.id, to: "IN_REVIEW" });
-    await transitionItem(db, reviewer, { id: two.id, to: "RETIRED", reason: "WRONG_ANSWER" });
+    await transitionItem(db, reviewer, {
+      id: two.id,
+      to: "RETIRED",
+      reason: "WRONG_ANSWER",
+    });
 
     const detailA = await getBatch(db, setA.id);
     expect(detailA.counts).toMatchObject({ total: 2, approved: 1, retired: 1 });
     expect(detailA.acceptanceRate).toBe(0.5);
-    expect(detailA.items.map((item) => item.id).sort()).toEqual([one.id, two.id].sort());
+    expect(detailA.items.map((item) => item.id).sort()).toEqual(
+      [one.id, two.id].sort(),
+    );
 
     const detailB = await getBatch(db, setB.id);
     expect(detailB.counts).toMatchObject({ total: 1, draft: 1 });
@@ -397,10 +482,18 @@ d("accuracy stats", () => {
       { model: "model-y", to: "RETIRED" as const },
     ];
     for (const [index, row] of plan.entries()) {
-      const item = await upsertItem(db, actor, itemInput(`Stats item ${index}`));
+      const item = await upsertItem(
+        db,
+        actor,
+        itemInput(`Stats item ${index}`),
+      );
       await db.masterItem.update({
         where: { id: item.id },
-        data: { createdBy: "AI", modelVersion: row.model, promptVersion: "p@1.0.0" },
+        data: {
+          createdBy: "AI",
+          modelVersion: row.model,
+          promptVersion: "p@1.0.0",
+        },
         select: { id: true },
       });
       if (row.to === "APPROVED") {
@@ -427,7 +520,9 @@ d("accuracy stats", () => {
     expect(x!.rate).toBeCloseTo(2 / 3, 5);
     expect(y).toMatchObject({ reviewed: 1, approved: 0, rate: 0 });
     expect(stats.rows.some((row) => row.key === "unknown")).toBe(false);
-    expect(stats.reasons.find((r) => r.reason === "WRONG_ANSWER")!.count).toBeGreaterThanOrEqual(2);
+    expect(
+      stats.reasons.find((r) => r.reason === "WRONG_ANSWER")!.count,
+    ).toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -451,8 +546,12 @@ d("bulk actions and search", () => {
       action: "APPROVE",
     });
 
-    expect(outcomes.find((row) => row.itemId === draft.id)?.outcome).toBe("approved");
-    expect(outcomes.find((row) => row.itemId === ready.id)?.outcome).toBe("approved");
+    expect(outcomes.find((row) => row.itemId === draft.id)?.outcome).toBe(
+      "approved",
+    );
+    expect(outcomes.find((row) => row.itemId === ready.id)?.outcome).toBe(
+      "approved",
+    );
     expect(outcomes.find((row) => row.itemId === broken.id)).toMatchObject({
       outcome: "failed",
       messageKey: "admin.quality.citationMissing",
@@ -477,7 +576,9 @@ d("bulk actions and search", () => {
       ids: [first.id, second.id],
       action: "APPROVE",
     });
-    expect(firstPass.every((row) => row.outcome === "awaitingApproval")).toBe(true);
+    expect(firstPass.every((row) => row.outcome === "awaitingApproval")).toBe(
+      true,
+    );
     expect((await getItem(db, first.id)).status).toBe("IN_REVIEW");
 
     // A second reviewer bulk-approving the same set is what publishes them.
@@ -492,9 +593,14 @@ d("bulk actions and search", () => {
   it("finds items through the generated tsvector index", async () => {
     await upsertItem(db, actor, itemInput("Roundabout yielding rules"));
     const found = await listItems(db, { search: "Roundabout", pageSize: 20 });
-    expect(found.items.some((item) => item.stemPreview.includes("Roundabout"))).toBe(true);
+    expect(
+      found.items.some((item) => item.stemPreview.includes("Roundabout")),
+    ).toBe(true);
 
-    const missing = await listItems(db, { search: "zzzzunlikelyzzz", pageSize: 20 });
+    const missing = await listItems(db, {
+      search: "zzzzunlikelyzzz",
+      pageSize: 20,
+    });
     expect(missing.items).toHaveLength(0);
     expect(missing.totalCount).toBe(0);
   });
@@ -515,7 +621,13 @@ d("import / export", () => {
     const result = await importItems(db, actor, {
       format: "csv",
       payload: itemsToCsv([
-        { ...mine[0], content: { ...mine[0].content, en: { ...mine[0].content.en, stem: `Imported ${RUN}` } } },
+        {
+          ...mine[0],
+          content: {
+            ...mine[0].content,
+            en: { ...mine[0].content.en, stem: `Imported ${RUN}` },
+          },
+        },
       ]),
     });
     expect(result.imported).toBe(1);
@@ -551,11 +663,18 @@ d("import / export", () => {
 
 d("bulk approve idempotency", () => {
   it("treats an already-approved item as done rather than failed", async () => {
-    const item = await upsertItem(db, actor, itemInput("Already approved bulk"));
+    const item = await upsertItem(
+      db,
+      actor,
+      itemInput("Already approved bulk"),
+    );
     await approve(item.id);
 
     // A second reviewer sweeping the same list should not see a wall of failures.
-    const outcomes = await bulkAction(db, reviewer2, { ids: [item.id], action: "APPROVE" });
+    const outcomes = await bulkAction(db, reviewer2, {
+      ids: [item.id],
+      action: "APPROVE",
+    });
     expect(outcomes[0]).toMatchObject({ outcome: "approved" });
   });
 });

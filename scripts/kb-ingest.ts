@@ -15,7 +15,9 @@ import { PrismaClient } from "@prisma/client";
 import { ingestSource } from "../src/server/services/kb/ingest";
 import { redis } from "../src/server/redis";
 
-(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(".env");
+(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(
+  ".env",
+);
 const db = new PrismaClient();
 
 /**
@@ -50,8 +52,12 @@ function htmlToLegalText(html: string): string {
 
   const sections: string[] = [];
   for (const segment of segments) {
-    const number = segment.match(/paragrafValue[^>]*>\s*§?\s*([\w-]+)\.?\s*</)?.[1];
-    const title = segment.match(/paragrafTittel[^>]*>\s*(?:<em[^>]*>)?\s*([^<]+)/)?.[1]?.trim();
+    const number = segment.match(
+      /paragrafValue[^>]*>\s*§?\s*([\w-]+)\.?\s*</,
+    )?.[1];
+    const title = segment
+      .match(/paragrafTittel[^>]*>\s*(?:<em[^>]*>)?\s*([^<]+)/)?.[1]
+      ?.trim();
     // The body is everything after the heading, up to the next section's anchor.
     const bodyStart = segment.indexOf("</h2>");
     const body = strip(bodyStart >= 0 ? segment.slice(bodyStart) : segment);
@@ -77,16 +83,19 @@ async function main(): Promise<void> {
 
   const isUrl = /^https?:\/\//.test(location);
   const raw = isUrl
-    ? await fetch(location, { headers: { "user-agent": "TeoriPro/0.1" } }).then((res) => {
-        if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
-        return res.text();
-      })
+    ? await fetch(location, { headers: { "user-agent": "TeoriPro/0.1" } }).then(
+        (res) => {
+          if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+          return res.text();
+        },
+      )
     : await readFile(location, "utf8");
 
   const text = isUrl || /<html/i.test(raw) ? htmlToLegalText(raw) : raw;
   const sections = (text.match(/^§/gm) ?? []).length;
   console.log(`Read ${text.length} characters, ${sections} sections.`);
-  if (text.length < 200) throw new Error("Extracted text is implausibly short — check the source.");
+  if (text.length < 200)
+    throw new Error("Extracted text is implausibly short — check the source.");
 
   const result = await ingestSource(db, null, {
     code,

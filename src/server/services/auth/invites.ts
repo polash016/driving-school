@@ -110,7 +110,11 @@ export async function createInvite(
     action: AUDIT.inviteCreated,
     entityType: "InviteLink",
     entityId: created.id,
-    meta: { role: created.role, maxUses: created.maxUses, bound: Boolean(options.email) },
+    meta: {
+      role: created.role,
+      maxUses: created.maxUses,
+      bound: Boolean(options.email),
+    },
   });
 
   return toInvite(created, locale);
@@ -121,7 +125,12 @@ export async function listInvites(
   db: PrismaClient,
   rawPagination: unknown = {},
   locale: AppLocale = schoolConfig.locales.default,
-): Promise<{ items: Invite[]; page: number; pageSize: number; totalCount: number }> {
+): Promise<{
+  items: Invite[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}> {
   const { page, pageSize } = paginationInputSchema.parse(rawPagination);
   const [rows, totalCount] = await Promise.all([
     db.inviteLink.findMany({
@@ -177,7 +186,14 @@ export async function previewInvite(
 ): Promise<InvitePreview> {
   const invite = await db.inviteLink.findUnique({
     where: { token },
-    select: { role: true, email: true, maxUses: true, usedCount: true, expiresAt: true, revokedAt: true },
+    select: {
+      role: true,
+      email: true,
+      maxUses: true,
+      usedCount: true,
+      expiresAt: true,
+      revokedAt: true,
+    },
   });
   if (!invite) return { valid: false, email: null, role: "STUDENT" };
 
@@ -224,7 +240,16 @@ export async function consumeInvite(
 
   const invite = await tx.inviteLink.findUnique({
     where: { token },
-    select: { id: true, role: true, groupId: true, email: true, maxUses: true, usedCount: true, expiresAt: true, revokedAt: true },
+    select: {
+      id: true,
+      role: true,
+      groupId: true,
+      email: true,
+      maxUses: true,
+      usedCount: true,
+      expiresAt: true,
+      revokedAt: true,
+    },
   });
 
   if (claimed.count === 1) {
@@ -233,15 +258,25 @@ export async function consumeInvite(
   }
 
   // Nothing claimed — say precisely why, so the student sees an actionable message.
-  if (!invite) throw new NotFoundError({ reason: "invite" }, "auth.errors.inviteInvalid");
+  if (!invite)
+    throw new NotFoundError({ reason: "invite" }, "auth.errors.inviteInvalid");
   if (invite.revokedAt) {
-    throw new ValidationError({ inviteId: invite.id }, "auth.errors.inviteInvalid");
+    throw new ValidationError(
+      { inviteId: invite.id },
+      "auth.errors.inviteInvalid",
+    );
   }
   if (invite.expiresAt && invite.expiresAt <= now) {
-    throw new ValidationError({ inviteId: invite.id }, "auth.errors.inviteExpired");
+    throw new ValidationError(
+      { inviteId: invite.id },
+      "auth.errors.inviteExpired",
+    );
   }
   if (invite.email && invite.email !== email) {
-    throw new ValidationError({ inviteId: invite.id }, "auth.errors.inviteEmailMismatch");
+    throw new ValidationError(
+      { inviteId: invite.id },
+      "auth.errors.inviteEmailMismatch",
+    );
   }
   throw new ConflictError({ inviteId: invite.id }, "auth.errors.inviteUsed");
 }

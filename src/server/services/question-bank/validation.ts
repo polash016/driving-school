@@ -34,9 +34,23 @@ interface CheckableItem {
   correctOptionKey: string | null;
   legalCitations: unknown;
   difficulty?: number;
+  /**
+   * The image this question is asked ABOUT, when it has one.
+   *
+   * For an image or sign question the picture carries the question and the stem is boilerplate:
+   * "What does this sign mean?" is the right wording for every sign there is. Fingerprinting the
+   * stem alone would therefore declare the second sign question in the bank a duplicate of the
+   * first and every one after it a duplicate too. The image is part of the question's identity,
+   * so it belongs in the fingerprint.
+   */
+  sourceImageId?: string | null;
 }
 
-type Side = { stem?: string; options?: { key: string; text: string }[]; explanation?: string };
+type Side = {
+  stem?: string;
+  options?: { key: string; text: string }[];
+  explanation?: string;
+};
 
 const MIN_OPTIONS = 3;
 const MAX_STEM_LENGTH = 400;
@@ -52,16 +66,28 @@ const BANNED_OPTION_PATTERNS = [
   /^ingen av (disse|alternativene|de over)$/i,
 ];
 
-/** Normalised stem, used to catch a question that already exists in the approved pool. */
-export function stemFingerprint(content: unknown): string {
+/**
+ * Normalised stem, used to catch a question that already exists in the approved pool.
+ *
+ * `sourceImageId` joins the fingerprint when present: two questions sharing a stem but asked about
+ * different pictures are different questions. Text questions pass nothing and are unaffected.
+ */
+export function stemFingerprint(
+  content: unknown,
+  sourceImageId?: string | null,
+): string {
   const sides = content as { en?: Side; nb?: Side } | null;
   const normalise = (text: string) =>
     text
       .toLowerCase()
       .replace(/[^\p{L}\p{N}]+/gu, " ")
       .trim();
-  const joined = [sides?.en?.stem ?? "", sides?.nb?.stem ?? ""].map(normalise).join("|");
-  return createHash("sha256").update(joined).digest("hex");
+  const joined = [sides?.en?.stem ?? "", sides?.nb?.stem ?? ""]
+    .map(normalise)
+    .join("|");
+  return createHash("sha256")
+    .update(sourceImageId ? `${joined}|image:${sourceImageId}` : joined)
+    .digest("hex");
 }
 
 export function checkItemQuality(item: CheckableItem): QualityReport {
@@ -73,7 +99,11 @@ export function checkItemQuality(item: CheckableItem): QualityReport {
     const side = content?.[locale];
 
     if (!side?.stem?.trim()) {
-      errors.push({ code: "STEM_MISSING", messageKey: "admin.quality.stemMissing", locale });
+      errors.push({
+        code: "STEM_MISSING",
+        messageKey: "admin.quality.stemMissing",
+        locale,
+      });
       continue;
     }
     if (PLACEHOLDER.test(side.stem)) {
@@ -84,7 +114,11 @@ export function checkItemQuality(item: CheckableItem): QualityReport {
       });
     }
     if (side.stem.length > MAX_STEM_LENGTH) {
-      warnings.push({ code: "STEM_LONG", messageKey: "admin.quality.stemLong", locale });
+      warnings.push({
+        code: "STEM_LONG",
+        messageKey: "admin.quality.stemLong",
+        locale,
+      });
     }
     if (!side.explanation?.trim()) {
       errors.push({
@@ -96,7 +130,11 @@ export function checkItemQuality(item: CheckableItem): QualityReport {
 
     const options = side.options ?? [];
     if (options.length < MIN_OPTIONS) {
-      errors.push({ code: "TOO_FEW_OPTIONS", messageKey: "admin.quality.tooFewOptions", locale });
+      errors.push({
+        code: "TOO_FEW_OPTIONS",
+        messageKey: "admin.quality.tooFewOptions",
+        locale,
+      });
     }
 
     const texts = options.map((option) => option.text.trim().toLowerCase());
@@ -108,10 +146,18 @@ export function checkItemQuality(item: CheckableItem): QualityReport {
       });
     }
     if (texts.some((text) => text.length === 0)) {
-      errors.push({ code: "EMPTY_OPTION", messageKey: "admin.quality.emptyOption", locale });
+      errors.push({
+        code: "EMPTY_OPTION",
+        messageKey: "admin.quality.emptyOption",
+        locale,
+      });
     }
     for (const option of options) {
-      if (BANNED_OPTION_PATTERNS.some((pattern) => pattern.test(option.text.trim()))) {
+      if (
+        BANNED_OPTION_PATTERNS.some((pattern) =>
+          pattern.test(option.text.trim()),
+        )
+      ) {
         errors.push({
           code: "BANNED_OPTION",
           messageKey: "admin.quality.bannedOption",
@@ -131,38 +177,76 @@ export function checkItemQuality(item: CheckableItem): QualityReport {
 
   // Option keys must be identical across locales — the engine serves one shuffled key order to
   // both, so a mismatch would mean the two languages grade differently.
-  const enKeys = (content?.en?.options ?? []).map((option) => option.key).join(",");
-  const nbKeys = (content?.nb?.options ?? []).map((option) => option.key).join(",");
+  const enKeys = (content?.en?.options ?? [])
+    .map((option) => option.key)
+    .join(",");
+  const nbKeys = (content?.nb?.options ?? [])
+    .map((option) => option.key)
+    .join(",");
   if (enKeys !== nbKeys) {
-    errors.push({ code: "KEY_MISMATCH", messageKey: "admin.quality.keyMismatch" });
+    errors.push({
+      code: "KEY_MISMATCH",
+      messageKey: "admin.quality.keyMismatch",
+    });
   }
 
   if (!item.correctOptionKey) {
-    errors.push({ code: "ANSWER_MISSING", messageKey: "admin.quality.answerMissing" });
+    errors.push({
+      code: "ANSWER_MISSING",
+      messageKey: "admin.quality.answerMissing",
+    });
   } else if (enKeys && !enKeys.split(",").includes(item.correctOptionKey)) {
-    errors.push({ code: "ANSWER_UNKNOWN", messageKey: "admin.quality.answerUnknown" });
+    errors.push({
+      code: "ANSWER_UNKNOWN",
+      messageKey: "admin.quality.answerUnknown",
+    });
   }
 
-  const citations = (item.legalCitations ?? []) as { sourceCode?: string; ref?: string }[];
+  const citations = (item.legalCitations ?? []) as {
+    sourceCode?: string;
+    ref?: string;
+  }[];
   if (!Array.isArray(citations) || citations.length === 0) {
     // No citation, no question: every answer must be traceable to the rule it comes from.
-    errors.push({ code: "CITATION_MISSING", messageKey: "admin.quality.citationMissing" });
-  } else if (citations.some((citation) => !citation.sourceCode?.trim() || !citation.ref?.trim())) {
-    errors.push({ code: "CITATION_INCOMPLETE", messageKey: "admin.quality.citationIncomplete" });
+    errors.push({
+      code: "CITATION_MISSING",
+      messageKey: "admin.quality.citationMissing",
+    });
+  } else if (
+    citations.some(
+      (citation) => !citation.sourceCode?.trim() || !citation.ref?.trim(),
+    )
+  ) {
+    errors.push({
+      code: "CITATION_INCOMPLETE",
+      messageKey: "admin.quality.citationIncomplete",
+    });
   }
 
   // Length tell: if the right answer is markedly longer than the distractors, a test-wise
   // student picks it without knowing the rule.
   for (const locale of ["en", "nb"] as const) {
     const options = content?.[locale]?.options ?? [];
-    const correct = options.find((option) => option.key === item.correctOptionKey);
-    const distractors = options.filter((option) => option.key !== item.correctOptionKey);
+    const correct = options.find(
+      (option) => option.key === item.correctOptionKey,
+    );
+    const distractors = options.filter(
+      (option) => option.key !== item.correctOptionKey,
+    );
     if (!correct || distractors.length === 0) continue;
 
     const meanDistractor =
-      distractors.reduce((sum, option) => sum + option.text.length, 0) / distractors.length;
-    if (meanDistractor > 0 && correct.text.length > meanDistractor * LENGTH_TELL_RATIO) {
-      warnings.push({ code: "LENGTH_TELL", messageKey: "admin.quality.lengthTell", locale });
+      distractors.reduce((sum, option) => sum + option.text.length, 0) /
+      distractors.length;
+    if (
+      meanDistractor > 0 &&
+      correct.text.length > meanDistractor * LENGTH_TELL_RATIO
+    ) {
+      warnings.push({
+        code: "LENGTH_TELL",
+        messageKey: "admin.quality.lengthTell",
+        locale,
+      });
     }
   }
 
@@ -179,7 +263,7 @@ export async function checkItemQualityAgainstPool(
   item: CheckableItem,
 ): Promise<QualityReport> {
   const report = checkItemQuality(item);
-  const fingerprint = stemFingerprint(item.content);
+  const fingerprint = stemFingerprint(item.content, item.sourceImageId);
 
   const candidates = await db.masterItem.findMany({
     where: {
@@ -187,11 +271,13 @@ export async function checkItemQualityAgainstPool(
       status: { in: ["APPROVED", "IN_REVIEW"] },
       ...(item.id ? { id: { not: item.id } } : {}),
     },
-    select: { id: true, content: true },
+    select: { id: true, content: true, sourceImageId: true },
   });
 
   const duplicate = candidates.find(
-    (candidate) => stemFingerprint(candidate.content) === fingerprint,
+    (candidate) =>
+      stemFingerprint(candidate.content, candidate.sourceImageId) ===
+      fingerprint,
   );
   if (duplicate) {
     report.errors.push({

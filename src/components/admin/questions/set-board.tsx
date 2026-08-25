@@ -41,7 +41,9 @@ export function SetBoard({
           <CardTitle className="text-base">{t("generateTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm/relaxed text-muted-foreground">{t("generateHint")}</p>
+          <p className="text-sm/relaxed text-muted-foreground">
+            {t("generateHint")}
+          </p>
           <form
             action={genAction}
             className="grid gap-3 md:grid-cols-[2fr_1fr_auto] md:items-end"
@@ -67,7 +69,10 @@ export function SetBoard({
               max={10}
               defaultValue={5}
             />
-            <SubmitButton label={t("generate")} pendingLabel={t("generating")} />
+            <SubmitButton
+              label={t("generate")}
+              pendingLabel={t("generating")}
+            />
           </form>
 
           {genState?.ok === false ? (
@@ -90,7 +95,10 @@ export function SetBoard({
           <CardTitle className="text-base">{t("create")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={formAction} className="grid gap-3 md:grid-cols-[1fr_2fr_auto] md:items-end">
+          <form
+            action={formAction}
+            className="grid gap-3 md:grid-cols-[1fr_2fr_auto] md:items-end"
+          >
             <label className="space-y-1.5 text-sm font-medium">
               {t("sourceTopic")}
               <select
@@ -127,15 +135,26 @@ export function SetBoard({
           <table className="w-full min-w-[44rem] border-collapse text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                <th scope="col" className="p-3 font-medium">{t("columnSet")}</th>
-                <th scope="col" className="p-3 font-medium">{t("columnItems")}</th>
-                <th scope="col" className="p-3 font-medium">{t("columnAccepted")}</th>
-                <th scope="col" className="p-3 font-medium">{t("columnCreated")}</th>
+                <th scope="col" className="p-3 font-medium">
+                  {t("columnSet")}
+                </th>
+                <th scope="col" className="p-3 font-medium">
+                  {t("columnItems")}
+                </th>
+                <th scope="col" className="p-3 font-medium">
+                  {t("columnAccepted")}
+                </th>
+                <th scope="col" className="p-3 font-medium">
+                  {t("columnCreated")}
+                </th>
               </tr>
             </thead>
             <tbody>
               {sets.map((set) => (
-                <tr key={set.id} className="border-b border-border/60 last:border-0">
+                <tr
+                  key={set.id}
+                  className="border-b border-border/60 last:border-0"
+                >
                   <td className="p-3">
                     <Link
                       href={`/admin/sets/${set.id}`}
@@ -154,7 +173,9 @@ export function SetBoard({
                   <td className="p-3 text-muted-foreground">
                     {set.acceptanceRate === null
                       ? t("acceptanceUnknown")
-                      : t("acceptance", { percent: Math.round(set.acceptanceRate * 100) })}
+                      : t("acceptance", {
+                          percent: Math.round(set.acceptanceRate * 100),
+                        })}
                   </td>
                   <td className="p-3 text-muted-foreground">
                     {format.dateTime(set.createdAt, { dateStyle: "medium" })}

@@ -30,19 +30,21 @@ const LEGAL = new Set([
 ]);
 
 describe("item lifecycle matrix", () => {
-  it.each(STATUSES.flatMap((from) => STATUSES.map((to) => [from, to] as const)))(
-    "%s → %s",
-    (from, to) => {
-      expect(canTransition(from, to)).toBe(LEGAL.has(`${from}>${to}`));
-    },
-  );
+  it.each(
+    STATUSES.flatMap((from) => STATUSES.map((to) => [from, to] as const)),
+  )("%s → %s", (from, to) => {
+    expect(canTransition(from, to)).toBe(LEGAL.has(`${from}>${to}`));
+  });
 
   it("never allows a status to transition to itself", () => {
-    for (const status of STATUSES) expect(canTransition(status, status)).toBe(false);
+    for (const status of STATUSES)
+      expect(canTransition(status, status)).toBe(false);
   });
 
   it("keeps APPROVED reachable only through review", () => {
-    const intoApproved = STATUSES.filter((from) => canTransition(from, "APPROVED"));
+    const intoApproved = STATUSES.filter((from) =>
+      canTransition(from, "APPROVED"),
+    );
     expect(intoApproved).toEqual(["IN_REVIEW"]);
   });
 

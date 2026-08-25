@@ -32,7 +32,12 @@ export async function probeMemory(
   if (hashes.length === 0) return new Map();
   const rows = await db.translationMemory.findMany({
     where: { locale, sourceHash: { in: hashes } },
-    select: { sourceHash: true, value: true, modelVersion: true, promptVersion: true },
+    select: {
+      sourceHash: true,
+      value: true,
+      modelVersion: true,
+      promptVersion: true,
+    },
   });
   return new Map(
     rows.map((row) => [
@@ -82,7 +87,10 @@ export async function rememberTranslation(
       select: { id: true },
     });
   } catch (error) {
-    logger.warn({ error, locale: input.locale }, "translation memory write failed");
+    logger.warn(
+      { error, locale: input.locale },
+      "translation memory write failed",
+    );
   }
 }
 

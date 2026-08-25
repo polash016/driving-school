@@ -106,7 +106,10 @@ export async function passwordResetEmail(
     subject: translate("reset.subject"),
     ...render({
       heading: translate("reset.heading"),
-      body: translate("reset.body", { firstName, school: schoolConfig.school.name }),
+      body: translate("reset.body", {
+        firstName,
+        school: schoolConfig.school.name,
+      }),
       ctaLabel: translate("reset.cta"),
       ctaUrl: url,
       footer: translate("reset.footer"),

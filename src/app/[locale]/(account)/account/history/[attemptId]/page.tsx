@@ -1,4 +1,8 @@
-import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
+import {
+  getFormatter,
+  getTranslations,
+  setRequestLocale,
+} from "next-intl/server";
 import { QuestionCard } from "@/components/quiz/question-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
@@ -28,12 +32,19 @@ export default async function AttemptPaperPage({
   const [t, format, result, summary] = await Promise.all([
     getTranslations("history"),
     getFormatter(),
-    attemptService.getResult(user.id, { attemptId, locale: locale as AppLocale }),
+    attemptService.getResult(user.id, {
+      attemptId,
+      locale: locale as AppLocale,
+    }),
     getAttemptSummary(db, user, attemptId),
   ]);
 
-  const percent = Math.round((result.correctCount / result.questionCount) * 100);
-  const wrongCount = result.review.filter((question) => !question.correct).length;
+  const percent = Math.round(
+    (result.correctCount / result.questionCount) * 100,
+  );
+  const wrongCount = result.review.filter(
+    (question) => !question.correct,
+  ).length;
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-5 px-4 py-8">
@@ -55,7 +66,9 @@ export default async function AttemptPaperPage({
             <p
               className={cn(
                 "text-[length:var(--font-size-stat)] font-semibold leading-none",
-                result.passed === false ? "text-destructive" : "text-[var(--status-success)]",
+                result.passed === false
+                  ? "text-destructive"
+                  : "text-[var(--status-success)]",
               )}
             >
               {result.correctCount}/{result.questionCount}
@@ -67,7 +80,9 @@ export default async function AttemptPaperPage({
                 : result.passed
                   ? t("passed")
                   : t("notPassed")}
-              {result.passMark !== null ? ` · ${t("passMark", { mark: result.passMark })}` : ""}
+              {result.passMark !== null
+                ? ` · ${t("passMark", { mark: result.passMark })}`
+                : ""}
             </p>
           </div>
 
@@ -84,12 +99,16 @@ export default async function AttemptPaperPage({
               <dd className="font-medium tabular-nums text-foreground">
                 {summary.durationSec === null
                   ? "—"
-                  : t("minutes", { count: Math.max(1, Math.round(summary.durationSec / 60)) })}
+                  : t("minutes", {
+                      count: Math.max(1, Math.round(summary.durationSec / 60)),
+                    })}
               </dd>
             </div>
             <div className="space-y-0.5">
               <dt className="text-muted-foreground">{t("wrongAnswers")}</dt>
-              <dd className="font-medium tabular-nums text-foreground">{wrongCount}</dd>
+              <dd className="font-medium tabular-nums text-foreground">
+                {wrongCount}
+              </dd>
             </div>
           </dl>
 
@@ -102,7 +121,9 @@ export default async function AttemptPaperPage({
                   : "bg-muted text-muted-foreground",
               )}
             >
-              {summary.countsTowardGuarantee ? t("countsTowardGuarantee") : t("doesNotCount")}
+              {summary.countsTowardGuarantee
+                ? t("countsTowardGuarantee")
+                : t("doesNotCount")}
             </span>
             {summary.attested ? (
               <span className="rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">
@@ -116,14 +137,19 @@ export default async function AttemptPaperPage({
       {result.topicBreakdown.length > 0 ? (
         <Card className="[--card-spacing:--spacing(4)]">
           <CardContent className="space-y-2.5">
-            <h2 className="text-sm font-medium text-foreground">{t("byTopic")}</h2>
+            <h2 className="text-sm font-medium text-foreground">
+              {t("byTopic")}
+            </h2>
             <ul className="space-y-2">
               {result.topicBreakdown.map((topic) => {
-                const share = topic.total === 0 ? 0 : (topic.correct / topic.total) * 100;
+                const share =
+                  topic.total === 0 ? 0 : (topic.correct / topic.total) * 100;
                 return (
                   <li key={topic.topicSlug} className="space-y-1">
                     <div className="flex items-baseline justify-between gap-2 text-xs">
-                      <span className="truncate text-foreground">{topic.topicName}</span>
+                      <span className="truncate text-foreground">
+                        {topic.topicName}
+                      </span>
                       <span className="shrink-0 tabular-nums text-muted-foreground">
                         {topic.correct}/{topic.total}
                       </span>
@@ -139,7 +165,9 @@ export default async function AttemptPaperPage({
                       <div
                         className={cn(
                           "h-full rounded-full",
-                          share >= 80 ? "bg-[var(--status-success)]" : "bg-primary",
+                          share >= 80
+                            ? "bg-[var(--status-success)]"
+                            : "bg-primary",
                         )}
                         style={{ width: `${share}%` }}
                       />
@@ -174,7 +202,9 @@ export default async function AttemptPaperPage({
                 {question.explanation.citations.length > 0 ? (
                   <p className="text-xs text-muted-foreground">
                     {question.explanation.citations
-                      .map((citation) => `${citation.sourceCode} ${citation.ref}`)
+                      .map(
+                        (citation) => `${citation.sourceCode} ${citation.ref}`,
+                      )
                       .join(" · ")}
                   </p>
                 ) : null}

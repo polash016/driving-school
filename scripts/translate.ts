@@ -15,7 +15,9 @@ import { PrismaClient, type TranslatableEntity } from "@prisma/client";
 import { executeRun, planRun } from "../src/server/services/i18n/runs";
 import { redis } from "../src/server/redis";
 
-(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(".env");
+(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(
+  ".env",
+);
 const db = new PrismaClient();
 
 function flag(name: string): string | undefined {
@@ -25,14 +27,24 @@ function flag(name: string): string | undefined {
 
 async function main(): Promise<void> {
   const code = process.argv[2];
-  if (!code) throw new Error("Usage: pnpm i18n:translate <code> [--apply] [--max N] [--only ENTITY]");
+  if (!code)
+    throw new Error(
+      "Usage: pnpm i18n:translate <code> [--apply] [--max N] [--only ENTITY]",
+    );
   const apply = process.argv.includes("--apply");
   const max = flag("max") ? Number(flag("max")) : undefined;
-  const only = flag("only") ? ([flag("only")] as TranslatableEntity[]) : undefined;
+  const only = flag("only")
+    ? ([flag("only")] as TranslatableEntity[])
+    : undefined;
 
   const language = await db.language.findUniqueOrThrow({
     where: { code },
-    select: { englishName: true, nativeName: true, requiresApproval: true, qaSampleRate: true },
+    select: {
+      englishName: true,
+      nativeName: true,
+      requiresApproval: true,
+      qaSampleRate: true,
+    },
   });
 
   const plan = await planRun(db, code, {
@@ -57,7 +69,9 @@ async function main(): Promise<void> {
   );
 
   if (plan.plannedUnits === 0) {
-    console.log("\nNothing to do — everything is already translated from the current source text.");
+    console.log(
+      "\nNothing to do — everything is already translated from the current source text.",
+    );
     return;
   }
   if (!apply) {
@@ -80,7 +94,9 @@ async function main(): Promise<void> {
     `\n${progress.completed}/${progress.planned} translated. ` +
       `${progress.flagged} held for review, ${progress.memoryHits} came free from memory, ${progress.failed} failed.`,
   );
-  console.log(progress.done ? "Run complete." : "Run paused — re-run to continue.");
+  console.log(
+    progress.done ? "Run complete." : "Run paused — re-run to continue.",
+  );
 }
 
 main()

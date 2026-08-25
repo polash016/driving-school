@@ -6,7 +6,10 @@ function makePool(
   masters: number,
   variantsPerMaster: number,
   type: VariantCandidate["type"] = "TEXT",
-  options: { conceptGroupId?: (master: number) => string | null; difficulty?: (master: number) => number } = {},
+  options: {
+    conceptGroupId?: (master: number) => string | null;
+    difficulty?: (master: number) => number;
+  } = {},
 ): VariantCandidate[] {
   const out: VariantCandidate[] = [];
   for (let m = 0; m < masters; m++) {
@@ -18,7 +21,7 @@ function makePool(
         type,
         topicSlug,
         topicId: `${topicSlug}-id`,
-        difficulty: options.difficulty?.(m) ?? ((m % 5) + 1),
+        difficulty: options.difficulty?.(m) ?? (m % 5) + 1,
         conceptGroupId: options.conceptGroupId?.(m) ?? null,
         optionKeys: ["a", "b", "c", "d"],
       });
@@ -115,8 +118,22 @@ describe("assembleQuiz", () => {
       distribution: { r1: 5, r2: 5 },
       imageRatio: 0.4,
       candidatesByTopic: {
-        r1: [...makePool("r1", 10, 1, "TEXT"), ...makePool("r1x", 10, 1, "IMAGE").map((c) => ({ ...c, topicSlug: "r1", topicId: "r1-id" }))],
-        r2: [...makePool("r2", 10, 1, "TEXT"), ...makePool("r2x", 10, 1, "IMAGE").map((c) => ({ ...c, topicSlug: "r2", topicId: "r2-id" }))],
+        r1: [
+          ...makePool("r1", 10, 1, "TEXT"),
+          ...makePool("r1x", 10, 1, "IMAGE").map((c) => ({
+            ...c,
+            topicSlug: "r1",
+            topicId: "r1-id",
+          })),
+        ],
+        r2: [
+          ...makePool("r2", 10, 1, "TEXT"),
+          ...makePool("r2x", 10, 1, "IMAGE").map((c) => ({
+            ...c,
+            topicSlug: "r2",
+            topicId: "r2-id",
+          })),
+        ],
       },
       seenHashes: new Set<string>(),
     };
@@ -126,7 +143,9 @@ describe("assembleQuiz", () => {
 
   it("never puts two phrasings of the same point on one paper", () => {
     // Ten masters, all alternates of each other: exactly one may be served.
-    const pool = makePool("r1", 10, 1, "TEXT", { conceptGroupId: () => "group-speed" });
+    const pool = makePool("r1", 10, 1, "TEXT", {
+      conceptGroupId: () => "group-speed",
+    });
     const { questions, shortfall } = assembleQuiz({
       seed: "seed-concept",
       distribution: { r1: 5 },
@@ -156,16 +175,20 @@ describe("assembleQuiz", () => {
   it("spreads the paper across difficulty bands instead of drifting easy", () => {
     // 30 masters per band, so the target mix is reachable and any drift is the picker's own.
     const easy = makePool("r1", 30, 1, "TEXT", { difficulty: () => 1 });
-    const medium = makePool("r1m", 30, 1, "TEXT", { difficulty: () => 3 }).map((c) => ({
-      ...c,
-      topicSlug: "r1",
-      topicId: "r1-id",
-    }));
-    const hard = makePool("r1h", 30, 1, "TEXT", { difficulty: () => 5 }).map((c) => ({
-      ...c,
-      topicSlug: "r1",
-      topicId: "r1-id",
-    }));
+    const medium = makePool("r1m", 30, 1, "TEXT", { difficulty: () => 3 }).map(
+      (c) => ({
+        ...c,
+        topicSlug: "r1",
+        topicId: "r1-id",
+      }),
+    );
+    const hard = makePool("r1h", 30, 1, "TEXT", { difficulty: () => 5 }).map(
+      (c) => ({
+        ...c,
+        topicSlug: "r1",
+        topicId: "r1-id",
+      }),
+    );
     const { questions, difficultyMix } = assembleQuiz({
       seed: "seed-difficulty",
       distribution: { r1: 45 },
@@ -183,7 +206,9 @@ describe("assembleQuiz", () => {
       seed: "seed-difficulty-thin",
       distribution: { r1: 10 },
       imageRatio: 0,
-      candidatesByTopic: { r1: makePool("r1", 20, 1, "TEXT", { difficulty: () => 1 }) },
+      candidatesByTopic: {
+        r1: makePool("r1", 20, 1, "TEXT", { difficulty: () => 1 }),
+      },
       seenHashes: new Set<string>(),
     });
     expect(questions).toHaveLength(10);

@@ -15,33 +15,50 @@ describe("security policy", () => {
 
   it("accepts only an explicit boolean", () => {
     // The reviewer count has a safe default; the 2FA switch deliberately does not.
-    expect(securityPolicySchema.parse({ adminTwoFactorRequired: false })).toEqual({
+    expect(
+      securityPolicySchema.parse({ adminTwoFactorRequired: false }),
+    ).toEqual({
       adminTwoFactorRequired: false,
       aiApprovalsRequired: 2,
     });
     // No coercion: "false", 0 and undefined must not quietly become a policy.
-    expect(() => securityPolicySchema.parse({ adminTwoFactorRequired: "false" })).toThrow();
-    expect(() => securityPolicySchema.parse({ adminTwoFactorRequired: 0 })).toThrow();
+    expect(() =>
+      securityPolicySchema.parse({ adminTwoFactorRequired: "false" }),
+    ).toThrow();
+    expect(() =>
+      securityPolicySchema.parse({ adminTwoFactorRequired: 0 }),
+    ).toThrow();
     expect(() => securityPolicySchema.parse({})).toThrow();
   });
 
   it("keeps the reviewer count within a sane range", () => {
     expect(
-      securityPolicySchema.parse({ adminTwoFactorRequired: true, aiApprovalsRequired: 1 })
-        .aiApprovalsRequired,
+      securityPolicySchema.parse({
+        adminTwoFactorRequired: true,
+        aiApprovalsRequired: 1,
+      }).aiApprovalsRequired,
     ).toBe(1);
     // Zero reviewers would mean AI questions publishing themselves.
     expect(() =>
-      securityPolicySchema.parse({ adminTwoFactorRequired: true, aiApprovalsRequired: 0 }),
+      securityPolicySchema.parse({
+        adminTwoFactorRequired: true,
+        aiApprovalsRequired: 0,
+      }),
     ).toThrow();
     expect(() =>
-      securityPolicySchema.parse({ adminTwoFactorRequired: true, aiApprovalsRequired: 4 }),
+      securityPolicySchema.parse({
+        adminTwoFactorRequired: true,
+        aiApprovalsRequired: 4,
+      }),
     ).toThrow();
   });
 
   it("rejects unknown keys rather than storing them", () => {
     expect(() =>
-      securityPolicySchema.parse({ adminTwoFactorRequired: true, somethingElse: true }),
+      securityPolicySchema.parse({
+        adminTwoFactorRequired: true,
+        somethingElse: true,
+      }),
     ).toThrow();
   });
 });

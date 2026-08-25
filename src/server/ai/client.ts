@@ -77,7 +77,10 @@ interface Candidate {
 async function candidatesFor(task: AiTask): Promise<Candidate[]> {
   const { resolveRoutes } = await import("@/server/services/ai/providers");
   const routes = await resolveRoutes(db, TASK_ENUM[task]).catch((error) => {
-    logger.warn({ task, error }, "route resolution failed — falling back to env");
+    logger.warn(
+      { task, error },
+      "route resolution failed — falling back to env",
+    );
     return [];
   });
 
@@ -124,9 +127,13 @@ async function withFallback<T>(
     try {
       return { result: await run(candidate), candidate };
     } catch (error) {
-      const retryable = error instanceof ProviderError ? error.retryable : false;
-      const message = error instanceof Error ? error.message.slice(0, 200) : String(error);
-      failures.push(`${candidate.providerLabel}/${candidate.model}: ${message}`);
+      const retryable =
+        error instanceof ProviderError ? error.retryable : false;
+      const message =
+        error instanceof Error ? error.message.slice(0, 200) : String(error);
+      failures.push(
+        `${candidate.providerLabel}/${candidate.model}: ${message}`,
+      );
 
       logger.warn(
         {
@@ -163,7 +170,9 @@ export async function aiJson<TVars, T>(opts: {
   const started = Date.now();
   const messages: ProviderMessage[] = [
     { role: "system", content: opts.prompt.render(opts.vars) },
-    ...(opts.userContent ? [{ role: "user" as const, content: opts.userContent }] : []),
+    ...(opts.userContent
+      ? [{ role: "user" as const, content: opts.userContent }]
+      : []),
   ];
 
   const { result, candidate } = await withFallback(opts.task, (route) =>
@@ -224,7 +233,11 @@ export async function aiEmbed(texts: string[]): Promise<number[][]> {
   const { result } = await withFallback("embedding", async (route) => {
     const adapter = adapterFor(route.kind);
     if (!adapter.embed) {
-      throw new ProviderError(`${route.kind} has no embedding endpoint`, 400, false);
+      throw new ProviderError(
+        `${route.kind} has no embedding endpoint`,
+        400,
+        false,
+      );
     }
     return adapter.embed(
       { apiKey: route.apiKey, baseUrl: route.baseUrl },

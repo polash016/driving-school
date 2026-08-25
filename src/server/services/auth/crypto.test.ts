@@ -35,7 +35,9 @@ describe("auth crypto", () => {
   });
 
   it("produces a different ciphertext each time (random IV)", () => {
-    expect(encryptSecret("JBSWY3DPEHPK3PXP")).not.toBe(encryptSecret("JBSWY3DPEHPK3PXP"));
+    expect(encryptSecret("JBSWY3DPEHPK3PXP")).not.toBe(
+      encryptSecret("JBSWY3DPEHPK3PXP"),
+    );
   });
 
   it("refuses tampered ciphertext (GCM auth tag)", () => {
@@ -43,13 +45,17 @@ describe("auth crypto", () => {
     const [version, iv, tag, ciphertext] = encrypted.split(".");
     const flipped = `${ciphertext.slice(0, -2)}${ciphertext.slice(-2) === "AA" ? "AB" : "AA"}`;
 
-    expect(() => decryptSecret([version, iv, tag, flipped].join("."))).toThrow();
+    expect(() =>
+      decryptSecret([version, iv, tag, flipped].join(".")),
+    ).toThrow();
     expect(() => decryptSecret("garbage")).toThrow(InternalError);
   });
 
   it("normalises emails and derives a stable non-reversible rate-limit key", () => {
     expect(normalizeEmail("  Kari@Example.NO ")).toBe("kari@example.no");
-    expect(emailRateKey("Kari@Example.no")).toBe(emailRateKey("kari@example.no"));
+    expect(emailRateKey("Kari@Example.no")).toBe(
+      emailRateKey("kari@example.no"),
+    );
     expect(emailRateKey("kari@example.no")).not.toContain("kari");
     expect(emailRateKey("kari@example.no")).toHaveLength(32);
   });

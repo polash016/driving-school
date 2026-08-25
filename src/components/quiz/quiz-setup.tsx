@@ -39,16 +39,19 @@ export function QuizSetup({
 
   const [timed, setTimed] = useState(true);
   const [questionCount, setQuestionCount] = useState(officialCount);
-  const [selected, setSelected] = useState<string[]>(() => topics.map((topic) => topic.slug));
-  const [state, formAction] = useActionState<ActionResult | undefined, FormData>(
-    startConfiguredQuizAction,
-    undefined,
+  const [selected, setSelected] = useState<string[]>(() =>
+    topics.map((topic) => topic.slug),
   );
+  const [state, formAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(startConfiguredQuizAction, undefined);
 
   // Mirrors evaluateGuarantee() on the server; the server's answer is the one that is stored.
   const warnings = useMemo(() => {
     const reasons: string[] = [];
-    if (selected.length < topics.length) reasons.push(t("guaranteeNeedsAllCategories"));
+    if (selected.length < topics.length)
+      reasons.push(t("guaranteeNeedsAllCategories"));
     if (questionCount < officialCount) {
       reasons.push(t("guaranteeNeedsQuestionCount", { count: officialCount }));
     }
@@ -56,7 +59,9 @@ export function QuizSetup({
   }, [officialCount, questionCount, selected.length, t, topics.length]);
 
   const counts = warnings.length === 0;
-  const scaledPassMark = Math.ceil((questionCount * officialPassMark) / officialCount);
+  const scaledPassMark = Math.ceil(
+    (questionCount * officialPassMark) / officialCount,
+  );
 
   function toggleTopic(slug: string) {
     setSelected((current) =>
@@ -75,7 +80,9 @@ export function QuizSetup({
         <input key={slug} type="hidden" name="topicSlugs" value={slug} />
       ))}
 
-      {state?.ok === false ? <FormAlert>{tErrors(state.messageKey)}</FormAlert> : null}
+      {state?.ok === false ? (
+        <FormAlert>{tErrors(state.messageKey)}</FormAlert>
+      ) : null}
 
       <Card className="[--card-spacing:--spacing(5)]">
         <CardContent className="space-y-3">
@@ -103,7 +110,9 @@ export function QuizSetup({
       <Card className="[--card-spacing:--spacing(5)]">
         <CardContent className="space-y-3">
           <div className="flex items-baseline justify-between gap-3">
-            <span className="text-sm font-medium text-foreground">{t("questionCount")}</span>
+            <span className="text-sm font-medium text-foreground">
+              {t("questionCount")}
+            </span>
             <span className="font-mono text-lg font-semibold text-foreground">
               {questionCount}
             </span>
@@ -137,17 +146,23 @@ export function QuizSetup({
       <Card className="[--card-spacing:--spacing(5)]">
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-medium text-foreground">{t("categories")}</span>
+            <span className="text-sm font-medium text-foreground">
+              {t("categories")}
+            </span>
             <button
               type="button"
               onClick={() =>
                 setSelected(
-                  selected.length === topics.length ? [] : topics.map((topic) => topic.slug),
+                  selected.length === topics.length
+                    ? []
+                    : topics.map((topic) => topic.slug),
                 )
               }
               className="min-h-11 rounded-md px-2 text-sm text-primary underline-offset-4 hover:underline"
             >
-              {selected.length === topics.length ? t("unselectAll") : t("selectAll")}
+              {selected.length === topics.length
+                ? t("unselectAll")
+                : t("selectAll")}
             </button>
           </div>
 
@@ -159,7 +174,9 @@ export function QuizSetup({
                   <label
                     className={cn(
                       "flex min-h-11 cursor-pointer items-center gap-3 rounded-[var(--radius-control)] px-3 py-2 text-sm transition-colors",
-                      on ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground",
+                      on
+                        ? "bg-accent text-accent-foreground"
+                        : "bg-muted text-muted-foreground",
                     )}
                   >
                     <input

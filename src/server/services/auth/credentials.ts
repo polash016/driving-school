@@ -9,7 +9,12 @@ import { AUDIT, auditLog } from "@/server/audit";
 import { loginInputSchema, sessionUserSchema } from "@/server/contracts/auth";
 import { keys, redis } from "@/server/redis";
 import { rateLimit, resetRateLimit } from "@/server/rate-limit";
-import { decryptSecret, emailRateKey, encryptSecret, normalizeEmail } from "./crypto";
+import {
+  decryptSecret,
+  emailRateKey,
+  encryptSecret,
+  normalizeEmail,
+} from "./crypto";
 import { verifyPassword } from "./password";
 import { getSecurityPolicy } from "./security-policy";
 import { createSession, type SessionContext } from "./sessions";
@@ -45,7 +50,12 @@ interface Ticket {
 
 async function issueTicket(ticket: Ticket, ttlSec: number): Promise<string> {
   const ticketId = randomUUID();
-  await redis.set(keys.authTicket(ticketId), JSON.stringify(ticket), "EX", ttlSec);
+  await redis.set(
+    keys.authTicket(ticketId),
+    JSON.stringify(ticket),
+    "EX",
+    ttlSec,
+  );
   return ticketId;
 }
 
@@ -55,10 +65,14 @@ async function claimTicket(
   purpose: Ticket["purpose"],
 ): Promise<Ticket> {
   const raw = await redis.getdel(keys.authTicket(ticketId));
-  if (!raw) throw new AuthError({ reason: "ticket" }, "auth.errors.sessionExpired");
+  if (!raw)
+    throw new AuthError({ reason: "ticket" }, "auth.errors.sessionExpired");
   const ticket = JSON.parse(raw) as Ticket;
   if (ticket.purpose !== purpose) {
-    throw new AuthError({ reason: "ticket purpose" }, "auth.errors.sessionExpired");
+    throw new AuthError(
+      { reason: "ticket purpose" },
+      "auth.errors.sessionExpired",
+    );
   }
   return ticket;
 }
@@ -107,7 +121,10 @@ export async function verifyCredentials(
       ip: ctx.ip,
       userAgent: ctx.userAgent,
     });
-    throw new AuthError({ reason: "credentials" }, "auth.errors.invalidCredentials");
+    throw new AuthError(
+      { reason: "credentials" },
+      "auth.errors.invalidCredentials",
+    );
   }
 
   if (!user.isActive || user.deletedAt) {
@@ -118,13 +135,22 @@ export async function verifyCredentials(
   }
 
   if (user.totpSecret) {
-    await assertTotpCode(db, user.id, user.totpSecret, input.totpCode, ctx, now);
-  } else if (user.role === "ADMIN" && (await getSecurityPolicy(db)).adminTwoFactorRequired) {
-    // Mandatory 2FA for admins — unless the school has deliberately turned that policy off.
-    throw new TotpSetupRequiredError(
-      await beginTotpSetup(user.id, ctx),
-      { userId: user.id },
+    await assertTotpCode(
+      db,
+      user.id,
+      user.totpSecret,
+      input.totpCode,
+      ctx,
+      now,
     );
+  } else if (
+    user.role === "ADMIN" &&
+    (await getSecurityPolicy(db)).adminTwoFactorRequired
+  ) {
+    // Mandatory 2FA for admins — unless the school has deliberately turned that policy off.
+    throw new TotpSetupRequiredError(await beginTotpSetup(user.id, ctx), {
+      userId: user.id,
+    });
   }
 
   await resetRateLimit("loginIp", ctx.ip ?? "unknown");
@@ -132,7 +158,12 @@ export async function verifyCredentials(
 
   return {
     ticketId: await issueTicket(
-      { userId: user.id, purpose: "login", ip: ctx.ip, userAgent: ctx.userAgent },
+      {
+        userId: user.id,
+        purpose: "login",
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+      },
       TICKET_TTL_SEC,
     ),
   };
@@ -152,7 +183,13 @@ async function assertTotpCode(
   const valid = verifyTotpCode(decryptSecret(encryptedSecret), code, now);
   // A correct code is single-use: replaying it inside its window is rejected.
   const fresh = valid
-    ? await redis.set(keys.totpUsed(userId, code), "1", "EX", TOTP_REPLAY_TTL_SEC, "NX")
+    ? await redis.set(
+        keys.totpUsed(userId, code),
+        "1",
+        "EX",
+        TOTP_REPLAY_TTL_SEC,
+        "NX",
+      )
     : null;
 
   if (!valid || fresh !== "OK") {
@@ -208,7 +245,11 @@ export async function pendingTotpSetup(
   });
   if (!user) return null;
 
-  return { userId: ticket.userId, email: user.email, secret: decryptSecret(encrypted) };
+  return {
+    userId: ticket.userId,
+    email: user.email,
+    secret: decryptSecret(encrypted),
+  };
 }
 
 /**
@@ -227,7 +268,10 @@ export async function completeTotpSetup(
 
   const encrypted = await redis.get(keys.totpSetup(ticket.userId));
   if (!encrypted) {
-    throw new AuthError({ reason: "setup expired" }, "auth.errors.sessionExpired");
+    throw new AuthError(
+      { reason: "setup expired" },
+      "auth.errors.sessionExpired",
+    );
   }
   const secret = decryptSecret(encrypted);
   if (!verifyTotpCode(secret, code, now)) {
@@ -256,7 +300,12 @@ export async function completeTotpSetup(
 
   return {
     ticketId: await issueTicket(
-      { userId: ticket.userId, purpose: "login", ip: ctx.ip, userAgent: ctx.userAgent },
+      {
+        userId: ticket.userId,
+        purpose: "login",
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+      },
       TICKET_TTL_SEC,
     ),
   };
@@ -281,10 +330,19 @@ export async function consumeLoginTicket(
   const ticket = await claimTicket(ticketId, "login");
   const user = await db.user.findUnique({
     where: { id: ticket.userId },
-    select: { id: true, email: true, role: true, isActive: true, deletedAt: true },
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      isActive: true,
+      deletedAt: true,
+    },
   });
   if (!user || !user.isActive || user.deletedAt) {
-    throw new AuthError({ userId: ticket.userId }, "auth.errors.accountDisabled");
+    throw new AuthError(
+      { userId: ticket.userId },
+      "auth.errors.accountDisabled",
+    );
   }
 
   const sessionId = await createSession(

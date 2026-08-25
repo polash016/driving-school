@@ -52,10 +52,16 @@ export async function isSessionValid(
 
   const session = await db.userSession.findUnique({
     where: { id: sessionId },
-    select: { revokedAt: true, user: { select: { isActive: true, deletedAt: true } } },
+    select: {
+      revokedAt: true,
+      user: { select: { isActive: true, deletedAt: true } },
+    },
   });
   const valid = Boolean(
-    session && !session.revokedAt && session.user.isActive && !session.user.deletedAt,
+    session &&
+    !session.revokedAt &&
+    session.user.isActive &&
+    !session.user.deletedAt,
   );
   // Invalidated by: revokeSession / revokeAllSessions / password reset.
   await cacheSet(keys.authSession(sessionId), valid, SESSION_CACHE_TTL_SEC);
@@ -174,7 +180,9 @@ export async function revokeAllSessions(
     where: {
       userId,
       revokedAt: null,
-      ...(options.exceptSessionId ? { id: { not: options.exceptSessionId } } : {}),
+      ...(options.exceptSessionId
+        ? { id: { not: options.exceptSessionId } }
+        : {}),
     },
     select: { id: true },
   });

@@ -18,6 +18,8 @@ export default async function AdminLayout({
     { href: "/admin/questions", label: t("questions") },
     { href: "/admin/review", label: t("review") },
     { href: "/admin/sets", label: t("sets") },
+    { href: "/admin/images", label: t("images") },
+    { href: "/admin/signs", label: t("signs") },
     { href: "/admin/questions/accuracy", label: t("accuracy") },
     ...(user.role === "ADMIN"
       ? [

@@ -73,7 +73,9 @@ function sameMultiset(a: string[], b: string[]): boolean {
 }
 
 function collect(text: string, pattern: RegExp): string[] {
-  return (text.match(pattern) ?? []).map((match) => match.replace(/\s+/g, " ").trim());
+  return (text.match(pattern) ?? []).map((match) =>
+    match.replace(/\s+/g, " ").trim(),
+  );
 }
 
 function allOf(payload: UnitPayload, pattern: RegExp): string[] {
@@ -100,7 +102,10 @@ export function checkTranslation(input: {
   const translatedTexts = payloadStrings(translated);
 
   // 1. Nothing may be empty. A blank stem is not a translation.
-  if (translatedTexts.length === 0 || translatedTexts.some((text) => text.trim().length === 0)) {
+  if (
+    translatedTexts.length === 0 ||
+    translatedTexts.some((text) => text.trim().length === 0)
+  ) {
     issues.push({ code: "EMPTY_FIELD", blocking: true });
   }
 
@@ -127,8 +132,15 @@ export function checkTranslation(input: {
         detail: `${sourceKeys.join(",")} to ${translatedKeys.join(",")}`,
       });
     }
-    if (input.correctOptionKey && !translatedKeys.includes(input.correctOptionKey)) {
-      issues.push({ code: "ANSWER_KEY_LOST", blocking: true, detail: input.correctOptionKey });
+    if (
+      input.correctOptionKey &&
+      !translatedKeys.includes(input.correctOptionKey)
+    ) {
+      issues.push({
+        code: "ANSWER_KEY_LOST",
+        blocking: true,
+        detail: input.correctOptionKey,
+      });
     }
     if (!(translated as QuestionPayload).stem?.trim()) {
       issues.push({ code: "STEM_MISSING", blocking: true });
@@ -167,20 +179,29 @@ export function checkTranslation(input: {
     const before = allOf(source, pattern);
     const after = allOf(translated, pattern);
     if (!sameMultiset(before, after)) {
-      issues.push({ code, blocking: true, detail: `${before.join(", ")} to ${after.join(", ")}` });
+      issues.push({
+        code,
+        blocking: true,
+        detail: `${before.join(", ")} to ${after.join(", ")}`,
+      });
     }
   }
 
   // 6. Did anything actually get translated? A model that echoes its input is a silent failure.
-  const untouched = sourceTexts.length > 0 && sourceTexts.join(" ") === translatedTexts.join(" ");
+  const untouched =
+    sourceTexts.length > 0 &&
+    sourceTexts.join(" ") === translatedTexts.join(" ");
   const scriptCheck = SCRIPT_RANGES[input.locale.split("-")[0]];
   const wrongScript =
-    scriptCheck !== undefined && !translatedTexts.some((text) => scriptCheck.test(text));
+    scriptCheck !== undefined &&
+    !translatedTexts.some((text) => scriptCheck.test(text));
   if (untouched || wrongScript) {
     issues.push({
       code: "UNTRANSLATED",
       blocking: true,
-      detail: wrongScript ? "no character in the target script" : "identical to the source",
+      detail: wrongScript
+        ? "no character in the target script"
+        : "identical to the source",
     });
   }
 
@@ -203,7 +224,9 @@ export function checkTranslation(input: {
 }
 
 export function blockingCodes(check: TranslationCheck): string[] {
-  return check.issues.filter((issue) => issue.blocking).map((issue) => issue.code);
+  return check.issues
+    .filter((issue) => issue.blocking)
+    .map((issue) => issue.code);
 }
 
 export function allCodes(check: TranslationCheck): string[] {

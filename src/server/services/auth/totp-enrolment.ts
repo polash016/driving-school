@@ -41,7 +41,12 @@ export async function startTotpEnrolment(
 ): Promise<TotpSetup> {
   const secret = generateTotpSecret();
   // Invalidated by: confirmTotpEnrolment, or expiry after 10 minutes.
-  await redis.set(keys.totpSetup(user.id), encryptSecret(secret), "EX", SETUP_TTL_SEC);
+  await redis.set(
+    keys.totpSetup(user.id),
+    encryptSecret(secret),
+    "EX",
+    SETUP_TTL_SEC,
+  );
   return totpSetupPayload(secret, user.email);
 }
 
@@ -55,7 +60,10 @@ export async function confirmTotpEnrolment(
   await rateLimit("totpUser", user.id);
   const encrypted = await redis.get(keys.totpSetup(user.id));
   if (!encrypted) {
-    throw new ValidationError({ userId: user.id }, "auth.errors.sessionExpired");
+    throw new ValidationError(
+      { userId: user.id },
+      "auth.errors.sessionExpired",
+    );
   }
   if (!verifyTotpCode(decryptSecret(encrypted), code, now)) {
     throw new ValidationError({ userId: user.id }, "auth.errors.totpInvalid");
@@ -87,14 +95,23 @@ export async function disableTotp(
   password: string,
   ctx: SessionContext & { currentSessionId?: string } = {},
 ): Promise<void> {
-  if (user.role === "ADMIN" && (await getSecurityPolicy(db)).adminTwoFactorRequired) {
-    throw new ForbiddenError({ userId: user.id }, "auth.errors.totpRequiredForAdmin");
+  if (
+    user.role === "ADMIN" &&
+    (await getSecurityPolicy(db)).adminTwoFactorRequired
+  ) {
+    throw new ForbiddenError(
+      { userId: user.id },
+      "auth.errors.totpRequiredForAdmin",
+    );
   }
   const row = await db.user.findUniqueOrThrow({
     where: { id: user.id },
     select: { passwordHash: true },
   });
-  if (!row.passwordHash || !(await verifyPassword(row.passwordHash, password))) {
+  if (
+    !row.passwordHash ||
+    !(await verifyPassword(row.passwordHash, password))
+  ) {
     throw new AuthError({ userId: user.id }, "auth.errors.invalidCredentials");
   }
 

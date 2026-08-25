@@ -14,7 +14,9 @@ import { getSessionUser } from "./index";
  *
  * `src/app/auth-coverage.test.ts` fails the build if a protected route skips this.
  */
-export async function requireUser(role: Role = "STUDENT"): Promise<SessionUser> {
+export async function requireUser(
+  role: Role = "STUDENT",
+): Promise<SessionUser> {
   const session = await getSessionUser();
   try {
     return authorize(session, role);

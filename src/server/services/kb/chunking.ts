@@ -63,7 +63,8 @@ function splitLong(section: Chunk): Chunk[] {
     const cut =
       end === section.text.length
         ? slice.length
-        : Math.max(slice.lastIndexOf(". "), slice.lastIndexOf("\n")) + 1 || slice.length;
+        : Math.max(slice.lastIndexOf(". "), slice.lastIndexOf("\n")) + 1 ||
+          slice.length;
 
     pieces.push({ ref: section.ref, text: slice.slice(0, cut).trim() });
     if (end === section.text.length) break;

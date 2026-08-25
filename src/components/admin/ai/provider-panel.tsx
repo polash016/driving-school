@@ -28,7 +28,14 @@ import type {
  */
 
 const KINDS = ["GOOGLE", "ANTHROPIC", "OPENAI_COMPATIBLE"] as const;
-const TASKS = ["VISION", "GENERATION", "VALIDATION", "EMBEDDING", "IMAGE", "TRANSLATION"] as const;
+const TASKS = [
+  "VISION",
+  "GENERATION",
+  "VALIDATION",
+  "EMBEDDING",
+  "IMAGE",
+  "TRANSLATION",
+] as const;
 
 export function AiProviderPanel({
   providers,
@@ -42,26 +49,26 @@ export function AiProviderPanel({
   const format = useFormatter();
   const [kind, setKind] = useState<(typeof KINDS)[number]>("GOOGLE");
 
-  const [addState, addAction] = useActionState<ActionResult | undefined, FormData>(
-    addProviderAction,
-    undefined,
-  );
+  const [addState, addAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(addProviderAction, undefined);
   const [testState, testAction] = useActionState<
     ActionResult<TestOutcome> | undefined,
     FormData
   >(testProviderAction, undefined);
-  const [routeState, routeAction] = useActionState<ActionResult | undefined, FormData>(
-    saveRouteAction,
-    undefined,
-  );
-  const [rotateState, rotateAction] = useActionState<ActionResult | undefined, FormData>(
-    rotateKeyAction,
-    undefined,
-  );
-  const [removeState, removeAction] = useActionState<ActionResult | undefined, FormData>(
-    deleteProviderAction,
-    undefined,
-  );
+  const [routeState, routeAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(saveRouteAction, undefined);
+  const [rotateState, rotateAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(rotateKeyAction, undefined);
+  const [removeState, removeAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(deleteProviderAction, undefined);
   const [removeRouteState, removeRouteAction] = useActionState<
     ActionResult | undefined,
     FormData
@@ -78,7 +85,9 @@ export function AiProviderPanel({
           {addState?.ok === false ? (
             <FormAlert>{tErrors(addState.messageKey)}</FormAlert>
           ) : null}
-          {addState?.ok ? <FormAlert tone="success">{t("added")}</FormAlert> : null}
+          {addState?.ok ? (
+            <FormAlert tone="success">{t("added")}</FormAlert>
+          ) : null}
 
           <form action={addAction} className="grid gap-3 md:grid-cols-2">
             <label className="space-y-1.5 text-sm font-medium">
@@ -86,7 +95,9 @@ export function AiProviderPanel({
               <select
                 name="kind"
                 value={kind}
-                onChange={(event) => setKind(event.target.value as (typeof KINDS)[number])}
+                onChange={(event) =>
+                  setKind(event.target.value as (typeof KINDS)[number])
+                }
                 className="h-11 w-full rounded-[var(--radius-control)] border border-input bg-transparent px-3 text-sm"
               >
                 {KINDS.map((option) => (
@@ -103,7 +114,9 @@ export function AiProviderPanel({
               type="url"
               required={kind === "OPENAI_COMPATIBLE"}
               hint={
-                kind === "OPENAI_COMPATIBLE" ? t("baseUrlRequired") : t("baseUrlOptional")
+                kind === "OPENAI_COMPATIBLE"
+                  ? t("baseUrlRequired")
+                  : t("baseUrlOptional")
               }
             />
             <Field
@@ -149,27 +162,42 @@ export function AiProviderPanel({
                               : "text-destructive",
                           )}
                         >
-                          {provider.lastCheckOk ? t("checkOk") : t("checkFailed")} ·{" "}
+                          {provider.lastCheckOk
+                            ? t("checkOk")
+                            : t("checkFailed")}{" "}
+                          ·{" "}
                           {format.dateTime(provider.lastCheckedAt, {
                             dateStyle: "short",
                             timeStyle: "short",
                           })}
-                          {provider.lastCheckError ? ` · ${provider.lastCheckError}` : ""}
+                          {provider.lastCheckError
+                            ? ` · ${provider.lastCheckError}`
+                            : ""}
                         </p>
                       ) : (
-                        <p className="text-xs text-muted-foreground">{t("neverChecked")}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {t("neverChecked")}
+                        </p>
                       )}
                     </div>
 
                     <form action={removeAction}>
-                      <input type="hidden" name="providerId" value={provider.id} />
+                      <input
+                        type="hidden"
+                        name="providerId"
+                        value={provider.id}
+                      />
                       <SubmitButton label={t("remove")} variant="ghost" />
                     </form>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
                     <form action={testAction} className="flex items-end gap-2">
-                      <input type="hidden" name="providerId" value={provider.id} />
+                      <input
+                        type="hidden"
+                        name="providerId"
+                        value={provider.id}
+                      />
                       <Field
                         label={t("testModel")}
                         name="model"
@@ -180,8 +208,15 @@ export function AiProviderPanel({
                       <SubmitButton label={t("test")} variant="outline" />
                     </form>
 
-                    <form action={rotateAction} className="flex items-end gap-2">
-                      <input type="hidden" name="providerId" value={provider.id} />
+                    <form
+                      action={rotateAction}
+                      className="flex items-end gap-2"
+                    >
+                      <input
+                        type="hidden"
+                        name="providerId"
+                        value={provider.id}
+                      />
                       <Field
                         label={t("newKey")}
                         name="apiKey"
@@ -208,7 +243,9 @@ export function AiProviderPanel({
                 : t("testFailed", { error: testState.data.error ?? "" })}
             </FormAlert>
           ) : null}
-          {rotateState?.ok ? <FormAlert tone="success">{t("rotated")}</FormAlert> : null}
+          {rotateState?.ok ? (
+            <FormAlert tone="success">{t("rotated")}</FormAlert>
+          ) : null}
           {removeState?.ok === false ? (
             <FormAlert>{tErrors(removeState.messageKey)}</FormAlert>
           ) : null}
@@ -225,7 +262,9 @@ export function AiProviderPanel({
           {routeState?.ok === false ? (
             <FormAlert>{tErrors(routeState.messageKey)}</FormAlert>
           ) : null}
-          {routeState?.ok ? <FormAlert tone="success">{t("routeSaved")}</FormAlert> : null}
+          {routeState?.ok ? (
+            <FormAlert tone="success">{t("routeSaved")}</FormAlert>
+          ) : null}
           {removeRouteState?.ok === false ? (
             <FormAlert>{tErrors(removeRouteState.messageKey)}</FormAlert>
           ) : null}
@@ -237,26 +276,50 @@ export function AiProviderPanel({
               <table className="w-full min-w-[36rem] border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                    <th scope="col" className="p-2 font-medium">{t("task")}</th>
-                    <th scope="col" className="p-2 font-medium">{t("provider")}</th>
-                    <th scope="col" className="p-2 font-medium">{t("model")}</th>
-                    <th scope="col" className="p-2 font-medium">{t("priority")}</th>
+                    <th scope="col" className="p-2 font-medium">
+                      {t("task")}
+                    </th>
+                    <th scope="col" className="p-2 font-medium">
+                      {t("provider")}
+                    </th>
+                    <th scope="col" className="p-2 font-medium">
+                      {t("model")}
+                    </th>
+                    <th scope="col" className="p-2 font-medium">
+                      {t("priority")}
+                    </th>
                     <th scope="col" className="p-2" />
                   </tr>
                 </thead>
                 <tbody>
                   {routes.map((route) => (
-                    <tr key={route.id} className="border-b border-border/60 last:border-0">
-                      <td className="p-2 text-foreground">{t(`tasks.${route.task}`)}</td>
-                      <td className="p-2 text-muted-foreground">{route.providerLabel}</td>
+                    <tr
+                      key={route.id}
+                      className="border-b border-border/60 last:border-0"
+                    >
+                      <td className="p-2 text-foreground">
+                        {t(`tasks.${route.task}`)}
+                      </td>
+                      <td className="p-2 text-muted-foreground">
+                        {route.providerLabel}
+                      </td>
                       <td className="p-2 font-mono text-xs text-muted-foreground">
                         {route.model}
                       </td>
-                      <td className="p-2 text-muted-foreground">{route.priority}</td>
+                      <td className="p-2 text-muted-foreground">
+                        {route.priority}
+                      </td>
                       <td className="p-2 text-right">
                         <form action={removeRouteAction}>
-                          <input type="hidden" name="routeId" value={route.id} />
-                          <SubmitButton label={t("removeRoute")} variant="ghost" />
+                          <input
+                            type="hidden"
+                            name="routeId"
+                            value={route.id}
+                          />
+                          <SubmitButton
+                            label={t("removeRoute")}
+                            variant="ghost"
+                          />
                         </form>
                       </td>
                     </tr>
@@ -267,7 +330,10 @@ export function AiProviderPanel({
           )}
 
           {providers.length > 0 ? (
-            <form action={routeAction} className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto_auto] md:items-end">
+            <form
+              action={routeAction}
+              className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto_auto] md:items-end"
+            >
               <label className="space-y-1.5 text-sm font-medium">
                 {t("task")}
                 <select

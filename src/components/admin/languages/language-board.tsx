@@ -29,7 +29,13 @@ export interface LanguageRow {
   requiresApproval: boolean;
   studentVisible: boolean;
   lastSyncedAt: Date | null;
-  coverage: { percent: number; ready: number; total: number; flagged: number; complete: boolean };
+  coverage: {
+    percent: number;
+    ready: number;
+    total: number;
+    flagged: number;
+    complete: boolean;
+  };
 }
 
 /**
@@ -44,28 +50,33 @@ export function LanguageBoard({
   activeRun,
 }: {
   languages: LanguageRow[];
-  activeRun: { id: string; locale: string; planned: number; done: number } | null;
+  activeRun: {
+    id: string;
+    locale: string;
+    planned: number;
+    done: number;
+  } | null;
 }) {
   const t = useTranslations("admin.languages");
   const tErrors = useTranslations();
   const [adding, setAdding] = useState(false);
 
-  const [addState, addAction] = useActionState<ActionResult | undefined, FormData>(
-    addLanguageAction,
-    undefined,
-  );
-  const [updateState, updateAction] = useActionState<ActionResult | undefined, FormData>(
-    updateLanguageAction,
-    undefined,
-  );
+  const [addState, addAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(addLanguageAction, undefined);
+  const [updateState, updateAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(updateLanguageAction, undefined);
   const [planState, planAction] = useActionState<
     ActionResult<PlanOutcome> | undefined,
     FormData
   >(planRunAction, undefined);
-  const [runState, runAction] = useActionState<ActionResult<RunProgress> | undefined, FormData>(
-    runSliceAction,
-    undefined,
-  );
+  const [runState, runAction] = useActionState<
+    ActionResult<RunProgress> | undefined,
+    FormData
+  >(runSliceAction, undefined);
 
   const error = [addState, updateState, planState, runState].find(
     (state) => state?.ok === false,
@@ -73,7 +84,9 @@ export function LanguageBoard({
 
   return (
     <div className="space-y-5">
-      {error?.ok === false ? <FormAlert>{tErrors(error.messageKey)}</FormAlert> : null}
+      {error?.ok === false ? (
+        <FormAlert>{tErrors(error.messageKey)}</FormAlert>
+      ) : null}
 
       <ul className="space-y-3">
         {languages.map((language) => (
@@ -111,7 +124,9 @@ export function LanguageBoard({
                       </span>
                       {!language.isBuiltIn ? (
                         <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
-                          {language.requiresApproval ? t("approvalOn") : t("approvalOff")}
+                          {language.requiresApproval
+                            ? t("approvalOn")
+                            : t("approvalOff")}
                         </span>
                       ) : null}
                     </p>
@@ -119,7 +134,9 @@ export function LanguageBoard({
 
                   {!language.isBuiltIn ? (
                     <Button asChild variant="outline" size="sm">
-                      <Link href={`/admin/languages/${language.code}`}>{t("open")}</Link>
+                      <Link href={`/admin/languages/${language.code}`}>
+                        {t("open")}
+                      </Link>
                     </Button>
                   ) : null}
                 </div>
@@ -128,7 +145,9 @@ export function LanguageBoard({
                   <>
                     <div className="space-y-1">
                       <div className="flex items-baseline justify-between gap-2 text-xs">
-                        <span className="text-muted-foreground">{t("coverage")}</span>
+                        <span className="text-muted-foreground">
+                          {t("coverage")}
+                        </span>
                         <span className="tabular-nums text-foreground">
                           {t("coverageCount", {
                             ready: language.coverage.ready,
@@ -162,7 +181,11 @@ export function LanguageBoard({
 
                     <div className="flex flex-wrap items-center gap-2">
                       <form action={planAction}>
-                        <input type="hidden" name="code" value={language.code} />
+                        <input
+                          type="hidden"
+                          name="code"
+                          value={language.code}
+                        />
                         <SubmitButton
                           className="h-9"
                           label={t("plan")}
@@ -171,7 +194,11 @@ export function LanguageBoard({
                       </form>
 
                       <form action={updateAction}>
-                        <input type="hidden" name="code" value={language.code} />
+                        <input
+                          type="hidden"
+                          name="code"
+                          value={language.code}
+                        />
                         <input
                           type="hidden"
                           name="requiresApproval"
@@ -181,14 +208,20 @@ export function LanguageBoard({
                           className="h-9"
                           variant="outline"
                           label={
-                            language.requiresApproval ? t("turnApprovalOff") : t("turnApprovalOn")
+                            language.requiresApproval
+                              ? t("turnApprovalOff")
+                              : t("turnApprovalOn")
                           }
                           pendingLabel={t("saving")}
                         />
                       </form>
 
                       <form action={updateAction}>
-                        <input type="hidden" name="code" value={language.code} />
+                        <input
+                          type="hidden"
+                          name="code"
+                          value={language.code}
+                        />
                         <input
                           type="hidden"
                           name="studentVisible"
@@ -197,15 +230,23 @@ export function LanguageBoard({
                         <SubmitButton
                           className="h-9"
                           variant="outline"
-                          disabled={!language.studentVisible && !language.coverage.complete}
-                          label={language.studentVisible ? t("hide") : t("show")}
+                          disabled={
+                            !language.studentVisible &&
+                            !language.coverage.complete
+                          }
+                          label={
+                            language.studentVisible ? t("hide") : t("show")
+                          }
                           pendingLabel={t("saving")}
                         />
                       </form>
 
-                      {!language.studentVisible && !language.coverage.complete ? (
+                      {!language.studentVisible &&
+                      !language.coverage.complete ? (
                         <span className="text-xs text-muted-foreground">
-                          {t("showBlocked", { percent: language.coverage.percent })}
+                          {t("showBlocked", {
+                            percent: language.coverage.percent,
+                          })}
                         </span>
                       ) : null}
                     </div>
@@ -231,11 +272,19 @@ export function LanguageBoard({
                 .map(([entity, count]) => `${entity}: ${count}`)
                 .join(" · ")}
             </p>
-            <form action={runAction} className="flex flex-wrap items-center gap-2">
+            <form
+              action={runAction}
+              className="flex flex-wrap items-center gap-2"
+            >
               <input type="hidden" name="runId" value={planState.data.runId} />
               <input type="hidden" name="maxUnits" value="25" />
-              <SubmitButton label={t("translateSlice")} pendingLabel={t("translating")} />
-              <span className="text-xs text-muted-foreground">{t("sliceNote")}</span>
+              <SubmitButton
+                label={t("translateSlice")}
+                pendingLabel={t("translating")}
+              />
+              <span className="text-xs text-muted-foreground">
+                {t("sliceNote")}
+              </span>
             </form>
           </CardContent>
         </Card>
@@ -280,7 +329,9 @@ export function LanguageBoard({
                   placeholder="es"
                   className="h-11 w-full rounded-[var(--radius-control)] border border-input bg-transparent px-3 text-sm"
                 />
-                <span className="block text-xs text-muted-foreground">{t("codeHint")}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {t("codeHint")}
+                </span>
               </label>
               <label className="space-y-1 text-sm">
                 <span className="text-muted-foreground">{t("shortLabel")}</span>
@@ -293,7 +344,9 @@ export function LanguageBoard({
                 />
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">{t("englishName")}</span>
+                <span className="text-muted-foreground">
+                  {t("englishName")}
+                </span>
                 <input
                   name="englishName"
                   required
@@ -321,7 +374,12 @@ export function LanguageBoard({
                 </select>
               </label>
               <label className="flex items-center gap-2 self-end text-sm">
-                <input type="checkbox" name="requiresApproval" defaultChecked className="size-4" />
+                <input
+                  type="checkbox"
+                  name="requiresApproval"
+                  defaultChecked
+                  className="size-4"
+                />
                 <span className="text-foreground">{t("requiresApproval")}</span>
               </label>
               <label className="space-y-1 text-sm sm:col-span-2">
@@ -334,7 +392,11 @@ export function LanguageBoard({
               </label>
               <div className="flex items-center gap-2 sm:col-span-2">
                 <SubmitButton label={t("add")} pendingLabel={t("saving")} />
-                <Button type="button" variant="ghost" onClick={() => setAdding(false)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setAdding(false)}
+                >
                   {t("cancel")}
                 </Button>
               </div>

@@ -1,4 +1,8 @@
-import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
+import {
+  getFormatter,
+  getTranslations,
+  setRequestLocale,
+} from "next-intl/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import { requireUser } from "@/server/auth/require-user";
@@ -24,13 +28,18 @@ export default async function HistoryPage({
   const [t, format, history] = await Promise.all([
     getTranslations("history"),
     getFormatter(),
-    listAttemptHistory(db, user, user.id, { page: Number(query.page ?? 1), pageSize: 10 }),
+    listAttemptHistory(db, user, user.id, {
+      page: Number(query.page ?? 1),
+      pageSize: 10,
+    }),
   ]);
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-5 px-4 py-8">
       <header className="space-y-1.5">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">{t("title")}</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          {t("title")}
+        </h1>
         <p className="text-sm/relaxed text-muted-foreground">{t("subtitle")}</p>
       </header>
 
@@ -46,7 +55,9 @@ export default async function HistoryPage({
                 <CardContent className="space-y-2">
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-0.5">
-                      <p className="font-medium text-foreground">{t(`kind.${attempt.kind}`)}</p>
+                      <p className="font-medium text-foreground">
+                        {t(`kind.${attempt.kind}`)}
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         {format.dateTime(attempt.startedAt, {
                           dateStyle: "medium",
@@ -98,7 +109,9 @@ export default async function HistoryPage({
                           ) : (
                             <span>{t("doesNotCount")}</span>
                           )}
-                          {attempt.attested ? <span>{t("attested")}</span> : null}
+                          {attempt.attested ? (
+                            <span>{t("attested")}</span>
+                          ) : null}
                         </span>
                       </div>
                     </>

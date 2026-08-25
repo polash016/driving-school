@@ -19,9 +19,21 @@ const enabled = Boolean(process.env.TEST_DATABASE_URL);
 const d = describe.skipIf(!enabled);
 
 const RUN = randomUUID().slice(0, 8);
-const author: SessionUser = { id: "", role: "INSTRUCTOR", email: `author-${RUN}@example.no` };
-const reviewer: SessionUser = { id: "", role: "INSTRUCTOR", email: `rev1-${RUN}@example.no` };
-const reviewer2: SessionUser = { id: "", role: "ADMIN", email: `rev2-${RUN}@example.no` };
+const author: SessionUser = {
+  id: "",
+  role: "INSTRUCTOR",
+  email: `author-${RUN}@example.no`,
+};
+const reviewer: SessionUser = {
+  id: "",
+  role: "INSTRUCTOR",
+  email: `rev1-${RUN}@example.no`,
+};
+const reviewer2: SessionUser = {
+  id: "",
+  role: "ADMIN",
+  email: `rev2-${RUN}@example.no`,
+};
 let topicId = "";
 let studentId = "";
 
@@ -37,10 +49,17 @@ function itemInput(stem: string, overrides: Record<string, unknown> = {}) {
     licenseClassId: null,
     difficulty: 3,
     content: {
-      en: { stem: `${stem} [${RUN}]`, options, explanation: "The rule says so." },
+      en: {
+        stem: `${stem} [${RUN}]`,
+        options,
+        explanation: "The rule says so.",
+      },
       nb: {
         stem: `${stem} (nb) [${RUN}]`,
-        options: options.map((option) => ({ ...option, text: `${option.text} nb` })),
+        options: options.map((option) => ({
+          ...option,
+          text: `${option.text} nb`,
+        })),
         explanation: "Regelen sier det.",
       },
     },
@@ -50,7 +69,10 @@ function itemInput(stem: string, overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function user(session: SessionUser, role: "INSTRUCTOR" | "ADMIN" | "STUDENT") {
+async function user(
+  session: SessionUser,
+  role: "INSTRUCTOR" | "ADMIN" | "STUDENT",
+) {
   const row = await db.user.create({
     data: {
       email: session.email,
@@ -70,7 +92,11 @@ async function user(session: SessionUser, role: "INSTRUCTOR" | "ADMIN" | "STUDEN
  */
 let examCounter = 0;
 async function sitAnExam() {
-  const item = await upsertItem(db, author, itemInput(`Exam question ${examCounter++}`));
+  const item = await upsertItem(
+    db,
+    author,
+    itemInput(`Exam question ${examCounter++}`),
+  );
   await db.masterItem.update({
     where: { id: item.id },
     data: { createdBy: "HUMAN" },
@@ -108,7 +134,11 @@ async function sitAnExam() {
 }
 
 /** Closes an attempt the way the engine does: questions first, then the attempt, then attest. */
-async function closeAttempt(attemptId: string, correct: number, passed: boolean) {
+async function closeAttempt(
+  attemptId: string,
+  correct: number,
+  passed: boolean,
+) {
   const { attestAttempt } = await import("./attestation");
   await db.$transaction(async (tx) => {
     await tx.examAttemptQuestion.updateMany({
@@ -160,15 +190,21 @@ afterAll(async () => {
   });
   // The trigger refuses to delete a submitted attempt — that is the guarantee under test, so
   // cleanup lifts it explicitly rather than pretending the rule does not exist.
-  await db.$executeRawUnsafe('ALTER TABLE "ExamAttempt" DISABLE TRIGGER "attempt_result_final"');
+  await db.$executeRawUnsafe(
+    'ALTER TABLE "ExamAttempt" DISABLE TRIGGER "attempt_result_final"',
+  );
   await db.$executeRawUnsafe(
     'ALTER TABLE "ExamAttemptQuestion" DISABLE TRIGGER "attempt_question_immutable"',
   );
   await db.examAttemptQuestion.deleteMany({
     where: { attemptId: { in: attempts.map((a) => a.id) } },
   });
-  await db.examAttempt.deleteMany({ where: { id: { in: attempts.map((a) => a.id) } } });
-  await db.$executeRawUnsafe('ALTER TABLE "ExamAttempt" ENABLE TRIGGER "attempt_result_final"');
+  await db.examAttempt.deleteMany({
+    where: { id: { in: attempts.map((a) => a.id) } },
+  });
+  await db.$executeRawUnsafe(
+    'ALTER TABLE "ExamAttempt" ENABLE TRIGGER "attempt_result_final"',
+  );
   await db.$executeRawUnsafe(
     'ALTER TABLE "ExamAttemptQuestion" ENABLE TRIGGER "attempt_question_immutable"',
   );
@@ -179,7 +215,9 @@ afterAll(async () => {
     where: { email: { contains: RUN } },
     select: { id: true },
   });
-  await db.auditLog.deleteMany({ where: { actorId: { in: users.map((u) => u.id) } } });
+  await db.auditLog.deleteMany({
+    where: { actorId: { in: users.map((u) => u.id) } },
+  });
   await db.user.deleteMany({ where: { id: { in: users.map((u) => u.id) } } });
   await db.$disconnect();
   await redis.quit().catch(() => undefined);
@@ -193,9 +231,10 @@ d("two-person sign-off", () => {
     await expect(
       transitionItem(db, author, { id: item.id, to: "APPROVED" }),
     ).rejects.toBeInstanceOf(ForbiddenError);
-    expect((await db.masterItem.findUniqueOrThrow({ where: { id: item.id } })).status).toBe(
-      "IN_REVIEW",
-    );
+    expect(
+      (await db.masterItem.findUniqueOrThrow({ where: { id: item.id } }))
+        .status,
+    ).toBe("IN_REVIEW");
   });
 
   it("requires two different reviewers for an AI-drafted question", async () => {
@@ -208,25 +247,37 @@ d("two-person sign-off", () => {
     await transitionItem(db, author, { id: item.id, to: "IN_REVIEW" });
 
     // First reviewer: their approval is recorded — a success for them — but nothing goes live.
-    const first = await transitionItem(db, reviewer, { id: item.id, to: "APPROVED" });
+    const first = await transitionItem(db, reviewer, {
+      id: item.id,
+      to: "APPROVED",
+    });
     expect(first).toMatchObject({
       applied: false,
       approvals: { recorded: 1, required: 2 },
     });
-    expect((await db.masterItem.findUniqueOrThrow({ where: { id: item.id } })).status).toBe(
-      "IN_REVIEW",
-    );
+    expect(
+      (await db.masterItem.findUniqueOrThrow({ where: { id: item.id } }))
+        .status,
+    ).toBe("IN_REVIEW");
 
     // The same reviewer clicking again is not a second pair of eyes.
-    const repeat = await transitionItem(db, reviewer, { id: item.id, to: "APPROVED" });
+    const repeat = await transitionItem(db, reviewer, {
+      id: item.id,
+      to: "APPROVED",
+    });
     expect(repeat.applied).toBe(false);
-    expect(await db.itemApproval.count({ where: { masterItemId: item.id } })).toBe(1);
+    expect(
+      await db.itemApproval.count({ where: { masterItemId: item.id } }),
+    ).toBe(1);
 
     // A different reviewer completes it.
     await transitionItem(db, reviewer2, { id: item.id, to: "APPROVED" });
     const approved = await db.masterItem.findUniqueOrThrow({
       where: { id: item.id },
-      select: { status: true, variants: { where: { isActive: true }, select: { id: true } } },
+      select: {
+        status: true,
+        variants: { where: { isActive: true }, select: { id: true } },
+      },
     });
     expect(approved.status).toBe("APPROVED");
     expect(approved.variants).toHaveLength(1);
@@ -241,24 +292,37 @@ d("two-person sign-off", () => {
     });
     await transitionItem(db, author, { id: item.id, to: "IN_REVIEW" });
     expect(
-      (await transitionItem(db, reviewer, { id: item.id, to: "APPROVED" })).applied,
+      (await transitionItem(db, reviewer, { id: item.id, to: "APPROVED" }))
+        .applied,
     ).toBe(false);
 
     // Author edits: the approval was for text that no longer exists.
     await transitionItem(db, author, { id: item.id, to: "DRAFT" });
-    await upsertItem(db, author, itemInput("Version void edited", { id: item.id }));
+    await upsertItem(
+      db,
+      author,
+      itemInput("Version void edited", { id: item.id }),
+    );
     await transitionItem(db, author, { id: item.id, to: "IN_REVIEW" });
 
-    const version = (await db.masterItem.findUniqueOrThrow({ where: { id: item.id } })).version;
+    const version = (
+      await db.masterItem.findUniqueOrThrow({ where: { id: item.id } })
+    ).version;
     expect(
-      await db.itemApproval.count({ where: { masterItemId: item.id, itemVersion: version } }),
+      await db.itemApproval.count({
+        where: { masterItemId: item.id, itemVersion: version },
+      }),
     ).toBe(0);
   });
 });
 
 d("quality gate at the lifecycle boundary", () => {
   it("refuses to send a question without a legal reference to review", async () => {
-    const item = await upsertItem(db, author, itemInput("No citation", { legalCitations: [] }));
+    const item = await upsertItem(
+      db,
+      author,
+      itemInput("No citation", { legalCitations: [] }),
+    );
     await expect(
       transitionItem(db, author, { id: item.id, to: "IN_REVIEW" }),
     ).rejects.toBeInstanceOf(ValidationError);
@@ -281,7 +345,9 @@ d("approved questions are frozen", () => {
 
     await expect(
       upsertItem(db, author, itemInput("Trying to edit", { id: itemId })),
-    ).rejects.toMatchObject({ messageKey: "admin.questions.errors.approvedIsFrozen" });
+    ).rejects.toMatchObject({
+      messageKey: "admin.questions.errors.approvedIsFrozen",
+    });
 
     // Even reaching past the service: the database refuses too.
     await expect(
@@ -370,7 +436,9 @@ d("a served question and a submitted result cannot be altered", () => {
     ).rejects.toThrow(/closed/i);
 
     await expect(
-      db.$executeRawUnsafe(`DELETE FROM "ExamAttempt" WHERE "id" = '${attemptId}'`),
+      db.$executeRawUnsafe(
+        `DELETE FROM "ExamAttempt" WHERE "id" = '${attemptId}'`,
+      ),
     ).rejects.toThrow(/cannot be deleted/i);
   });
 
@@ -448,15 +516,24 @@ d("student record", () => {
       role: "STUDENT",
       email: `student-${RUN}@example.no`,
     };
-    const history = await listAttemptHistory(db, student, studentId, { page: 1, pageSize: 10 });
+    const history = await listAttemptHistory(db, student, studentId, {
+      page: 1,
+      pageSize: 10,
+    });
 
     expect(history.items.length).toBeGreaterThan(0);
     expect(history.items[0]).toMatchObject({ attested: true });
-    expect(history.items.every((attempt) => attempt.id !== undefined)).toBe(true);
+    expect(history.items.every((attempt) => attempt.id !== undefined)).toBe(
+      true,
+    );
   });
 
   it("refuses to show one student another student's record", async () => {
-    const intruder: SessionUser = { id: "someone-else", role: "STUDENT", email: "x@example.no" };
+    const intruder: SessionUser = {
+      id: "someone-else",
+      role: "STUDENT",
+      email: "x@example.no",
+    };
     await expect(
       listAttemptHistory(db, intruder, studentId, {}),
     ).rejects.toBeInstanceOf(ForbiddenError);

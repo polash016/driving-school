@@ -103,7 +103,11 @@ export async function ingestSource(
       created++;
     }
     logger.info(
-      { source: input.code, embedded: Math.min(start + EMBED_BATCH, chunks.length), total: chunks.length },
+      {
+        source: input.code,
+        embedded: Math.min(start + EMBED_BATCH, chunks.length),
+        total: chunks.length,
+      },
       "kb ingest progress",
     );
   }
@@ -119,7 +123,12 @@ export async function ingestSource(
     action: AUDIT.kbIngested,
     entityType: "KbSource",
     entityId: source.id,
-    meta: { code: input.code, chunks: created, replaced: outgoing.length, itemsFlagged },
+    meta: {
+      code: input.code,
+      chunks: created,
+      replaced: outgoing.length,
+      itemsFlagged,
+    },
   });
 
   return {
@@ -145,7 +154,10 @@ export async function listSources(db: PrismaClient) {
     },
     orderBy: { code: "asc" },
   });
-  return sources.map(({ _count, ...source }) => ({ ...source, chunkCount: _count.chunks }));
+  return sources.map(({ _count, ...source }) => ({
+    ...source,
+    chunkCount: _count.chunks,
+  }));
 }
 
 export type { Prisma };

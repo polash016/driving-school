@@ -31,22 +31,28 @@ export function ItemStatusBar({
     ActionResult<TransitionOutcome> | undefined,
     FormData
   >(transitionItemAction, undefined);
-  const [deleteState, deleteAction] = useActionState<ActionResult | undefined, FormData>(
-    deleteItemAction,
-    undefined,
-  );
+  const [deleteState, deleteAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(deleteItemAction, undefined);
 
   const canReview = status === "DRAFT" || status === "NEEDS_REVIEW";
   const canApprove = status === "IN_REVIEW";
-  const canRetire = ["DRAFT", "IN_REVIEW", "APPROVED", "NEEDS_REVIEW"].includes(status);
+  const canRetire = ["DRAFT", "IN_REVIEW", "APPROVED", "NEEDS_REVIEW"].includes(
+    status,
+  );
 
   return (
     <div className="space-y-2">
-      {state?.ok === false ? <FormAlert>{tErrors(state.messageKey)}</FormAlert> : null}
+      {state?.ok === false ? (
+        <FormAlert>{tErrors(state.messageKey)}</FormAlert>
+      ) : null}
       {deleteState?.ok === false ? (
         <FormAlert>{tErrors(deleteState.messageKey)}</FormAlert>
       ) : null}
-      {deleteState?.ok ? <FormAlert tone="success">{t("deleted")}</FormAlert> : null}
+      {deleteState?.ok ? (
+        <FormAlert tone="success">{t("deleted")}</FormAlert>
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         {canReview ? (

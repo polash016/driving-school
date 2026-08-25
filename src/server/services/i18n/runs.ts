@@ -1,9 +1,18 @@
-import type { PrismaClient, TranslatableEntity, TranslationRunKind } from "@prisma/client";
+import type {
+  PrismaClient,
+  TranslatableEntity,
+  TranslationRunKind,
+} from "@prisma/client";
 import { logger } from "@/lib/logger";
 import { AUDIT, auditLog } from "@/server/audit";
 import { extractAll, pendingUnits } from "./extract";
 import { invalidateMessages } from "./catalogue";
-import { BATCH_SIZE, storeTranslations, translateBatch, type LanguagePolicy } from "./translate";
+import {
+  BATCH_SIZE,
+  storeTranslations,
+  translateBatch,
+  type LanguagePolicy,
+} from "./translate";
 import type { TranslationUnit } from "./units";
 
 /**
@@ -45,7 +54,10 @@ export interface RunPlan {
   estimatedUsd: number;
 }
 
-async function languagePolicy(db: PrismaClient, locale: string): Promise<LanguagePolicy> {
+async function languagePolicy(
+  db: PrismaClient,
+  locale: string,
+): Promise<LanguagePolicy> {
   const language = await db.language.findUniqueOrThrow({
     where: { code: locale },
     select: {
@@ -62,7 +74,9 @@ async function languagePolicy(db: PrismaClient, locale: string): Promise<Languag
   if (language.isBuiltIn) {
     // en and nb are authored, not translated. Translating them would overwrite the source of truth
     // with a paraphrase of itself.
-    throw new Error(`${locale} is a built-in language and is authored, not translated`);
+    throw new Error(
+      `${locale} is a built-in language and is authored, not translated`,
+    );
   }
   return {
     code: language.code,
@@ -105,7 +119,8 @@ export async function planRun(
       startedById: input.startedById ?? null,
       estimatedUsd:
         ((pending.length *
-          (ESTIMATED_PROMPT_TOKENS_PER_UNIT + ESTIMATED_COMPLETION_TOKENS_PER_UNIT)) /
+          (ESTIMATED_PROMPT_TOKENS_PER_UNIT +
+            ESTIMATED_COMPLETION_TOKENS_PER_UNIT)) /
           1000) *
         ESTIMATED_USD_PER_1K_TOKENS,
     },
@@ -125,7 +140,8 @@ export async function planRun(
   }
 
   const byEntity: Record<string, number> = {};
-  for (const unit of pending) byEntity[unit.entity] = (byEntity[unit.entity] ?? 0) + 1;
+  for (const unit of pending)
+    byEntity[unit.entity] = (byEntity[unit.entity] ?? 0) + 1;
 
   return {
     runId: run.id,
@@ -133,7 +149,8 @@ export async function planRun(
     plannedUnits: pending.length,
     byEntity,
     estimatedPromptTokens: pending.length * ESTIMATED_PROMPT_TOKENS_PER_UNIT,
-    estimatedCompletionTokens: pending.length * ESTIMATED_COMPLETION_TOKENS_PER_UNIT,
+    estimatedCompletionTokens:
+      pending.length * ESTIMATED_COMPLETION_TOKENS_PER_UNIT,
     estimatedUsd: run.estimatedUsd,
   };
 }
@@ -170,7 +187,13 @@ export async function deriveVariantTranslations(
     }),
     db.translation.findMany({
       where: { locale, entity: "MASTER_ITEM", entityId: { in: masterItemIds } },
-      select: { entityId: true, value: true, status: true, sourceHash: true, qaFlags: true },
+      select: {
+        entityId: true,
+        value: true,
+        status: true,
+        sourceHash: true,
+        qaFlags: true,
+      },
     }),
   ]);
 
@@ -184,7 +207,11 @@ export async function deriveVariantTranslations(
       if (variant.masterVersion !== master.version) continue;
       await db.translation.upsert({
         where: {
-          locale_entity_entityId: { locale, entity: "ITEM_VARIANT", entityId: variant.id },
+          locale_entity_entityId: {
+            locale,
+            entity: "ITEM_VARIANT",
+            entityId: variant.id,
+          },
         },
         create: {
           locale,
@@ -231,7 +258,11 @@ export interface RunProgress {
 export async function executeRun(
   db: PrismaClient,
   runId: string,
-  options: { leaseOwner: string; maxUnits?: number; onProgress?: (progress: RunProgress) => void },
+  options: {
+    leaseOwner: string;
+    maxUnits?: number;
+    onProgress?: (progress: RunProgress) => void;
+  },
 ): Promise<RunProgress> {
   const now = new Date();
   const claimed = await db.translationRun.updateMany({
@@ -312,24 +343,43 @@ export async function executeRun(
 
     const claimedJobs = await db.translationJob.updateMany({
       where: { id: { in: batch.map((job) => job.id) }, state: "QUEUED" },
-      data: { state: "RUNNING", startedAt: new Date(), attempts: { increment: 1 } },
+      data: {
+        state: "RUNNING",
+        startedAt: new Date(),
+        attempts: { increment: 1 },
+      },
     });
     if (claimedJobs.count === 0) continue;
 
     // Re-extract just this slice, so the source is read fresh rather than trusted from plan time.
-    const units = await unitsFor(db, language, entity, batch.map((job) => job.entityId));
+    const units = await unitsFor(
+      db,
+      language,
+      entity,
+      batch.map((job) => job.entityId),
+    );
 
     try {
       const translated = await translateBatch(db, language, units);
       await storeTranslations(db, run.locale, translated, runId);
 
-      const flagged = translated.filter((item) => item.status !== "MACHINE").length;
+      const flagged = translated.filter(
+        (item) => item.status !== "MACHINE",
+      ).length;
       const memoryHits = translated.filter((item) => item.fromMemory).length;
-      const promptTokens = translated.reduce((sum, item) => sum + item.promptTokens, 0);
-      const completionTokens = translated.reduce((sum, item) => sum + item.completionTokens, 0);
+      const promptTokens = translated.reduce(
+        (sum, item) => sum + item.promptTokens,
+        0,
+      );
+      const completionTokens = translated.reduce(
+        (sum, item) => sum + item.completionTokens,
+        0,
+      );
 
       if (entity === "MASTER_ITEM") {
-        translatedMasterIds.push(...translated.map((item) => item.unit.entityId));
+        translatedMasterIds.push(
+          ...translated.map((item) => item.unit.entityId),
+        );
       }
 
       const doneIds = new Set(translated.map((item) => item.unit.entityId));
@@ -339,8 +389,16 @@ export async function executeRun(
       });
       // Anything the model silently dropped stays FAILED rather than vanishing.
       await db.translationJob.updateMany({
-        where: { runId, id: { in: batch.map((job) => job.id) }, state: "RUNNING" },
-        data: { state: "FAILED", error: "no translation returned", finishedAt: new Date() },
+        where: {
+          runId,
+          id: { in: batch.map((job) => job.id) },
+          state: "RUNNING",
+        },
+        data: {
+          state: "FAILED",
+          error: "no translation returned",
+          finishedAt: new Date(),
+        },
       });
 
       await db.translationRun.update({
@@ -360,10 +418,15 @@ export async function executeRun(
       // One bad batch must not end a run of three thousand. Record it and carry on.
       logger.error({ error, runId, entity }, "translation batch failed");
       await db.translationJob.updateMany({
-        where: { runId, id: { in: batch.map((job) => job.id) }, state: "RUNNING" },
+        where: {
+          runId,
+          id: { in: batch.map((job) => job.id) },
+          state: "RUNNING",
+        },
         data: {
           state: "FAILED",
-          error: error instanceof Error ? error.message.slice(0, 300) : "unknown",
+          error:
+            error instanceof Error ? error.message.slice(0, 300) : "unknown",
           finishedAt: new Date(),
         },
       });
@@ -387,7 +450,9 @@ export async function executeRun(
   }
   await invalidateMessages(run.locale);
 
-  const remaining = await db.translationJob.count({ where: { runId, state: "QUEUED" } });
+  const remaining = await db.translationJob.count({
+    where: { runId, state: "QUEUED" },
+  });
   const finished = remaining === 0;
   if (finished) {
     await db.translationRun.update({
@@ -429,12 +494,18 @@ async function unitsFor(
   entity: TranslatableEntity,
   ids: string[],
 ): Promise<TranslationUnit[]> {
-  const all = await extractAll(db, { glossaryVersion: language.glossaryVersion, only: [entity] });
+  const all = await extractAll(db, {
+    glossaryVersion: language.glossaryVersion,
+    only: [entity],
+  });
   const wanted = new Set(ids);
   return all.filter((unit) => wanted.has(unit.entityId));
 }
 
-export async function progressOf(db: PrismaClient, runId: string): Promise<RunProgress> {
+export async function progressOf(
+  db: PrismaClient,
+  runId: string,
+): Promise<RunProgress> {
   const run = await db.translationRun.findUniqueOrThrow({
     where: { id: runId },
     select: {
@@ -447,7 +518,9 @@ export async function progressOf(db: PrismaClient, runId: string): Promise<RunPr
       memoryHits: true,
     },
   });
-  const remaining = await db.translationJob.count({ where: { runId, state: "QUEUED" } });
+  const remaining = await db.translationJob.count({
+    where: { runId, state: "QUEUED" },
+  });
   return {
     runId: run.id,
     status: run.status,

@@ -14,10 +14,10 @@ export function ForgotPasswordForm() {
   const t = useTranslations("auth.forgot");
   const tErrors = useTranslations();
   const locale = useLocale();
-  const [state, formAction] = useActionState<ActionResult | undefined, FormData>(
-    forgotPasswordAction,
-    undefined,
-  );
+  const [state, formAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(forgotPasswordAction, undefined);
 
   if (state?.ok) {
     return (

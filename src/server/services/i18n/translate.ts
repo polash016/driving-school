@@ -32,7 +32,9 @@ const translationResponseSchema = z.object({
       id: z.string(),
       value: z.object({
         stem: z.string().optional(),
-        options: z.array(z.object({ key: z.string(), text: z.string() })).optional(),
+        options: z
+          .array(z.object({ key: z.string(), text: z.string() }))
+          .optional(),
         explanation: z.string().optional(),
         name: z.string().optional(),
         meaning: z.string().optional(),
@@ -71,7 +73,10 @@ export interface TranslatedUnit {
 }
 
 /** Strip the payload down to the keys the source actually had, so nothing invented sneaks in. */
-function shapeLike(source: UnitPayload, candidate: Record<string, unknown>): UnitPayload {
+function shapeLike(
+  source: UnitPayload,
+  candidate: Record<string, unknown>,
+): UnitPayload {
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(source)) {
     if (key === "options") {
@@ -97,7 +102,11 @@ async function recentRejections(
     select: { value: true, reviewNote: true },
   });
   return rows.map((row) => {
-    const value = row.value as { stem?: string; name?: string; text?: string } | null;
+    const value = row.value as {
+      stem?: string;
+      name?: string;
+      text?: string;
+    } | null;
     return {
       excerpt: value?.stem ?? value?.name ?? value?.text ?? "",
       note: row.reviewNote,
@@ -119,7 +128,9 @@ export async function translateBatch(
   if (units.length === 0) return [];
 
   // 1. Anything already translated from identical source text, in this language, is free.
-  const hashes = units.map((unit) => memoryHash(unit.entity, unit.en, language.glossaryVersion));
+  const hashes = units.map((unit) =>
+    memoryHash(unit.entity, unit.en, language.glossaryVersion),
+  );
   const memory = await probeMemory(db, language.code, hashes);
 
   const results: TranslatedUnit[] = [];
@@ -188,8 +199,12 @@ export async function translateBatch(
   });
 
   const byId = new Map(response.data.units.map((entry) => [entry.id, entry]));
-  const perUnitPrompt = Math.round(response.usage.promptTokens / pending.length);
-  const perUnitCompletion = Math.round(response.usage.completionTokens / pending.length);
+  const perUnitPrompt = Math.round(
+    response.usage.promptTokens / pending.length,
+  );
+  const perUnitCompletion = Math.round(
+    response.usage.completionTokens / pending.length,
+  );
 
   const fresh: TranslatedUnit[] = [];
   for (const unit of pending) {
@@ -263,7 +278,10 @@ export async function translateBatch(
       if (!result) continue;
       candidate.semanticScore = result.semanticScore;
       candidate.qaFlags = [...new Set([...candidate.qaFlags, ...result.flags])];
-      candidate.qaReport = { ...(candidate.qaReport ?? {}), semantic: result.report };
+      candidate.qaReport = {
+        ...(candidate.qaReport ?? {}),
+        semantic: result.report,
+      };
       // ANSWER_PERMUTED means the key now points at a different meaning. Never serve that.
       if (result.flags.length > 0) candidate.status = "NEEDS_REVIEW";
     }

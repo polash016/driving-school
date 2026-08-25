@@ -3,6 +3,7 @@
 **Import, don't reinvent:** `contracts/question-bank.ts` (list filters, upsert with exactly-one-correct superRefine, transitions, bulk actions), `contracts/models.ts` shapes, `authorize("INSTRUCTOR")`, error taxonomy.
 
 **Key decisions already made**
+
 - Lifecycle legality lives in ONE service function `transitionItem()` with an explicit allowed-transitions map (DRAFT→IN_REVIEW→APPROVED→RETIRED; NEEDS_REVIEW→IN_REVIEW; APPROVED→NEEDS_REVIEW is system-only via spec-05). Invalid transition → `ConflictError`. Rejection requires `reason` (stored in `reviewNote`).
 - Versioning: editing an APPROVED item bumps `version` and RETIRES existing variants? NO — variants stay active until regenerated; they record `masterVersion`, attempts keep rendering their variant snapshot (already immutable). New variants generate from the new version.
 - Server-paginated table via `paginationInputSchema`; `MasterItem_status_createdAt_idx` + `topicId_status_type_idx` serve the filters — state which in the plan.

@@ -49,5 +49,7 @@ export function verifyTotpCode(
 
 /** Current code for a secret — used by tests and the CLI, never in a request path. */
 export function currentTotpCode(secretBase32: string, at?: Date): string {
-  return totpFor(secretBase32, "generate").generate({ timestamp: at?.getTime() });
+  return totpFor(secretBase32, "generate").generate({
+    timestamp: at?.getTime(),
+  });
 }

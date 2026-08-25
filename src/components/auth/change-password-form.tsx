@@ -11,10 +11,10 @@ import type { ActionResult } from "@/server/contracts/common";
 export function ChangePasswordForm() {
   const t = useTranslations("auth.account");
   const tErrors = useTranslations();
-  const [state, formAction] = useActionState<ActionResult | undefined, FormData>(
-    changePasswordAction,
-    undefined,
-  );
+  const [state, formAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(changePasswordAction, undefined);
 
   return (
     <form action={formAction} className="space-y-4" noValidate>

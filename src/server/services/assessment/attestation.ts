@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { NotFoundError } from "@/lib/errors";
-import { gradeAttempt, type GradableQuestion } from "@/server/services/quiz/grading";
+import {
+  gradeAttempt,
+  type GradableQuestion,
+} from "@/server/services/quiz/grading";
 
 /**
  * Result attestation (spec-04b).
@@ -46,7 +49,10 @@ export function hashAttestation(record: AttestationRecord): string {
   return createHash("sha256").update(JSON.stringify(record)).digest("hex");
 }
 
-async function buildRecord(db: Db, attemptId: string): Promise<AttestationRecord> {
+async function buildRecord(
+  db: Db,
+  attemptId: string,
+): Promise<AttestationRecord> {
   const attempt = await db.examAttempt.findUnique({
     where: { id: attemptId },
     select: {
@@ -100,7 +106,10 @@ async function buildRecord(db: Db, attemptId: string): Promise<AttestationRecord
  * Called at submission, inside the grading transaction and BEFORE the attempt's status closes —
  * the `attempt_result_final` trigger refuses to write it afterwards, which is the point.
  */
-export async function attestAttempt(db: Db, attemptId: string): Promise<string> {
+export async function attestAttempt(
+  db: Db,
+  attemptId: string,
+): Promise<string> {
   const record = await buildRecord(db, attemptId);
   const resultHash = hashAttestation(record);
   await db.examAttempt.update({
@@ -165,7 +174,8 @@ export async function verifyAttempt(
   }));
   const regraded = gradeAttempt(gradable, attempt.passMarkSnapshot);
 
-  const hashMatches = attempt.resultHash !== null && attempt.resultHash === computedHash;
+  const hashMatches =
+    attempt.resultHash !== null && attempt.resultHash === computedHash;
   const gradeReproduces =
     regraded.correctCount === (attempt.correctCount ?? 0) &&
     regraded.passed === attempt.passed;

@@ -13,10 +13,10 @@ export function SessionList({ sessions }: { sessions: SessionInfo[] }) {
   const t = useTranslations("auth.account");
   const tErrors = useTranslations();
   const format = useFormatter();
-  const [state, formAction] = useActionState<ActionResult | undefined, FormData>(
-    revokeSessionAction,
-    undefined,
-  );
+  const [state, formAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(revokeSessionAction, undefined);
 
   const others = sessions.filter((session) => !session.current);
 

@@ -1,4 +1,8 @@
-import { Prisma, type PrismaClient, type RejectionReason } from "@prisma/client";
+import {
+  Prisma,
+  type PrismaClient,
+  type RejectionReason,
+} from "@prisma/client";
 import { ConflictError, NotFoundError } from "@/lib/errors";
 import { AUDIT, auditLog } from "@/server/audit";
 import type { SessionUser } from "@/server/authz";
@@ -54,8 +58,10 @@ export async function listItems(
   if (input.status) {
     conditions.push(Prisma.sql`m."status" = ${input.status}::"ItemStatus"`);
   }
-  if (input.type) conditions.push(Prisma.sql`m."type" = ${input.type}::"ItemType"`);
-  if (input.difficulty) conditions.push(Prisma.sql`m."difficulty" = ${input.difficulty}`);
+  if (input.type)
+    conditions.push(Prisma.sql`m."type" = ${input.type}::"ItemType"`);
+  if (input.difficulty)
+    conditions.push(Prisma.sql`m."difficulty" = ${input.difficulty}`);
   if (input.topicSlug) {
     // Match the whole subtree, not just the topic itself: questions are tagged to the specific
     // subtopic they test ("roundabouts"), while a filter is normally reached for by its parent
@@ -182,7 +188,8 @@ export async function upsertItem(
         difficulty: input.difficulty,
         content: input.content as unknown as Prisma.InputJsonValue,
         correctOptionKey: input.correctOptionKey,
-        legalCitations: input.legalCitations as unknown as Prisma.InputJsonValue,
+        legalCitations:
+          input.legalCitations as unknown as Prisma.InputJsonValue,
         sourceImageId: input.sourceImageId ?? null,
         batchId: options.batchId ?? null,
         createdBy: "HUMAN",
@@ -202,11 +209,20 @@ export async function upsertItem(
 
   const existing = await db.masterItem.findFirst({
     where: { id: input.id, deletedAt: null },
-    select: { id: true, status: true, version: true, content: true, correctOptionKey: true },
+    select: {
+      id: true,
+      status: true,
+      version: true,
+      content: true,
+      correctOptionKey: true,
+    },
   });
   if (!existing) throw new NotFoundError({ itemId: input.id });
   if (existing.status === "RETIRED") {
-    throw new ConflictError({ itemId: input.id }, "admin.questions.errors.retiredNotEditable");
+    throw new ConflictError(
+      { itemId: input.id },
+      "admin.questions.errors.retiredNotEditable",
+    );
   }
   if (existing.status === "APPROVED") {
     // Frozen (spec-04b): a result must stay explainable by pointing at a question whose text
@@ -263,7 +279,10 @@ export async function deleteItem(
     where: { variant: { masterItemId: id } },
   });
   if (served > 0) {
-    throw new ConflictError({ itemId: id, served }, "admin.questions.errors.servedNotDeletable");
+    throw new ConflictError(
+      { itemId: id, served },
+      "admin.questions.errors.servedNotDeletable",
+    );
   }
   await db.$transaction(async (tx) => {
     await unpublishItem(tx, id);

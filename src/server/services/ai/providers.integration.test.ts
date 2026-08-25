@@ -20,7 +20,11 @@ const enabled = Boolean(process.env.TEST_DATABASE_URL);
 const d = describe.skipIf(!enabled);
 
 const RUN = randomUUID().slice(0, 8);
-const actor: SessionUser = { id: "", role: "ADMIN", email: `ai-${RUN}@example.no` };
+const actor: SessionUser = {
+  id: "",
+  role: "ADMIN",
+  email: `ai-${RUN}@example.no`,
+};
 const SECRET_KEY = `sk-super-secret-${RUN}-abcd`;
 const created: string[] = [];
 
@@ -110,7 +114,9 @@ d("key vault", () => {
     created.push(provider.id);
 
     await rotateProviderKey(db, actor, provider.id, `sk-ant-new-${RUN}-zzzz`);
-    const after = (await listProviders(db)).find((row) => row.id === provider.id);
+    const after = (await listProviders(db)).find(
+      (row) => row.id === provider.id,
+    );
     expect(after?.keyHint).toBe("…zzzz");
     expect(after?.label).toBe(`Claude ${RUN}`);
   });
@@ -147,7 +153,10 @@ d("routing", () => {
     });
 
     const routes = await resolveRoutes(db, "VALIDATION");
-    expect(routes.map((route) => route.model)).toEqual(["primary-model", "cheap-model"]);
+    expect(routes.map((route) => route.model)).toEqual([
+      "primary-model",
+      "cheap-model",
+    ]);
 
     // Deactivating the primary provider removes its route from the chain.
     await db.aiProvider.update({
@@ -179,8 +188,12 @@ d("routing", () => {
 
     // Scoped to this provider: the test database is shared, so asserting the table is globally
     // empty would only be testing whoever ran last.
-    expect(await db.aiRoute.count({ where: { providerId: provider.id } })).toBe(0);
+    expect(await db.aiRoute.count({ where: { providerId: provider.id } })).toBe(
+      0,
+    );
     const remaining = await resolveRoutes(db, "IMAGE");
-    expect(remaining.some((route) => route.providerId === provider.id)).toBe(false);
+    expect(remaining.some((route) => route.providerId === provider.id)).toBe(
+      false,
+    );
   });
 });

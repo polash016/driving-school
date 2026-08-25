@@ -5,6 +5,7 @@
 **Route layer contract (thin!):** route handlers/server actions = parse input schema → `authorize()` → `attemptService.*` → response. No business logic in routes. Wire `onGraded: invalidateDashboardOnGraded`.
 
 **Key decisions already made**
+
 - 390px mobile-first, max-w-md desktop (WORKFLOW §6). One question per screen; large answer Cards (min 44px); server-synced countdown from `timeRemainingSec` at serve + local tick, re-synced on every answer ack (never trust local).
 - Practice mode: `answer()` already returns `PracticeAnswerResult` with localized explanation + citations — render reveal state + "Read more" expander; prefetch next question during the reveal (payload already client-side — prefetch = preload next image only).
 - EXAM mode: `answer()` returns `{saved:true}` ONLY. Never render correctness pre-submit. The spec-07 e2e network assertion lands here: Playwright intercepts all responses during an exam and asserts no `correctOptionKey`/`isCorrect` (do this — it's the last open spec-07 checklist item).

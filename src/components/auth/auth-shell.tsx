@@ -29,7 +29,9 @@ export function AuthShell({
         <CardContent>{children}</CardContent>
       </Card>
       {footer ? (
-        <div className="text-center text-sm text-muted-foreground">{footer}</div>
+        <div className="text-center text-sm text-muted-foreground">
+          {footer}
+        </div>
       ) : null}
     </div>
   );

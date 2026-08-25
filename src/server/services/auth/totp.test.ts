@@ -13,7 +13,9 @@ describe("TOTP", () => {
   it("matches the RFC 6238 SHA-1 test vectors", () => {
     // T = 59s → 94287082 (8 digits); the 6-digit truncation is the last six.
     expect(currentTotpCode(RFC_SECRET, new Date(59_000))).toBe("287082");
-    expect(currentTotpCode(RFC_SECRET, new Date(1_111_111_109_000))).toBe("081804");
+    expect(currentTotpCode(RFC_SECRET, new Date(1_111_111_109_000))).toBe(
+      "081804",
+    );
   });
 
   it("accepts the current code and rejects an unrelated one", () => {
@@ -28,9 +30,15 @@ describe("TOTP", () => {
     const at = new Date("2026-08-24T10:00:00Z");
     const code = currentTotpCode(secret, at);
 
-    expect(verifyTotpCode(secret, code, new Date(at.getTime() + 30_000))).toBe(true);
-    expect(verifyTotpCode(secret, code, new Date(at.getTime() - 30_000))).toBe(true);
-    expect(verifyTotpCode(secret, code, new Date(at.getTime() + 90_000))).toBe(false);
+    expect(verifyTotpCode(secret, code, new Date(at.getTime() + 30_000))).toBe(
+      true,
+    );
+    expect(verifyTotpCode(secret, code, new Date(at.getTime() - 30_000))).toBe(
+      true,
+    );
+    expect(verifyTotpCode(secret, code, new Date(at.getTime() + 90_000))).toBe(
+      false,
+    );
   });
 
   it("rejects malformed input without throwing", () => {

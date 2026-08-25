@@ -28,16 +28,25 @@ export async function QuestionLanguages({
   return (
     <Card className="[--card-spacing:--spacing(4)]">
       <CardContent className="space-y-3">
-        <h2 className="text-sm font-medium text-foreground">{t("inEveryLanguage")}</h2>
+        <h2 className="text-sm font-medium text-foreground">
+          {t("inEveryLanguage")}
+        </h2>
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[36rem] border-collapse text-sm">
             <thead>
               <tr className="border-b border-border text-left">
-                <th scope="col" className="p-2 font-medium text-muted-foreground">
+                <th
+                  scope="col"
+                  className="p-2 font-medium text-muted-foreground"
+                >
                   {t("field")}
                 </th>
-                <th scope="col" className="p-2 font-medium text-muted-foreground" lang="en">
+                <th
+                  scope="col"
+                  className="p-2 font-medium text-muted-foreground"
+                  lang="en"
+                >
                   English
                 </th>
                 {translations.map((translation) => (
@@ -64,7 +73,10 @@ export async function QuestionLanguages({
             </thead>
             <tbody>
               <tr className="border-b border-border/60 align-top">
-                <th scope="row" className="p-2 text-start font-normal text-muted-foreground">
+                <th
+                  scope="row"
+                  className="p-2 text-start font-normal text-muted-foreground"
+                >
                   {t("stemRow")}
                 </th>
                 <td className="p-2 text-foreground" lang="en">
@@ -87,8 +99,14 @@ export async function QuestionLanguages({
 
               {/* Keyed off the source options, always: a translation cannot add or drop a row. */}
               {source.options.map((option) => (
-                <tr key={option.key} className="border-b border-border/60 align-top">
-                  <th scope="row" className="p-2 text-start font-mono text-xs font-normal text-muted-foreground">
+                <tr
+                  key={option.key}
+                  className="border-b border-border/60 align-top"
+                >
+                  <th
+                    scope="row"
+                    className="p-2 text-start font-mono text-xs font-normal text-muted-foreground"
+                  >
                     {option.key}
                   </th>
                   <td className="p-2 text-muted-foreground" lang="en">
@@ -98,11 +116,18 @@ export async function QuestionLanguages({
                     const value = translation.value as {
                       options?: { key: string; text: string }[];
                     };
-                    const text = value.options?.find((o) => o.key === option.key)?.text;
+                    const text = value.options?.find(
+                      (o) => o.key === option.key,
+                    )?.text;
                     return (
                       <td
                         key={translation.locale}
-                        className={cn("p-2", text ? "text-muted-foreground" : "text-destructive italic")}
+                        className={cn(
+                          "p-2",
+                          text
+                            ? "text-muted-foreground"
+                            : "text-destructive italic",
+                        )}
                         lang={translation.locale}
                         dir={translation.direction === "RTL" ? "rtl" : "ltr"}
                       >

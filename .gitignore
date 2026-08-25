@@ -45,3 +45,13 @@ next-env.d.ts
 # testing artifacts
 /test-results/
 /playwright-report/
+
+# Uploaded question images (spec-06). Deliberately outside `public/`: these bytes are served only
+# through the authenticated /api/images/[id] route, never as static files. Back this directory up
+# alongside Postgres — the rows and the bytes are one dataset (spec-14).
+/storage/
+
+# Source material for the sign registry: a 34 MB third-party theory book and its chapter exports.
+# `pnpm signs:extract` reads it, and its OUTPUT (public/signs/ + prisma/data/signs.json) is what
+# gets committed. The book itself is not ours to redistribute.
+/traffic_rules/

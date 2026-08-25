@@ -5,15 +5,15 @@
 **The complaint is accurate.** The student homepage shows one section, not three, and the admin
 panel has no way to put an image on a question. Verified against the running database and the code:
 
-| Layer | State today |
-|---|---|
-| `Sign` table | **0 rows.** `public/signs/` is empty, `prisma/data/signs.json` does not exist |
-| `MasterItem` | 169 rows, 130 APPROVED — **all `type = TEXT`**. Zero IMAGE, zero SIGN |
-| [start-tiles.tsx](src/components/quiz/start-tiles.tsx) | Practice · Mock exam · Topic practice. **No Sign Test, no Image Quiz** |
-| [item-editor.tsx:89](src/components/admin/questions/item-editor.tsx#L89) | `type: item?.type ?? "TEXT"` — **hardcoded**, no UI control. IMAGE/SIGN items cannot be authored |
-| Image upload | **Does not exist.** No storage service, no upload route, no `sharp`. The only `<input type="file">` in the repo is the student-roster CSV |
-| `ImageAsset` / `ImageDetection` | Migrated, but **never read or written** by any application code |
-| `startQuizInputSchema` | **No `itemType` field** — the spec-08 / DECISIONS amendment was never implemented, so an IMAGE-only quiz cannot be requested |
+| Layer                                                                    | State today                                                                                                                               |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `Sign` table                                                             | **0 rows.** `public/signs/` is empty, `prisma/data/signs.json` does not exist                                                             |
+| `MasterItem`                                                             | 169 rows, 130 APPROVED — **all `type = TEXT`**. Zero IMAGE, zero SIGN                                                                     |
+| [start-tiles.tsx](src/components/quiz/start-tiles.tsx)                   | Practice · Mock exam · Topic practice. **No Sign Test, no Image Quiz**                                                                    |
+| [item-editor.tsx:89](src/components/admin/questions/item-editor.tsx#L89) | `type: item?.type ?? "TEXT"` — **hardcoded**, no UI control. IMAGE/SIGN items cannot be authored                                          |
+| Image upload                                                             | **Does not exist.** No storage service, no upload route, no `sharp`. The only `<input type="file">` in the repo is the student-roster CSV |
+| `ImageAsset` / `ImageDetection`                                          | Migrated, but **never read or written** by any application code                                                                           |
+| `startQuizInputSchema`                                                   | **No `itemType` field** — the spec-08 / DECISIONS amendment was never implemented, so an IMAGE-only quiz cannot be requested              |
 
 Everything downstream is already built and correct: [question-card.tsx:47](src/components/quiz/question-card.tsx#L47)
 renders `imageUrl`, [serializer.ts:74](src/server/services/quiz/serializer.ts#L74) carries it, and
@@ -42,21 +42,21 @@ a photo, and attaches it to a question.
 1. **Scope** — signs + image upload. The spec-06 AI vision pipeline (BullMQ workers, auto-drafted
    questions from photos) stays out.
 2. **Sign content** — extracted names, plus AI-drafted meanings so the test can ask what a sign
-   *means*, admin-reviewable.
+   _means_, admin-reviewable.
 3. **Go-live** — all 287 seeded active so the test works immediately, every one `provisional: true`
    with a `sourceNote`, filterable in a new `/admin/signs` screen.
 
 ### Stated assumptions & concerns
 
 - **Provenance.** These icons are reproductions from a copyrighted third-party book. The sign
-  *designs* are defined by skiltforskriften and are not anyone's artwork, but this is not the
+  _designs_ are defined by skiltforskriften and are not anyone's artwork, but this is not the
   official Statens vegvesen asset pack — which is exactly what
   [signs.example.json](prisma/data/signs.example.json) says to obtain. Every seeded row is flagged
   provisional with its source, and `/admin/signs` supports swapping the file per sign. **Get the
   official pack before commercial launch**; the schema and screens are built so that is a data
   change, not a code change.
 - **No official sign codes exist in the PDF** (verified: zero skiltforskriften codes in the text
-  layer). Rather than have an AI guess codes — a wrong code that *looks* authoritative is worse than
+  layer). Rather than have an AI guess codes — a wrong code that _looks_ authoritative is worse than
   an obviously provisional one — signs get stable internal codes `X<CC><nnn>` (e.g. `XFA001`),
   editable to the official code in `/admin/signs`. Codes are identifiers; students never see them.
 - **AI-drafted meanings are drafts.** They are grounded in the sign image + KB where available, and
@@ -68,7 +68,7 @@ a photo, and attaches it to a question.
 
 ### Phase 1 — Content: PDF → sign registry → sign questions
 
-**`scripts/extract-signs.ts`** (`pnpm signs:extract`) — one-off ingestion; its *output* is committed,
+**`scripts/extract-signs.ts`** (`pnpm signs:extract`) — one-off ingestion; its _output_ is committed,
 so `mutool`/`pdfimages` are developer-machine prerequisites, never build or deploy dependencies.
 
 - Per page 176–304: `mutool trace` for image placement rects, `mutool draw -F stext` for text
@@ -95,6 +95,7 @@ so `mutool`/`pdfimages` are developer-machine prerequisites, never build or depl
   signs already carrying a meaning so a failed run can be re-driven cheaply.
 
 **`prisma/seed-signs.ts`** — fix two real bugs found while reading it:
+
 - Its manifest enum accepts 8 `signClass` values; the schema has **9**. `MARKERING` is missing, and
   18 marker signs would be rejected.
 - Persist the new `provisional` / `sourceNote` fields.
@@ -107,10 +108,10 @@ by the existing `Sign_signClass_idx`; adding a low-cardinality index would cost 
 the engine's own [rng.ts](src/server/services/quiz/rng.ts). Two formats per sign, both carrying the
 sign image with text options (which is what `ItemVariant.content` supports):
 
-| Format | Stem | Options |
-|---|---|---|
-| Meaning | "What does this sign mean?" | correct meaning + 3 meanings from the same `signClass` |
-| Recognition | "What is this sign called?" | correct name + 3 names from the same `signClass` |
+| Format      | Stem                        | Options                                                |
+| ----------- | --------------------------- | ------------------------------------------------------ |
+| Meaning     | "What does this sign mean?" | correct meaning + 3 meanings from the same `signClass` |
+| Recognition | "What is this sign called?" | correct name + 3 names from the same `signClass`       |
 
 Topic mapping: `FARE → warning-signs`, `FORBUD`/`PABUD → prohibition-mandatory-signs`,
 `VIKEPLIKT_OG_FORKJORS → priority-yield-signs`, remainder → `information-signs`. Citation:
@@ -119,7 +120,7 @@ skiltforskriften § for the class. Items go through the existing
 [publish.ts](src/server/services/question-bank/publish.ts) so variants are materialised the single
 sanctioned way — an approved item with no variant is invisible to students.
 
-> **Deferred, deliberately:** spec-08's *meaning→sign* direction (pick among four sign **images**)
+> **Deferred, deliberately:** spec-08's _meaning→sign_ direction (pick among four sign **images**)
 > needs image-valued options, which `ItemVariant.content` and the client contracts do not model.
 > That is a schema + contract change, out of this slice. Logged in `DECISIONS.md`.
 
@@ -155,7 +156,7 @@ Implements the approved spec-06 amendment (D3) and unblocks upload.
   sign picker for SIGN. The contract and service already accept `sourceImageId`
   ([question-bank.ts:44](src/server/contracts/question-bank.ts#L44)) — the editor simply never sent
   it. Live preview gains `imageUrl` + `imageAlt`.
-- Admin nav ([layout.tsx](src/app/[locale]/(admin)/layout.tsx)) gains Images and Signs.
+- Admin nav ([layout.tsx](<src/app/[locale]/(admin)/layout.tsx>)) gains Images and Signs.
 
 ### Phase 4 — Student: the three tiles
 

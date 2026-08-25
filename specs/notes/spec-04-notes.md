@@ -32,12 +32,12 @@ is the only legitimate caller).
 Integration test `versioning › bumps the version and republishes…`: an approved item is served into a
 real `ExamAttempt`, then edited (stem **and** answer key changed). Asserted afterwards:
 
-| | |
-|---|---|
-| master | `version: 2`, `correctOptionKey: "b"` |
+|                    |                                                                      |
+| ------------------ | -------------------------------------------------------------------- |
+| master             | `version: 2`, `correctOptionKey: "b"`                                |
 | the served attempt | renders the byte-identical original content, `correctOptionKey: "a"` |
-| the old variant | `isActive: false` — superseded, never offered to anyone new |
-| active variants | exactly `[{ masterVersion: 2, correctOptionKey: "b" }]` |
+| the old variant    | `isActive: false` — superseded, never offered to anyone new          |
+| active variants    | exactly `[{ masterVersion: 2, correctOptionKey: "b" }]`              |
 
 **Deviation from the brief, deliberate:** the brief said variants "stay active until regenerated". They
 do not — editing an approved item deactivates the old ones. Leaving them active means a corrected wrong
@@ -50,21 +50,21 @@ attempt already served).
 `pnpm db:seed-volume` (10 000 synthetic items across 20 sets), 50 runs per path through the actual
 service functions, then `--cleanup`:
 
-| Path | p50 | **p95** | Plan |
-|---|---|---|---|
-| List page 1, no filters | 4.6 ms | **5.8 ms** | Index Scan `MasterItem_status_updatedAt_idx` |
-| List filtered by status | 1.0 ms | **1.2 ms** | Index Scan `MasterItem_status_updatedAt_idx` |
-| List page 50 (deep offset) | 6.1 ms | **7.9 ms** | same |
-| Search (tsvector) | 5.4 ms | **6.6 ms** | Bitmap Index Scan `MasterItem_searchText_idx` |
-| Set board (20 sets) | 2.9 ms | **3.8 ms** | groupBy on `MasterItem_batchId_status_idx` |
-| Set detail | 9.1 ms | **10.6 ms** | Bitmap Index Scan `MasterItem_batchId_status_idx` |
-| Accuracy (uncached) | 4.9 ms | **10.0 ms** | Bitmap Index Scan `MasterItem_createdBy_status_reviewedAt_idx` |
-| Accuracy (cached) | 0.1 ms | **0.2 ms** | Redis, 5 min |
+| Path                       | p50    | **p95**     | Plan                                                           |
+| -------------------------- | ------ | ----------- | -------------------------------------------------------------- |
+| List page 1, no filters    | 4.6 ms | **5.8 ms**  | Index Scan `MasterItem_status_updatedAt_idx`                   |
+| List filtered by status    | 1.0 ms | **1.2 ms**  | Index Scan `MasterItem_status_updatedAt_idx`                   |
+| List page 50 (deep offset) | 6.1 ms | **7.9 ms**  | same                                                           |
+| Search (tsvector)          | 5.4 ms | **6.6 ms**  | Bitmap Index Scan `MasterItem_searchText_idx`                  |
+| Set board (20 sets)        | 2.9 ms | **3.8 ms**  | groupBy on `MasterItem_batchId_status_idx`                     |
+| Set detail                 | 9.1 ms | **10.6 ms** | Bitmap Index Scan `MasterItem_batchId_status_idx`              |
+| Accuracy (uncached)        | 4.9 ms | **10.0 ms** | Bitmap Index Scan `MasterItem_createdBy_status_reviewedAt_idx` |
+| Accuracy (cached)          | 0.1 ms | **0.2 ms**  | Redis, 5 min                                                   |
 
 **Two real defects that measuring found, and asserting would not have:**
 
 1. **The status filter was a sequential scan.** The query built `m."status"::text = $1`; casting the
-   *column* makes the index unusable. Casting the *parameter* instead (`= $1::"ItemStatus"`) turned a
+   _column_ makes the index unusable. Casting the _parameter_ instead (`= $1::"ItemStatus"`) turned a
    2 500-row seq scan into an index scan — 4.0 ms → 0.127 ms in Postgres.
 2. **The set board read 10 000 rows to count them.** It loaded every item's status per batch through a
    relation include. One `groupBy` over `(batchId, status)` replaced it: 29.6 ms → 3.8 ms p95.
@@ -104,12 +104,12 @@ appears nowhere in the AI numbers, and that the ranked reasons include the seede
 
 Four, all applied to dev and test:
 
-| Migration | What |
-|---|---|
-| `…_question_bank_sets` | `GenerationBatch`, `MasterItem.batchId` + `reviewReason`, generated `searchText` tsvector + GIN, set/accuracy indexes |
-| `…_item_correct_option_key` | `MasterItem.correctOptionKey` + **backfill from published variants** + CHECK constraint |
-| `…_correct_key_constraint_scope` | narrows that constraint (see below) |
-| `…_question_table_sort_index` | `MasterItem(status, updatedAt DESC)` |
+| Migration                        | What                                                                                                                  |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `…_question_bank_sets`           | `GenerationBatch`, `MasterItem.batchId` + `reviewReason`, generated `searchText` tsvector + GIN, set/accuracy indexes |
+| `…_item_correct_option_key`      | `MasterItem.correctOptionKey` + **backfill from published variants** + CHECK constraint                               |
+| `…_correct_key_constraint_scope` | narrows that constraint (see below)                                                                                   |
+| `…_question_table_sort_index`    | `MasterItem(status, updatedAt DESC)`                                                                                  |
 
 **`correctOptionKey` was missing from the model entirely.** `upsertItemInputSchema` accepted it, but
 only `ItemVariant` had a column — an authored answer had nowhere to live until publication. Added as a
@@ -163,15 +163,14 @@ generated `searchText` column and the answer-key constraint alongside the spec-0
 
 ## Test inventory added by this spec
 
-| File | Cases | Covers |
-|---|---|---|
-| `question-bank/transitions.test.ts` | 28 | the full lifecycle matrix |
-| `question-bank/question-bank.integration.test.ts` | 14 | publishing, versioning, sets, stats, bulk, search, import/export — real Postgres |
-| `e2e/question-bank.spec.ts` | 4 | keyboard-only review, set acceptance, accuracy page, bilingual browsing |
-| `prisma/migrations.test.ts` | +3 | the new generated column, its index, the answer-key constraint |
+| File                                              | Cases | Covers                                                                           |
+| ------------------------------------------------- | ----- | -------------------------------------------------------------------------------- |
+| `question-bank/transitions.test.ts`               | 28    | the full lifecycle matrix                                                        |
+| `question-bank/question-bank.integration.test.ts` | 14    | publishing, versioning, sets, stats, bulk, search, import/export — real Postgres |
+| `e2e/question-bank.spec.ts`                       | 4     | keyboard-only review, set acceptance, accuracy page, bilingual browsing          |
+| `prisma/migrations.test.ts`                       | +3    | the new generated column, its index, the answer-key constraint                   |
 
 Totals: **186 unit/integration** (139 before this spec) and **21 e2e** (17 before), all green.
-
 
 ---
 
@@ -234,13 +233,13 @@ Every submission is attested inside the grading transaction: sha256 over the que
 the option order that student saw, their answers and the grade. The database then refuses to
 change it:
 
-| Attempted | Result |
-|---|---|
-| `UPDATE "ItemVariant" SET "correctOptionKey"…` | refused — *variant is immutable* |
-| `UPDATE "ItemVariant" SET "isActive" = false` | allowed — retiring is a serving decision, not a rewrite |
-| `UPDATE "ExamAttempt" SET "correctCount" = 45, "passed" = true` | refused — *result is final* |
-| `UPDATE "ExamAttemptQuestion" SET "answeredOptionKey"…` | refused — *attempt is closed* |
-| `DELETE FROM "ExamAttempt"` | refused — *submitted and cannot be deleted* |
+| Attempted                                                       | Result                                                  |
+| --------------------------------------------------------------- | ------------------------------------------------------- |
+| `UPDATE "ItemVariant" SET "correctOptionKey"…`                  | refused — _variant is immutable_                        |
+| `UPDATE "ItemVariant" SET "isActive" = false`                   | allowed — retiring is a serving decision, not a rewrite |
+| `UPDATE "ExamAttempt" SET "correctCount" = 45, "passed" = true` | refused — _result is final_                             |
+| `UPDATE "ExamAttemptQuestion" SET "answeredOptionKey"…`         | refused — _attempt is closed_                           |
+| `DELETE FROM "ExamAttempt"`                                     | refused — _submitted and cannot be deleted_             |
 
 `verifyAttempt` re-computes the digest **and** re-runs the grader over the stored answers. A test
 disables the trigger, rewrites an answer the way someone with database access would, and
@@ -261,20 +260,20 @@ student reading another student's record is refused.
 
 ## Migrations
 
-| Migration | What |
-|---|---|
-| `…_assessment_integrity` | `ItemApproval`, `MasterItem.replacesId`, `ExamAttempt.resultHash`/`attestedAt`, and four immutability triggers |
-| `…_attestation_seal_write` | narrows `attempt_result_final` so the seal is write-once rather than unwritable |
+| Migration                  | What                                                                                                           |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `…_assessment_integrity`   | `ItemApproval`, `MasterItem.replacesId`, `ExamAttempt.resultHash`/`attestedAt`, and four immutability triggers |
+| `…_attestation_seal_write` | narrows `attempt_result_final` so the seal is write-once rather than unwritable                                |
 
 ## Performance defects — fixed and measured
 
 All three found during spec-04 were fixed before the numbers in the section above were recorded:
 
-| Defect | Before | After |
-|---|---|---|
-| Status filter cast the column (`status::text`), defeating the index | 4.0 ms seq scan | 0.127 ms index scan |
-| Set board loaded 10 000 rows to count them | 29.6 ms p95 | 3.8 ms p95 |
-| Nothing indexed `ORDER BY updatedAt DESC` | seq scan + top-N sort | `MasterItem_status_updatedAt_idx` |
+| Defect                                                              | Before                | After                             |
+| ------------------------------------------------------------------- | --------------------- | --------------------------------- |
+| Status filter cast the column (`status::text`), defeating the index | 4.0 ms seq scan       | 0.127 ms index scan               |
+| Set board loaded 10 000 rows to count them                          | 29.6 ms p95           | 3.8 ms p95                        |
+| Nothing indexed `ORDER BY updatedAt DESC`                           | seq scan + top-N sort | `MasterItem_status_updatedAt_idx` |
 
 No further bottleneck was found at 10k items: the slowest path is set detail at 10.6 ms p95
 against a 150 ms budget. The quality gate's duplicate check is the one known scaling risk — it
@@ -283,13 +282,12 @@ indexed fingerprint column if the bank reaches six figures.
 
 ## Test inventory added by this amendment
 
-| File | Cases | Covers |
-|---|---|---|
-| `question-bank/validation.test.ts` | 9 | the quality gate |
-| `assessment/integrity.integration.test.ts` | 14 | sign-off, freeze, replacement, triggers, attestation, tamper detection, student record |
+| File                                       | Cases | Covers                                                                                 |
+| ------------------------------------------ | ----- | -------------------------------------------------------------------------------------- |
+| `question-bank/validation.test.ts`         | 9     | the quality gate                                                                       |
+| `assessment/integrity.integration.test.ts` | 14    | sign-off, freeze, replacement, triggers, attestation, tamper detection, student record |
 
 Totals: **210 unit/integration** (186 before) and **21 e2e**, all green.
-
 
 ---
 
@@ -308,7 +306,7 @@ Two deeper problems came out with it:
   a generated set and pressing Approve failed on every item. Bulk approve now walks
   DRAFT → IN_REVIEW → APPROVED per item — which is what a reviewer means — with the quality gate
   running at the review step.
-- **The summary lied.** A first approval on an AI-written question is *recorded*, not published,
+- **The summary lied.** A first approval on an AI-written question is _recorded_, not published,
   but bulk reported it as done. Outcomes are now `approved` / `awaitingApproval` / `failed` per
   item, and the banner reads "12 done · 8 waiting for a second reviewer · 1 could not be approved",
   with each failure's reason listed.
@@ -332,11 +330,11 @@ servable approved questions: 17 → 42
 
 While chasing this, an admin login was forced into 2FA enrolment even though the policy said
 otherwise: the **database said off, Redis said on**. A read-through cache races with its own
-invalidation — a request that read the old value can populate the cache *after* the update cleared
+invalidation — a request that read the old value can populate the cache _after_ the update cleared
 it, and the stale value then survives the whole TTL.
 
 For a security switch a stale answer is wrong in both directions, and the dangerous direction is
-silently *not* requiring 2FA. The security policy is no longer cached: it is a single primary-key
+silently _not_ requiring 2FA. The security policy is no longer cached: it is a single primary-key
 read on a one-row table, and correctness is worth more than the microsecond.
 
 ## Mock exam readiness is per topic, not a total
@@ -348,7 +346,6 @@ a blueprint asks for a specific number **per topic** — 9 signs, 8 right-of-way
 `examReadiness()` now compares the blueprint against approved questions per root topic and returns
 the shortfall, so the tile is honest ("2 topics still need more approved questions") and the school
 knows what to write next. Verified end to end afterwards: **Question 1 of 45, 89:55 on the clock.**
-
 
 ---
 
@@ -364,11 +361,11 @@ afterwards would be worthless.
 The rule lives in `pass-guarantee.ts` and is evaluated **again on the server**; the screen explains
 the decision, it does not get to assert it. Verified in the running app:
 
-| Setup | Message |
-|---|---|
+| Setup                        | Message                                            |
+| ---------------------------- | -------------------------------------------------- |
 | 45 questions, all categories | "This test will count towards the pass guarantee." |
-| One category off | "…All categories must be enabled for it to count." |
-| 20 questions | "…Tests need at least 45 questions to count." |
+| One category off             | "…All categories must be enabled for it to count." |
+| 20 questions                 | "…Tests need at least 45 questions to count."      |
 
 The pass mark follows the length using the official ratio (38 of 45): a 20-question test needs 17.
 The eligibility decision and the full setup are stored on the attempt and **frozen by the
@@ -402,7 +399,7 @@ database → old URL gives "Page not found".
   now reported as done.
 - **Reviewing one set.** `/admin/review?batch=<id>` scopes the queue to a single generated set,
   reachable from the set page. This started as a test-isolation problem — the keyboard-review spec
-  assumed an empty queue and would have approved the *school's real questions* — and turned out to
+  assumed an empty queue and would have approved the _school's real questions_ — and turned out to
   be the workflow a reviewer actually wants.
 
 Totals: **248 unit/integration**, **23 e2e**, all green. Pool: 78 servable, 3 drafts, 0 awaiting

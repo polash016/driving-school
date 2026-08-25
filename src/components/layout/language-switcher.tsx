@@ -22,7 +22,11 @@ export interface SwitchableLanguage {
  * The list is a prop rather than a compiled constant, because which languages exist is decided at
  * runtime by the school.
  */
-export function LanguageSwitcher({ languages }: { languages: SwitchableLanguage[] }) {
+export function LanguageSwitcher({
+  languages,
+}: {
+  languages: SwitchableLanguage[];
+}) {
   const locale = useLocale();
   const t = useTranslations("language");
   const router = useRouter();
@@ -81,9 +85,7 @@ export function LanguageSwitcher({ languages }: { languages: SwitchableLanguage[
       className="min-h-10 rounded-md border border-input bg-transparent px-2 text-sm font-medium text-foreground"
     >
       {/* A locale that is not offered to students (an admin previewing one) still has to render. */}
-      {current ? null : (
-        <option value={locale}>{locale.toUpperCase()}</option>
-      )}
+      {current ? null : <option value={locale}>{locale.toUpperCase()}</option>}
       {languages.map((language) => (
         <option key={language.code} value={language.code} lang={language.code}>
           {language.nativeName}

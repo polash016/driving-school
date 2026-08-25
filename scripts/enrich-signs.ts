@@ -27,7 +27,9 @@ import { signMeaningPrompt } from "../src/server/ai/prompts/signs";
 import { search } from "../src/server/services/kb/search";
 import { redis } from "../src/server/redis";
 
-(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(".env");
+(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(
+  ".env",
+);
 
 const MANIFEST = join(process.cwd(), "prisma", "data", "signs.json");
 const SIGNS_DIR = join(process.cwd(), "public", "signs");
@@ -52,6 +54,36 @@ type Sign = {
   [key: string]: unknown;
 };
 
+const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
+
+/**
+ * Retry with exponential backoff.
+ *
+ * Free and low-tier provider plans meter this kind of bulk pass hard, and a 429 is a "come back
+ * shortly", not a failure — treating it as one abandoned 249 of 287 signs on the first run and
+ * would have left the registry looking like the model could not do the job.
+ */
+async function withBackoff<T>(
+  label: string,
+  fn: () => Promise<T>,
+  attempts = 6,
+): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (attempt >= attempts) throw error;
+      const wait =
+        Math.min(60_000, 2_000 * 2 ** (attempt - 1)) +
+        Math.floor(Math.random() * 1_000);
+      console.warn(
+        `  ${label}: attempt ${attempt} failed, retrying in ${Math.round(wait / 1000)}s`,
+      );
+      await sleep(wait);
+    }
+  }
+}
+
 const flag = (name: string) => process.argv.includes(`--${name}`);
 function option(name: string, fallback: number): number {
   const index = process.argv.indexOf(`--${name}`);
@@ -74,20 +106,24 @@ async function draft(sign: Sign, groundable: boolean): Promise<void> {
       .join("\n---\n");
   }
 
-  const { data } = await aiJson({
-    task: "VISION",
-    prompt: signMeaningPrompt,
-    vars: { nameEn: sign.name.en, signClass: sign.signClass, legalExcerpts },
-    schema: draftSchema,
-    userContent: [
-      { type: "text", text: "Here is the sign:" },
-      {
-        type: "image_url",
-        image_url: { url: `data:image/png;base64,${bytes.toString("base64")}` },
-      },
-    ],
-    temperature: 0.2,
-  });
+  const { data } = await withBackoff(sign.code, () =>
+    aiJson({
+      task: "vision",
+      prompt: signMeaningPrompt,
+      vars: { nameEn: sign.name.en, signClass: sign.signClass, legalExcerpts },
+      schema: draftSchema,
+      userContent: [
+        { type: "text", text: "Here is the sign:" },
+        {
+          type: "image_url",
+          image_url: {
+            url: `data:image/png;base64,${bytes.toString("base64")}`,
+          },
+        },
+      ],
+      temperature: 0.2,
+    }),
+  );
 
   sign.name = { en: data.nameEn, nb: data.nameNb };
   sign.meaning = { en: data.meaningEn, nb: data.meaningNb };
@@ -105,12 +141,19 @@ async function main(): Promise<void> {
     signs: Sign[];
   };
   const force = flag("force");
-  const concurrency = option("concurrency", 4);
+  // Low by default: this is a bulk pass against a metered API, and finishing in twelve minutes
+  // without tripping the quota beats finishing in three and dropping most of the work.
+  const concurrency = option("concurrency", 2);
+  const pace = option("pace", 1_200);
 
-  const pending = manifest.signs.filter((s) => force || !s.meaning || !s.name.nb);
+  const pending = manifest.signs.filter(
+    (s) => force || !s.meaning || !s.name.nb,
+  );
   const todo = pending.slice(0, option("limit", pending.length));
   if (todo.length === 0) {
-    console.log(`Nothing to do — all ${manifest.signs.length} signs already drafted.`);
+    console.log(
+      `Nothing to do — all ${manifest.signs.length} signs already drafted.`,
+    );
     console.log("Re-run with --force to redraft.");
     return;
   }
@@ -125,7 +168,8 @@ async function main(): Promise<void> {
   let done = 0;
   let failed = 0;
   const queue = [...todo];
-  const save = () => writeFile(MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`);
+  const save = () =>
+    writeFile(MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`);
 
   await Promise.all(
     Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
@@ -135,6 +179,7 @@ async function main(): Promise<void> {
           // Flush per sign: an interrupted run should never cost work it already paid for.
           await save();
           done++;
+          await sleep(pace);
         } catch (error) {
           failed++;
           console.error(
@@ -142,7 +187,9 @@ async function main(): Promise<void> {
           );
         }
         if ((done + failed) % 25 === 0) {
-          console.log(`  ${done + failed}/${todo.length} — ${done} drafted, ${failed} failed`);
+          console.log(
+            `  ${done + failed}/${todo.length} — ${done} drafted, ${failed} failed`,
+          );
         }
       }
     }),
@@ -150,15 +197,21 @@ async function main(): Promise<void> {
 
   await save();
   console.log(`\nDrafted ${done}, failed ${failed}.`);
-  const remaining = manifest.signs.filter((s) => !s.meaning || !s.name.nb).length;
+  const remaining = manifest.signs.filter(
+    (s) => !s.meaning || !s.name.nb,
+  ).length;
   if (remaining > 0) {
-    console.log(`${remaining} sign(s) still incomplete — re-run to pick them up.`);
+    console.log(
+      `${remaining} sign(s) still incomplete — re-run to pick them up.`,
+    );
     process.exitCode = 1;
     return;
   }
   console.log("All signs have a bilingual name and meaning.");
   console.log("Next: pnpm db:seed-signs && pnpm signs:questions");
-  console.log("Then review the drafts in /admin/signs — every row is still marked provisional.");
+  console.log(
+    "Then review the drafts in /admin/signs — every row is still marked provisional.",
+  );
 }
 
 main()

@@ -1,7 +1,16 @@
-import { Prisma, type PrismaClient, type TranslatableEntity } from "@prisma/client";
+import {
+  Prisma,
+  type PrismaClient,
+  type TranslatableEntity,
+} from "@prisma/client";
 import { BASE_MESSAGES } from "@/i18n/builtin";
 import { flattenMessages } from "./catalogue";
-import { hashUnit, type QuestionPayload, type TranslationUnit, type UnitPayload } from "./units";
+import {
+  hashUnit,
+  type QuestionPayload,
+  type TranslationUnit,
+  type UnitPayload,
+} from "./units";
 
 /**
  * Everything that needs translating, read out of the source of truth (spec-15).
@@ -22,7 +31,8 @@ function questionPayload(side: unknown): QuestionPayload | null {
     | { stem?: unknown; options?: unknown; explanation?: unknown }
     | null
     | undefined;
-  if (!value || typeof value.stem !== "string" || !Array.isArray(value.options)) return null;
+  if (!value || typeof value.stem !== "string" || !Array.isArray(value.options))
+    return null;
   const options = value.options
     .map((option) => option as { key?: unknown; text?: unknown })
     .filter(
@@ -132,9 +142,15 @@ export async function extractTopics(
     return unit(
       "TOPIC",
       topic.id,
-      { name: name.en ?? topic.slug, ...(description.en ? { description: description.en } : {}) },
+      {
+        name: name.en ?? topic.slug,
+        ...(description.en ? { description: description.en } : {}),
+      },
       name.nb
-        ? { name: name.nb, ...(description.nb ? { description: description.nb } : {}) }
+        ? {
+            name: name.nb,
+            ...(description.nb ? { description: description.nb } : {}),
+          }
         : undefined,
       name.en ?? topic.slug,
       glossaryVersion,
@@ -146,7 +162,9 @@ export async function extractLicenseClasses(
   db: PrismaClient,
   glossaryVersion: number,
 ): Promise<TranslationUnit[]> {
-  const classes = await db.licenseClass.findMany({ select: { id: true, code: true, name: true } });
+  const classes = await db.licenseClass.findMany({
+    select: { id: true, code: true, name: true },
+  });
   return classes.map((licenseClass) => {
     const name = bilingual(licenseClass.name);
     return unit(
@@ -164,7 +182,9 @@ export async function extractSigns(
   db: PrismaClient,
   glossaryVersion: number,
 ): Promise<TranslationUnit[]> {
-  const signs = await db.sign.findMany({ select: { id: true, code: true, name: true, meaning: true } });
+  const signs = await db.sign.findMany({
+    select: { id: true, code: true, name: true, meaning: true },
+  });
   return signs.map((sign) => {
     const name = bilingual(sign.name);
     const meaning = bilingual(sign.meaning);
@@ -190,9 +210,18 @@ export async function extractKbSources(
   db: PrismaClient,
   glossaryVersion: number,
 ): Promise<TranslationUnit[]> {
-  const sources = await db.kbSource.findMany({ select: { code: true, name: true } });
+  const sources = await db.kbSource.findMany({
+    select: { code: true, name: true },
+  });
   return sources.map((source) =>
-    unit("KB_SOURCE", source.code, { name: source.name }, undefined, source.code, glossaryVersion),
+    unit(
+      "KB_SOURCE",
+      source.code,
+      { name: source.name },
+      undefined,
+      source.code,
+      glossaryVersion,
+    ),
   );
 }
 
@@ -207,12 +236,17 @@ export async function extractAll(
   db: PrismaClient,
   options: ExtractOptions,
 ): Promise<TranslationUnit[]> {
-  const wanted = (entity: TranslatableEntity) => !options.only || options.only.includes(entity);
+  const wanted = (entity: TranslatableEntity) =>
+    !options.only || options.only.includes(entity);
   const groups = await Promise.all([
     wanted("UI_MESSAGE") ? extractMessages(options.glossaryVersion) : [],
-    wanted("MASTER_ITEM") ? extractMasterItems(db, options.glossaryVersion) : [],
+    wanted("MASTER_ITEM")
+      ? extractMasterItems(db, options.glossaryVersion)
+      : [],
     wanted("TOPIC") ? extractTopics(db, options.glossaryVersion) : [],
-    wanted("LICENSE_CLASS") ? extractLicenseClasses(db, options.glossaryVersion) : [],
+    wanted("LICENSE_CLASS")
+      ? extractLicenseClasses(db, options.glossaryVersion)
+      : [],
     wanted("SIGN") ? extractSigns(db, options.glossaryVersion) : [],
     wanted("KB_SOURCE") ? extractKbSources(db, options.glossaryVersion) : [],
   ]);

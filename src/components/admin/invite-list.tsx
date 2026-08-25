@@ -21,10 +21,10 @@ export function InviteList({
   const t = useTranslations("admin.invites");
   const tErrors = useTranslations();
   const format = useFormatter();
-  const [state, formAction] = useActionState<ActionResult | undefined, FormData>(
-    revokeInviteAction,
-    undefined,
-  );
+  const [state, formAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(revokeInviteAction, undefined);
 
   if (invites.length === 0) {
     return <p className="text-sm text-muted-foreground">{t("listEmpty")}</p>;
@@ -52,11 +52,21 @@ export function InviteList({
         <table className="w-full min-w-[36rem] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs text-muted-foreground">
-              <th scope="col" className="py-2 pr-3 font-medium">{t("columnRole")}</th>
-              <th scope="col" className="py-2 pr-3 font-medium">{t("columnUses")}</th>
-              <th scope="col" className="py-2 pr-3 font-medium">{t("columnExpires")}</th>
-              <th scope="col" className="py-2 pr-3 font-medium">{t("columnStatus")}</th>
-              <th scope="col" className="py-2 font-medium">{t("columnLink")}</th>
+              <th scope="col" className="py-2 pr-3 font-medium">
+                {t("columnRole")}
+              </th>
+              <th scope="col" className="py-2 pr-3 font-medium">
+                {t("columnUses")}
+              </th>
+              <th scope="col" className="py-2 pr-3 font-medium">
+                {t("columnExpires")}
+              </th>
+              <th scope="col" className="py-2 pr-3 font-medium">
+                {t("columnStatus")}
+              </th>
+              <th scope="col" className="py-2 font-medium">
+                {t("columnLink")}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -82,7 +92,11 @@ export function InviteList({
                     <CopyLinkButton url={invite.url} />
                     {invite.revokedAt ? null : (
                       <form action={formAction}>
-                        <input type="hidden" name="inviteId" value={invite.id} />
+                        <input
+                          type="hidden"
+                          name="inviteId"
+                          value={invite.id}
+                        />
                         <SubmitButton label={t("revoke")} variant="ghost" />
                       </form>
                     )}

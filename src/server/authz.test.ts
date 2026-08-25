@@ -6,8 +6,16 @@ import { authorize, authorizeOwner, type SessionUser } from "./authz";
  * Spec-03 acceptance: role enforcement lives in exactly one place. These cases pin the
  * ladder ADMIN ⊃ INSTRUCTOR ⊃ STUDENT that every protected route depends on.
  */
-const student: SessionUser = { id: "u1", role: "STUDENT", email: "s@example.no" };
-const instructor: SessionUser = { id: "u2", role: "INSTRUCTOR", email: "i@example.no" };
+const student: SessionUser = {
+  id: "u1",
+  role: "STUDENT",
+  email: "s@example.no",
+};
+const instructor: SessionUser = {
+  id: "u2",
+  role: "INSTRUCTOR",
+  email: "i@example.no",
+};
 const admin: SessionUser = { id: "u3", role: "ADMIN", email: "a@example.no" };
 
 describe("authorize", () => {
@@ -44,7 +52,9 @@ describe("authorize", () => {
 describe("authorizeOwner", () => {
   it("allows a student to touch only their own resource", () => {
     expect(authorizeOwner(student, "u1")).toBe(student);
-    expect(() => authorizeOwner(student, "someone-else")).toThrow(ForbiddenError);
+    expect(() => authorizeOwner(student, "someone-else")).toThrow(
+      ForbiddenError,
+    );
   });
 
   it("lets staff act on another user's resource", () => {

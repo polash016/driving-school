@@ -16,16 +16,18 @@ export function VerifyEmailForm({ token }: { token: string }) {
   const t = useTranslations("auth.verify");
   const tErrors = useTranslations();
   const locale = useLocale();
-  const [state, formAction] = useActionState<ActionResult | undefined, FormData>(
-    verifyEmailAction,
-    undefined,
-  );
+  const [state, formAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(verifyEmailAction, undefined);
 
   if (state?.ok) {
     return (
       <div className="space-y-4">
         <FormAlert tone="success">{t("successTitle")}</FormAlert>
-        <p className="text-sm/relaxed text-muted-foreground">{t("successBody")}</p>
+        <p className="text-sm/relaxed text-muted-foreground">
+          {t("successBody")}
+        </p>
         <Link
           href="/login"
           className="inline-flex min-h-11 items-center rounded-md text-sm font-medium text-primary underline-offset-4 hover:underline"
@@ -43,7 +45,9 @@ export function VerifyEmailForm({ token }: { token: string }) {
       {state?.ok === false ? (
         <>
           <FormAlert>{tErrors(state.messageKey)}</FormAlert>
-          <p className="text-sm/relaxed text-muted-foreground">{t("failedBody")}</p>
+          <p className="text-sm/relaxed text-muted-foreground">
+            {t("failedBody")}
+          </p>
         </>
       ) : null}
       <SubmitButton className="w-full" label={t("title")} />

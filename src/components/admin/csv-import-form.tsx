@@ -40,7 +40,9 @@ export function CsvImportForm({ groups }: { groups: GroupOption[] }) {
                 key={`${row.email}-${index}`}
                 className="flex items-center justify-between gap-3 border-b border-border/60 py-1.5"
               >
-                <span className="truncate text-foreground">{row.email || "—"}</span>
+                <span className="truncate text-foreground">
+                  {row.email || "—"}
+                </span>
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {tErrors(row.messageKey)}
                 </span>

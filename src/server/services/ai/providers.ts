@@ -6,10 +6,7 @@ import { AUDIT, auditLog } from "@/server/audit";
 import type { SessionUser } from "@/server/authz";
 import { idSchema } from "@/server/contracts/common";
 import { cacheDel, cacheGet, cacheSet, keys } from "@/server/redis";
-import {
-  decryptSecret,
-  encryptSecret,
-} from "@/server/services/auth/crypto";
+import { decryptSecret, encryptSecret } from "@/server/services/auth/crypto";
 import { adapterFor } from "@/server/ai/providers";
 
 /**
@@ -23,7 +20,11 @@ import { adapterFor } from "@/server/ai/providers";
 
 const ROUTE_CACHE_TTL_SEC = 300;
 
-export const providerKindSchema = z.enum(["GOOGLE", "ANTHROPIC", "OPENAI_COMPATIBLE"]);
+export const providerKindSchema = z.enum([
+  "GOOGLE",
+  "ANTHROPIC",
+  "OPENAI_COMPATIBLE",
+]);
 export const aiTaskSchema = z.enum([
   "VISION",
   "GENERATION",
@@ -44,7 +45,10 @@ export const createProviderInputSchema = z
   .superRefine((input, ctx) => {
     if (input.kind === "OPENAI_COMPATIBLE" && !input.baseUrl) {
       // Without it we would not know whether this is DeepSeek, Groq or a local Ollama.
-      ctx.addIssue({ code: "custom", message: "baseUrl is required for OpenAI-compatible providers" });
+      ctx.addIssue({
+        code: "custom",
+        message: "baseUrl is required for OpenAI-compatible providers",
+      });
     }
   });
 
@@ -134,7 +138,9 @@ const PROVIDER_SELECT = {
   lastCheckError: true,
 } as const;
 
-export async function listProviders(db: PrismaClient): Promise<ProviderSummary[]> {
+export async function listProviders(
+  db: PrismaClient,
+): Promise<ProviderSummary[]> {
   const rows = await db.aiProvider.findMany({
     select: PROVIDER_SELECT,
     orderBy: { createdAt: "asc" },
@@ -297,7 +303,12 @@ export async function resolveRoutes(
         model: true,
         providerId: true,
         provider: {
-          select: { kind: true, label: true, encryptedApiKey: true, baseUrl: true },
+          select: {
+            kind: true,
+            label: true,
+            encryptedApiKey: true,
+            baseUrl: true,
+          },
         },
       },
       orderBy: { priority: "asc" },
@@ -328,9 +339,16 @@ export async function resolveRoutes(
 
 export async function invalidateRoutes(): Promise<void> {
   await cacheDel(
-    ...(["VISION", "GENERATION", "VALIDATION", "EMBEDDING", "IMAGE", "TRANSLATION"] as AiTask[]).map(
-      (task) => keys.aiRoutes(task),
-    ),
+    ...(
+      [
+        "VISION",
+        "GENERATION",
+        "VALIDATION",
+        "EMBEDDING",
+        "IMAGE",
+        "TRANSLATION",
+      ] as AiTask[]
+    ).map((task) => keys.aiRoutes(task)),
   );
 }
 
@@ -356,19 +374,27 @@ export async function testProvider(
 
   try {
     await adapterFor(provider.kind).ping(
-      { apiKey: decryptSecret(provider.encryptedApiKey), baseUrl: provider.baseUrl },
+      {
+        apiKey: decryptSecret(provider.encryptedApiKey),
+        baseUrl: provider.baseUrl,
+      },
       model,
     );
   } catch (caught) {
     ok = false;
-    error = caught instanceof Error ? caught.message.slice(0, 300) : String(caught);
+    error =
+      caught instanceof Error ? caught.message.slice(0, 300) : String(caught);
     logger.warn({ providerId, error }, "provider test failed");
   }
 
   const ms = Date.now() - started;
   await db.aiProvider.update({
     where: { id: providerId },
-    data: { lastCheckedAt: new Date(), lastCheckOk: ok, lastCheckError: error ?? null },
+    data: {
+      lastCheckedAt: new Date(),
+      lastCheckOk: ok,
+      lastCheckError: error ?? null,
+    },
     select: { id: true },
   });
   await auditLog({

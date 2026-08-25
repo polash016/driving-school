@@ -38,41 +38,56 @@ export async function registerViaInvite(
 
   const passwordHash = await hashPassword(input.password);
 
-  const { userId, verificationToken, inviteId } = await db.$transaction(async (tx) => {
-    const invite = await consumeInvite(tx, db.inviteLink.fields, input.inviteToken, email, now);
-
-    const existing = await tx.user.findUnique({
-      where: { email },
-      select: { id: true },
-    });
-    // Invite tokens are secrets, so a precise message here does not enable enumeration —
-    // and the student needs to know to log in instead of registering again.
-    if (existing) {
-      throw new ConflictError({ email }, "auth.errors.emailAlreadyRegistered");
-    }
-
-    const user = await tx.user.create({
-      data: {
+  const { userId, verificationToken, inviteId } = await db.$transaction(
+    async (tx) => {
+      const invite = await consumeInvite(
+        tx,
+        db.inviteLink.fields,
+        input.inviteToken,
         email,
-        passwordHash,
-        role: invite.role,
-        profile: {
-          create: {
-            firstName: input.firstName.trim(),
-            lastName: input.lastName.trim(),
-            preferredLocale: input.preferredLocale,
-          },
-        },
-        ...(invite.groupId
-          ? { memberships: { create: { groupId: invite.groupId } } }
-          : {}),
-      },
-      select: { id: true },
-    });
+        now,
+      );
 
-    const token = await issueAuthToken(tx, user.id, "EMAIL_VERIFY", now);
-    return { userId: user.id, verificationToken: token.token, inviteId: invite.id };
-  });
+      const existing = await tx.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
+      // Invite tokens are secrets, so a precise message here does not enable enumeration —
+      // and the student needs to know to log in instead of registering again.
+      if (existing) {
+        throw new ConflictError(
+          { email },
+          "auth.errors.emailAlreadyRegistered",
+        );
+      }
+
+      const user = await tx.user.create({
+        data: {
+          email,
+          passwordHash,
+          role: invite.role,
+          profile: {
+            create: {
+              firstName: input.firstName.trim(),
+              lastName: input.lastName.trim(),
+              preferredLocale: input.preferredLocale,
+            },
+          },
+          ...(invite.groupId
+            ? { memberships: { create: { groupId: invite.groupId } } }
+            : {}),
+        },
+        select: { id: true },
+      });
+
+      const token = await issueAuthToken(tx, user.id, "EMAIL_VERIFY", now);
+      return {
+        userId: user.id,
+        verificationToken: token.token,
+        inviteId: invite.id,
+      };
+    },
+  );
 
   await auditLog({
     actorId: userId,
@@ -94,7 +109,12 @@ export async function registerViaInvite(
 
   const url = `${absoluteUrl(env().APP_BASE_URL, input.preferredLocale, "/verify-email")}?token=${verificationToken}`;
   await sendMail(
-    await verificationEmail(input.preferredLocale, email, input.firstName.trim(), url),
+    await verificationEmail(
+      input.preferredLocale,
+      email,
+      input.firstName.trim(),
+      url,
+    ),
   );
 
   return { userId, email, verificationToken };

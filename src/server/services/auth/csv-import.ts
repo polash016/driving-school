@@ -42,10 +42,16 @@ export async function importStudentsCsv(
   const records = parseCsvRecords(input.csv);
 
   if (records.length === 0) {
-    throw new ValidationError({ reason: "empty csv" }, "admin.invites.errors.csvEmpty");
+    throw new ValidationError(
+      { reason: "empty csv" },
+      "admin.invites.errors.csvEmpty",
+    );
   }
   if (!("email" in records[0])) {
-    throw new ValidationError({ reason: "no email column" }, "admin.invites.errors.csvNoEmail");
+    throw new ValidationError(
+      { reason: "no email column" },
+      "admin.invites.errors.csvNoEmail",
+    );
   }
 
   const rows: CsvImportResult["rows"] = [];
@@ -65,7 +71,11 @@ export async function importStudentsCsv(
 
     const email = normalizeEmail(parsed.data.email);
     if (seen.has(email)) {
-      rows.push({ email, status: "exists", messageKey: "admin.invites.rows.duplicate" });
+      rows.push({
+        email,
+        status: "exists",
+        messageKey: "admin.invites.rows.duplicate",
+      });
       continue;
     }
     seen.add(email);
@@ -75,7 +85,11 @@ export async function importStudentsCsv(
       select: { id: true },
     });
     if (existing) {
-      rows.push({ email, status: "exists", messageKey: "admin.invites.rows.exists" });
+      rows.push({
+        email,
+        status: "exists",
+        messageKey: "admin.invites.rows.exists",
+      });
       continue;
     }
 
@@ -90,8 +104,14 @@ export async function importStudentsCsv(
       },
       { email, locale, now: options.now },
     );
-    await sendMail(await inviteEmail(locale, email, inviteUrl(invite.token, locale)));
-    rows.push({ email, status: "invited", messageKey: "admin.invites.rows.invited" });
+    await sendMail(
+      await inviteEmail(locale, email, inviteUrl(invite.token, locale)),
+    );
+    rows.push({
+      email,
+      status: "invited",
+      messageKey: "admin.invites.rows.invited",
+    });
     invited++;
   }
 

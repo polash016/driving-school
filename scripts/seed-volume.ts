@@ -10,7 +10,9 @@
  */
 import { PrismaClient } from "@prisma/client";
 
-(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(".env");
+(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(
+  ".env",
+);
 
 const db = new PrismaClient();
 const MARKER = "volume:";
@@ -19,8 +21,12 @@ async function cleanup(): Promise<void> {
   const deleted = await db.$executeRawUnsafe(
     `DELETE FROM "MasterItem" WHERE "content"->'en'->>'stem' LIKE '${MARKER}%'`,
   );
-  const batches = await db.generationBatch.deleteMany({ where: { notes: MARKER } });
-  console.log(`Removed ${deleted} synthetic items and ${batches.count} synthetic sets.`);
+  const batches = await db.generationBatch.deleteMany({
+    where: { notes: MARKER },
+  });
+  console.log(
+    `Removed ${deleted} synthetic items and ${batches.count} synthetic sets.`,
+  );
 }
 
 async function seed(count: number): Promise<void> {
@@ -28,7 +34,8 @@ async function seed(count: number): Promise<void> {
     where: { deletedAt: null },
     select: { id: true },
   });
-  if (topics.length === 0) throw new Error("No topics — run `pnpm exec prisma db seed` first.");
+  if (topics.length === 0)
+    throw new Error("No topics — run `pnpm exec prisma db seed` first.");
 
   // A handful of sets so the set-detail query is measured at a realistic fan-out.
   const batchIds: string[] = [];
@@ -48,7 +55,12 @@ async function seed(count: number): Promise<void> {
   }
 
   const statuses = ["DRAFT", "IN_REVIEW", "APPROVED", "RETIRED"] as const;
-  const reasons = ["WRONG_ANSWER", "AMBIGUOUS_DISTRACTOR", "CITATION_MISMATCH", "DUPLICATE"] as const;
+  const reasons = [
+    "WRONG_ANSWER",
+    "AMBIGUOUS_DISTRACTOR",
+    "CITATION_MISMATCH",
+    "DUPLICATE",
+  ] as const;
   const CHUNK = 500;
   let inserted = 0;
 
@@ -84,12 +96,16 @@ async function seed(count: number): Promise<void> {
           },
         },
         correctOptionKey: "a",
-        legalCitations: [{ sourceCode: "trafikkreglene", ref: `§ ${(i % 20) + 1}` }],
+        legalCitations: [
+          { sourceCode: "trafikkreglene", ref: `§ ${(i % 20) + 1}` },
+        ],
         createdBy: isAi ? ("AI" as const) : ("HUMAN" as const),
         modelVersion: isAi ? `synthetic-model-${i % 4}` : null,
         promptVersion: isAi ? `generation.theory@1.${i % 3}.0` : null,
         batchId: batchIds[i % batchIds.length],
-        reviewedAt: reviewed ? new Date(Date.now() - (i % 60) * 3_600_000) : null,
+        reviewedAt: reviewed
+          ? new Date(Date.now() - (i % 60) * 3_600_000)
+          : null,
         reviewReason: status === "RETIRED" ? reasons[i % reasons.length] : null,
       });
     }

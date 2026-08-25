@@ -1,8 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { BASE_MESSAGES } from "@/i18n/builtin";
-import { BUILTIN_PREFIXES, isBuiltinLocale, localeSchema, prefixForLocale } from "@/lib/locale";
+import {
+  BUILTIN_PREFIXES,
+  isBuiltinLocale,
+  localeSchema,
+  prefixForLocale,
+} from "@/lib/locale";
 import { absoluteUrl, localePath, primeLocalePrefixes } from "@/lib/locale-url";
-import { contentSideFor, pickBilingualText, pickLocale, resolveText } from "@/lib/i18n-content";
+import {
+  contentSideFor,
+  pickBilingualText,
+  pickLocale,
+  resolveText,
+} from "@/lib/i18n-content";
 import {
   baseMessageKeys,
   expandMessages,
@@ -17,13 +27,19 @@ import { BUILTIN_REGISTRY, resolveLocale } from "./registry";
  */
 
 describe("locale codes", () => {
-  it.each(["en", "nb", "es", "ar", "pt-BR", "zh-Hans"])("accepts %s", (code) => {
-    expect(localeSchema.safeParse(code).success).toBe(true);
-  });
+  it.each(["en", "nb", "es", "ar", "pt-BR", "zh-Hans"])(
+    "accepts %s",
+    (code) => {
+      expect(localeSchema.safeParse(code).success).toBe(true);
+    },
+  );
 
-  it.each(["", "e", "EN", "english!", "en_US", "../etc/passwd"])("rejects %s", (code) => {
-    expect(localeSchema.safeParse(code).success).toBe(false);
-  });
+  it.each(["", "e", "EN", "english!", "en_US", "../etc/passwd"])(
+    "rejects %s",
+    (code) => {
+      expect(localeSchema.safeParse(code).success).toBe(false);
+    },
+  );
 
   it("serves a runtime language at /<code>, and Norwegian at its grandfathered /no", () => {
     expect(prefixForLocale("es")).toBe("/es");
@@ -68,7 +84,9 @@ describe("URL prefixes stay synchronous", () => {
     expect(localePath("es", "/login")).toBe("/es/login");
     primeLocalePrefixes({ es: "/es", ar: "/ar" });
     expect(localePath("ar", "/login")).toBe("/ar/login");
-    expect(absoluteUrl("https://x.no/", "nb", "/login")).toBe("https://x.no/no/login");
+    expect(absoluteUrl("https://x.no/", "nb", "/login")).toBe(
+      "https://x.no/no/login",
+    );
   });
 });
 
@@ -82,7 +100,10 @@ describe("message catalogues", () => {
   it("merges a partial translation over English without losing a key", () => {
     const base = { a: { b: "english b", c: "english c" }, d: "english d" };
     const merged = mergeMessages(base, { a: { b: "spansk b" } });
-    expect(merged).toEqual({ a: { b: "spansk b", c: "english c" }, d: "english d" });
+    expect(merged).toEqual({
+      a: { b: "spansk b", c: "english c" },
+      d: "english d",
+    });
   });
 
   it("never mutates the English catalogue it merges onto", () => {
@@ -105,7 +126,9 @@ describe("content fallback", () => {
     expect(contentSideFor("es")).toBe("en");
     expect(contentSideFor("nb")).toBe("nb");
     expect(pickLocale({ en: "yield", nb: "vikeplikt" }, "ar")).toBe("yield");
-    expect(pickLocale({ en: "yield", nb: "vikeplikt" }, "nb")).toBe("vikeplikt");
+    expect(pickLocale({ en: "yield", nb: "vikeplikt" }, "nb")).toBe(
+      "vikeplikt",
+    );
   });
 
   it("prefers a translation, and reads through to English when there is none", () => {

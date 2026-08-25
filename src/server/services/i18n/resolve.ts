@@ -1,4 +1,8 @@
-import type { PrismaClient, TranslatableEntity, TranslationStatus } from "@prisma/client";
+import type {
+  PrismaClient,
+  TranslatableEntity,
+  TranslationStatus,
+} from "@prisma/client";
 import { isBuiltinLocale } from "@/lib/locale";
 import { logger } from "@/lib/logger";
 import type { QuestionPayload, UnitPayload } from "./units";
@@ -21,7 +25,9 @@ import type { QuestionPayload, UnitPayload } from "./units";
  */
 
 /** Which translations a language's policy allows to be served. */
-export function servableStatuses(requiresApproval: boolean): TranslationStatus[] {
+export function servableStatuses(
+  requiresApproval: boolean,
+): TranslationStatus[] {
   // NEEDS_REVIEW and REJECTED are never served, under either policy.
   return requiresApproval ? ["APPROVED"] : ["APPROVED", "MACHINE"];
 }
@@ -58,10 +64,15 @@ export async function loadOverlay(
       },
       select: { entityId: true, value: true },
     });
-    return new Map(rows.map((row) => [row.entityId, row.value as unknown as UnitPayload]));
+    return new Map(
+      rows.map((row) => [row.entityId, row.value as unknown as UnitPayload]),
+    );
   } catch (error) {
     // A translation lookup that fails must degrade to English, never to an error page.
-    logger.error({ error, locale, entity }, "translation overlay unreadable — serving the source");
+    logger.error(
+      { error, locale, entity },
+      "translation overlay unreadable — serving the source",
+    );
     return new Map();
   }
 }
@@ -86,7 +97,9 @@ export function mergeQuestion(
     stem: translated.stem?.trim() ? translated.stem : source.stem,
     options: source.options.map((option) => ({
       key: option.key,
-      text: textByKey.get(option.key)?.trim() ? (textByKey.get(option.key) as string) : option.text,
+      text: textByKey.get(option.key)?.trim()
+        ? (textByKey.get(option.key) as string)
+        : option.text,
     })),
     ...(source.explanation !== undefined || translated.explanation !== undefined
       ? {
@@ -99,7 +112,10 @@ export function mergeQuestion(
 }
 
 /** One translated string from a name-shaped unit, falling through to the authored value. */
-export function mergeName(source: string, overlay: UnitPayload | undefined): string {
+export function mergeName(
+  source: string,
+  overlay: UnitPayload | undefined,
+): string {
   const value = (overlay as { name?: unknown } | undefined)?.name;
   return typeof value === "string" && value.trim().length > 0 ? value : source;
 }
@@ -114,7 +130,11 @@ export function mergeName(source: string, overlay: UnitPayload | undefined): str
 export async function loadTaxonomy(
   db: PrismaClient,
   locale: string,
-  ids: { topicIds?: string[]; licenseClassIds?: string[]; sourceCodes?: string[] } = {},
+  ids: {
+    topicIds?: string[];
+    licenseClassIds?: string[];
+    sourceCodes?: string[];
+  } = {},
 ): Promise<Overlay> {
   if (isBuiltinLocale(locale)) return new Map();
   const [topics, classes, sources] = await Promise.all([

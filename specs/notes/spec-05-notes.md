@@ -62,11 +62,11 @@ clone still work with no database configuration.
 
 Probing every configured route with a real call found the problem immediately:
 
-| Task | Model | Result |
-|---|---|---|
-| VISION / GENERATION / VALIDATION | `gemini-3.5-flash-lite` | OK |
-| EMBEDDING | `gemini-3.5-flash-lite` | **404 — not supported for embedContent** |
-| IMAGE | `gemini-3.5-flash-lite` | answers as a chat model; cannot produce an image |
+| Task                             | Model                   | Result                                           |
+| -------------------------------- | ----------------------- | ------------------------------------------------ |
+| VISION / GENERATION / VALIDATION | `gemini-3.5-flash-lite` | OK                                               |
+| EMBEDDING                        | `gemini-3.5-flash-lite` | **404 — not supported for embedContent**         |
+| IMAGE                            | `gemini-3.5-flash-lite` | answers as a chat model; cannot produce an image |
 
 Asking the account which models it actually has (`ListModels`) rather than guessing: embeddings are
 `gemini-embedding-001` / `gemini-embedding-2`; **no Imagen (`predict`) models are available**, so
@@ -105,12 +105,12 @@ Reciprocal Rank Fusion over a vector leg (pgvector cosine) and a keyword leg (no
 scales, which is the usual way naive hybrid search goes wrong. Fusion is unit-tested on its own;
 against the real corpus:
 
-| Query | Top hits |
-|---|---|
-| `vikeplikt høyreregel` | **§ 7** (Vikeplikt), § 9, § 11 |
-| `who must yield when turning left` (English) | **§ 7**, § 6, § 12 |
-| `fartsgrense tettbygd strøk` | **§ 13**, § 4, § 16 |
-| `§ 7` | **§ 7** (both legs agree — double the score) |
+| Query                                        | Top hits                                     |
+| -------------------------------------------- | -------------------------------------------- |
+| `vikeplikt høyreregel`                       | **§ 7** (Vikeplikt), § 9, § 11               |
+| `who must yield when turning left` (English) | **§ 7**, § 6, § 12                           |
+| `fartsgrense tettbygd strøk`                 | **§ 13**, § 4, § 16                          |
+| `§ 7`                                        | **§ 7** (both legs agree — double the score) |
 
 A failed embedding degrades to keyword-only rather than failing the search.
 
@@ -119,6 +119,7 @@ A failed embedding degrades to keyword-only rather than failing the search.
 `pnpm ai:generate right-of-way 5` → **5 asked, 5 returned, 5 passed the quality gate, 0 rejected.**
 
 Two defects surfaced on the way, both mine:
+
 - The Google adapter sent a system instruction with no user turn; Gemini rejects that
   ("contents is not specified"). A system-only prompt now becomes the user turn.
 - The prompt never described its output shape, so the model answered with a bare array. The shape
@@ -128,8 +129,8 @@ Two defects surfaced on the way, both mine:
 Sample output, unedited:
 
 > **You are driving out onto a road from a private property (gårdsveg) that is not open for public
-> traffic. What is your duty towards traffic on the road?** → *You have vikeplikt for traffic on the
-> road* — cites `trafikkreglene § 7`, explanation quotes § 7 no. 4.
+> traffic. What is your duty towards traffic on the road?** → _You have vikeplikt for traffic on the
+> road_ — cites `trafikkreglene § 7`, explanation quotes § 7 no. 4.
 
 Bilingual, one defensible answer, cited, and it went through the **same quality gate a human-written
 question faces** — the model gets no easier standard. Everything lands as a DRAFT in a set and still
@@ -145,7 +146,6 @@ Available from the UI at **/admin/sets → Generate questions with AI**, or `pnp
   kjøretøy are one `pnpm kb:ingest` each, and generation quality scales directly with what is in
   there.
 
-
 ---
 
 ## Student quiz: two defects found by using it (2026-08-25)
@@ -155,8 +155,8 @@ the test suite, which is the point worth recording.
 
 ### The licence-class filter hid most of the question bank
 
-`PrismaVariantSource.candidatesByTopic` read `licenseClassId: null` as *"questions that have no
-licence class"* rather than *"no class in play, do not filter"*. Practice and topic drills pass
+`PrismaVariantSource.candidatesByTopic` read `licenseClassId: null` as _"questions that have no
+licence class"_ rather than _"no class in play, do not filter"_. Practice and topic drills pass
 `null`, so every question tagged class B — **12 of 17 in the developer's database, and nearly all
 of a real bank** — was silently excluded.
 
@@ -169,8 +169,8 @@ after   traffic-participants=2 right-of-way=7 the-vehicle=2 speed-positioning=2
         signs-markings=1 responsibility=2 laws-rules=1        → matches the unfiltered pool
 ```
 
-A plain practice quiz went from 5 questions to 10; topic drills went from *"no questions
-available"* to working on every topic. Regression test added in
+A plain practice quiz went from 5 questions to 10; topic drills went from _"no questions
+available"_ to working on every topic. Regression test added in
 `attempt-service.integration.test.ts`: a class-tagged question must appear in a practice pool.
 
 ### The mock exam tile looked disabled but was not
@@ -185,12 +185,12 @@ is a normal state for a new school, so it returns a message that says what is mi
 
 ### Verified against the running app
 
-| | |
-|---|---|
-| Practice, returning student (had already seen 5 questions) | Question 1 of 10 |
-| Topic drill — The vehicle / Laws / Signs | 2, 1 and 1 questions, all start |
-| Mock exam tile at 17 approved | genuinely disabled |
-| Pre-submission page renders leaking an answer | **0** |
+|                                                            |                                 |
+| ---------------------------------------------------------- | ------------------------------- |
+| Practice, returning student (had already seen 5 questions) | Question 1 of 10                |
+| Topic drill — The vehicle / Laws / Signs                   | 2, 1 and 1 questions, all start |
+| Mock exam tile at 17 approved                              | genuinely disabled              |
+| Pre-submission page renders leaking an answer              | **0**                           |
 
 Totals: **239 unit/integration**, **22 e2e**, all green.
 
@@ -198,7 +198,7 @@ Totals: **239 unit/integration**, **22 e2e**, all green.
 
 ## Amendment verification — 2026-08-25 · uniqueness, difficulty, and learning from rejection
 
-The complaint was concrete: *"the ai is generating one question multiple time"*, plus a request for
+The complaint was concrete: _"the ai is generating one question multiple time"_, plus a request for
 a real difficulty spread, alternates that different students may each get, and no repeated question
 or repeated rule inside one exam.
 
@@ -210,17 +210,17 @@ difficulty spread               level 1: 21   level 2: 45   level 3: 3   level 4
 ```
 
 The existing guard was `stemFingerprint()` — an exact match on the normalised stem. It caught
-nothing here (the model re-words itself) and it never ran *within* a generation batch at all.
+nothing here (the model re-words itself) and it never ran _within_ a generation batch at all.
 
 ### What now stands between the model and the question bank
 
-| Check | Where | Effect |
-|---|---|---|
-| Same question, twice in one run | `generation/theory.ts`, cosine ≥ 0.94 vs the batch | rejected `DUPLICATE_IN_BATCH` |
-| Same question as one already written | `classifyAgainstPool`, incl. retired | rejected `DUPLICATE_OF_EXISTING` |
-| Same rule, different words | 0.85–0.94 | **kept**, shares a `conceptGroupId` |
-| Two phrasings of one rule in one paper | `assembly.ts` `usedConceptGroups` | never served together |
-| A paper drifting easy | `DIFFICULTY_TARGET` 30/40/30 | balanced whole-paper |
+| Check                                  | Where                                              | Effect                              |
+| -------------------------------------- | -------------------------------------------------- | ----------------------------------- |
+| Same question, twice in one run        | `generation/theory.ts`, cosine ≥ 0.94 vs the batch | rejected `DUPLICATE_IN_BATCH`       |
+| Same question as one already written   | `classifyAgainstPool`, incl. retired               | rejected `DUPLICATE_OF_EXISTING`    |
+| Same rule, different words             | 0.85–0.94                                          | **kept**, shares a `conceptGroupId` |
+| Two phrasings of one rule in one paper | `assembly.ts` `usedConceptGroups`                  | never served together               |
+| A paper drifting easy                  | `DIFFICULTY_TARGET` 30/40/30                       | balanced whole-paper                |
 
 Thresholds were calibrated on this bank, not guessed — the evidence is in `DECISIONS.md`
 (2026-08-25 · spec-04/05). Grouping is complete linkage after single linkage was seen chaining
@@ -300,7 +300,7 @@ topReasons: [{"code":"DUPLICATE_OF_EXISTING","count":4},{"code":"DUPLICATE","cou
 63 refusals are on the ledger so far — 34 from reviewers (the dedupe cleanup runs as a reviewer,
 with its cosine in the note) and 29 from the duplicate check during generation.
 
-The review queue now takes an optional note *before* the reason buttons, and it is quoted verbatim.
+The review queue now takes an optional note _before_ the reason buttons, and it is quoted verbatim.
 `transitionItemInput` separates `reason` (the enum code) from `note` (the words) — previously the
 code was written into `reviewNote` and the reviewer's own wording had nowhere to go.
 
@@ -325,11 +325,11 @@ Back, change the answer. Every practice score was a formality.
 
 Three layers now:
 
-| Layer | Behaviour |
-|---|---|
-| `attempt-service.answer` | a *different* answer to an answered question → `ConflictError` |
-| `tp_attempt_question_immutable` | the same refusal at the table, service bypassed |
-| `quiz-runner.tsx` | the card locks and says "Answer recorded — it cannot be changed." |
+| Layer                           | Behaviour                                                         |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `attempt-service.answer`        | a _different_ answer to an answered question → `ConflictError`    |
+| `tp_attempt_question_immutable` | the same refusal at the table, service bypassed                   |
+| `quiz-runner.tsx`               | the card locks and says "Answer recorded — it cannot be changed." |
 
 Re-sending the **same** answer stays idempotent — a retry or a double tap must not become an error.
 

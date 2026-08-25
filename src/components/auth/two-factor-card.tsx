@@ -73,7 +73,9 @@ export function TwoFactorCard({
     return (
       <div className="space-y-2">
         <FormAlert tone="success">{t("enabledTitle")}</FormAlert>
-        <p className="text-sm/relaxed text-muted-foreground">{t("enabledBody")}</p>
+        <p className="text-sm/relaxed text-muted-foreground">
+          {t("enabledBody")}
+        </p>
       </div>
     );
   }
@@ -124,7 +126,9 @@ export function TwoFactorCard({
         />
       </div>
       <div className="space-y-1.5">
-        <p className="text-sm font-medium text-foreground">{t("secretLabel")}</p>
+        <p className="text-sm font-medium text-foreground">
+          {t("secretLabel")}
+        </p>
         <p className="rounded-[var(--radius-control)] bg-muted px-3 py-2 font-mono text-sm break-all text-foreground">
           {setup.secret}
         </p>
@@ -140,7 +144,12 @@ export function TwoFactorCard({
       />
       <div className="flex gap-2">
         <SubmitButton label={t("confirm")} />
-        <Button type="button" variant="ghost" size="lg" onClick={() => setSetup(null)}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="lg"
+          onClick={() => setSetup(null)}
+        >
           {t("cancel")}
         </Button>
       </div>

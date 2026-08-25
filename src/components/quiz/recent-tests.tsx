@@ -9,7 +9,11 @@ import type { AttemptSummary } from "@/server/services/assessment/history";
  * A finished test links to its paper — the questions exactly as they were sat, with the student's
  * own answers. One still running links back into itself so it can be finished.
  */
-export async function RecentTests({ attempts }: { attempts: AttemptSummary[] }) {
+export async function RecentTests({
+  attempts,
+}: {
+  attempts: AttemptSummary[];
+}) {
   const [t, tHistory, format] = await Promise.all([
     getTranslations("home"),
     getTranslations("history"),
@@ -20,7 +24,9 @@ export async function RecentTests({ attempts }: { attempts: AttemptSummary[] }) 
   return (
     <section className="space-y-2">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-foreground">{t("recentTests")}</h2>
+        <h2 className="text-sm font-medium text-foreground">
+          {t("recentTests")}
+        </h2>
         <Link
           href="/account/history"
           className="min-h-11 py-3 text-sm text-primary underline-offset-4 hover:underline"
@@ -35,12 +41,18 @@ export async function RecentTests({ attempts }: { attempts: AttemptSummary[] }) 
           const percent =
             attempt.correctCount === null
               ? null
-              : Math.round((attempt.correctCount / attempt.questionCount) * 100);
+              : Math.round(
+                  (attempt.correctCount / attempt.questionCount) * 100,
+                );
 
           return (
             <li key={attempt.id}>
               <Link
-                href={running ? `/quiz/${attempt.id}` : `/account/history/${attempt.id}`}
+                href={
+                  running
+                    ? `/quiz/${attempt.id}`
+                    : `/account/history/${attempt.id}`
+                }
                 className="flex min-h-14 items-center justify-between gap-3 rounded-[var(--radius-control)] bg-card px-3.5 py-2.5 shadow-card ring-1 ring-foreground/5 transition-colors hover:bg-muted"
               >
                 <span className="min-w-0 space-y-0.5">
@@ -48,13 +60,17 @@ export async function RecentTests({ attempts }: { attempts: AttemptSummary[] }) 
                     {tHistory(`kind.${attempt.kind}`)}
                   </span>
                   <span className="block text-xs text-muted-foreground">
-                    {format.dateTime(attempt.startedAt, { dateStyle: "medium" })}
+                    {format.dateTime(attempt.startedAt, {
+                      dateStyle: "medium",
+                    })}
                   </span>
                 </span>
 
                 <span className="flex shrink-0 items-center gap-2">
                   {running ? (
-                    <span className="text-sm font-medium text-primary">{t("resume")}</span>
+                    <span className="text-sm font-medium text-primary">
+                      {t("resume")}
+                    </span>
                   ) : (
                     <>
                       <span className="text-sm font-semibold tabular-nums text-foreground">
@@ -74,7 +90,9 @@ export async function RecentTests({ attempts }: { attempts: AttemptSummary[] }) 
                               : "bg-destructive/10 text-destructive",
                           )}
                         >
-                          {attempt.passed ? tHistory("passed") : tHistory("notPassed")}
+                          {attempt.passed
+                            ? tHistory("passed")
+                            : tHistory("notPassed")}
                         </span>
                       ) : null}
                     </>

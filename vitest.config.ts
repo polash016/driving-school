@@ -19,6 +19,9 @@ export default defineConfig({
       "src/**/*.test.{ts,tsx}",
       "config/**/*.test.ts",
       "prisma/**/*.test.ts",
+      // Ingestion scripts carry logic worth pinning down — the sign caption pairing in particular,
+      // where every rule was learned from a specific way a sign came out mislabelled.
+      "scripts/**/*.test.ts",
     ],
     env: {
       // Integration tests talk to teoripro_test, including through the `db` singleton that

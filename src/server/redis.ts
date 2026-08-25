@@ -64,7 +64,8 @@ export const keys = {
   /** Pending (unconfirmed) TOTP secret during 2FA setup. Invalidated by: confirm, expiry. */
   totpSetup: (userId: string) => `tp:auth:totp:${userId}`,
   /** Already-used TOTP code (replay guard, one validation window). Invalidated by: expiry. */
-  totpUsed: (userId: string, code: string) => `tp:auth:totpused:${userId}:${code}`,
+  totpUsed: (userId: string, code: string) =>
+    `tp:auth:totpused:${userId}:${code}`,
 } as const;
 
 export async function cacheGet<T>(key: string): Promise<T | null> {

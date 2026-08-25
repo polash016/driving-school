@@ -39,11 +39,11 @@ refused with "Verify your email address first" → confirming the address → lo
 The 403 test asserts the **HTTP status**, not just the copy (possible because `forbidden()` is enabled
 via `experimental.authInterrupts`):
 
-| Request as INSTRUCTOR | Status | Heading |
-|---|---|---|
-| `GET /en/admin/invites` | **403** | "You do not have access to this page" |
-| `GET /no/admin/invites` | **403** | "Du har ikke tilgang til denne siden" |
-| `GET /en/account/security` (signed out) | **401** | "Please log in to continue" |
+| Request as INSTRUCTOR                   | Status  | Heading                               |
+| --------------------------------------- | ------- | ------------------------------------- |
+| `GET /en/admin/invites`                 | **403** | "You do not have access to this page" |
+| `GET /no/admin/invites`                 | **403** | "Du har ikke tilgang til denne siden" |
+| `GET /en/account/security` (signed out) | **401** | "Please log in to continue"           |
 
 ### ✅ All protected server actions/routes verifiably pass through `authorize()` (grep + test)
 
@@ -98,16 +98,16 @@ rejection and malformed-hash handling are covered in the same file.
 
 ## In-scope items beyond the checklist
 
-| Spec item | Where | Evidence |
-|---|---|---|
-| Email verification + password reset, bilingual emails | `services/auth/{email-verification,password-reset}.ts`, `server/email/*` | Integration: link mailed in the student's own locale ("Bekreft e-postadressen din"), single-use, expiry rejected, reset revokes every session |
-| Invite links (single-use + group + expiry) | `services/auth/invites.ts` | Concurrency test: two simultaneous registrations on a `maxUses: 1` link → exactly one succeeds, `usedCount` = 1; revoked/expired/mis-addressed each give their own message |
-| CSV import | `services/auth/csv-import.ts`, `lib/csv.ts` | Semicolon (Norwegian Excel) dialect, quotes, CRLF, BOM, æøå; import invites new rows, skips existing/duplicate/malformed, mails each invitee |
-| 2FA: required ADMIN, optional INSTRUCTOR | `services/auth/{credentials,totp,totp-enrolment}.ts` | RFC 6238 vectors; ±1 step skew; **replay of a valid code rejected**; admin cannot obtain a session before enrolment (e2e asserts zero session cookies at that point); secret encrypted at rest (AES-256-GCM, HKDF from `AUTH_SECRET`) |
-| Session view/revoke | `services/auth/sessions.ts`, `/account/security` | Revoke drops the Redis flag immediately, `isSessionValid` false on the next request; a foreign session cannot be revoked (403) |
-| Audit log for auth events | `server/audit.ts` | Integration asserts `auth.register`, `invite.used`, `auth.email_verified` per registration and `auth.login_failed` with its reason |
-| Vipps Login stub + feature flag | `server/auth/vipps-stub.ts`, `config/school.config.ts` | `vipps-stub.test.ts`: flag ships `false`, the factory throws instead of returning a half-configured provider, contributes no providers |
-| Admin bootstrap / 2FA recovery | `scripts/create-admin.ts`, `scripts/reset-2fa.ts` | `pnpm auth:create-admin <email> [password]`, `pnpm auth:reset-2fa <email>` (audited, revokes sessions) |
+| Spec item                                             | Where                                                                    | Evidence                                                                                                                                                                                                                              |
+| ----------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Email verification + password reset, bilingual emails | `services/auth/{email-verification,password-reset}.ts`, `server/email/*` | Integration: link mailed in the student's own locale ("Bekreft e-postadressen din"), single-use, expiry rejected, reset revokes every session                                                                                         |
+| Invite links (single-use + group + expiry)            | `services/auth/invites.ts`                                               | Concurrency test: two simultaneous registrations on a `maxUses: 1` link → exactly one succeeds, `usedCount` = 1; revoked/expired/mis-addressed each give their own message                                                            |
+| CSV import                                            | `services/auth/csv-import.ts`, `lib/csv.ts`                              | Semicolon (Norwegian Excel) dialect, quotes, CRLF, BOM, æøå; import invites new rows, skips existing/duplicate/malformed, mails each invitee                                                                                          |
+| 2FA: required ADMIN, optional INSTRUCTOR              | `services/auth/{credentials,totp,totp-enrolment}.ts`                     | RFC 6238 vectors; ±1 step skew; **replay of a valid code rejected**; admin cannot obtain a session before enrolment (e2e asserts zero session cookies at that point); secret encrypted at rest (AES-256-GCM, HKDF from `AUTH_SECRET`) |
+| Session view/revoke                                   | `services/auth/sessions.ts`, `/account/security`                         | Revoke drops the Redis flag immediately, `isSessionValid` false on the next request; a foreign session cannot be revoked (403)                                                                                                        |
+| Audit log for auth events                             | `server/audit.ts`                                                        | Integration asserts `auth.register`, `invite.used`, `auth.email_verified` per registration and `auth.login_failed` with its reason                                                                                                    |
+| Vipps Login stub + feature flag                       | `server/auth/vipps-stub.ts`, `config/school.config.ts`                   | `vipps-stub.test.ts`: flag ships `false`, the factory throws instead of returning a half-configured provider, contributes no providers                                                                                                |
+| Admin bootstrap / 2FA recovery                        | `scripts/create-admin.ts`, `scripts/reset-2fa.ts`                        | `pnpm auth:create-admin <email> [password]`, `pnpm auth:reset-2fa <email>` (audited, revokes sessions)                                                                                                                                |
 
 ---
 
@@ -117,17 +117,18 @@ rejection and malformed-hash handling are covered in the same file.
   at synthetic volume (20 000 users, 40 000 sessions, 40 000 tokens, 20 000 invites, 50 000 audit rows,
   inserted in a transaction and rolled back):
 
-  | Query | Plan | Exec |
-  |---|---|---|
-  | Login lookup `User(email)` | Index Scan `User_email_key` | 0.025 ms |
-  | Invite validation `InviteLink(token)` | Index Scan `InviteLink_token_key` | 0.013 ms |
-  | Verify/reset `AuthToken(tokenHash)` | Index Scan `AuthToken_tokenHash_key` | 0.012 ms |
-  | Active sessions `(userId, revokedAt)` | Bitmap Index Scan `UserSession_userId_revokedAt_idx` | 0.022 ms |
-  | Outstanding tokens `(userId, type, consumedAt)` | Bitmap Index Scan `AuthToken_userId_type_consumedAt_idx` | 0.013 ms |
-  | Audit trail `(actorId, createdAt)` | Bitmap Index Scan `AuditLog_actorId_createdAt_idx` | 0.017 ms |
-  | Admin invite list `(createdById, createdAt DESC)` | Index Scan `InviteLink_createdById_createdAt_idx` | 0.016 ms |
+  | Query                                             | Plan                                                     | Exec     |
+  | ------------------------------------------------- | -------------------------------------------------------- | -------- |
+  | Login lookup `User(email)`                        | Index Scan `User_email_key`                              | 0.025 ms |
+  | Invite validation `InviteLink(token)`             | Index Scan `InviteLink_token_key`                        | 0.013 ms |
+  | Verify/reset `AuthToken(tokenHash)`               | Index Scan `AuthToken_tokenHash_key`                     | 0.012 ms |
+  | Active sessions `(userId, revokedAt)`             | Bitmap Index Scan `UserSession_userId_revokedAt_idx`     | 0.022 ms |
+  | Outstanding tokens `(userId, type, consumedAt)`   | Bitmap Index Scan `AuthToken_userId_type_consumedAt_idx` | 0.013 ms |
+  | Audit trail `(actorId, createdAt)`                | Bitmap Index Scan `AuditLog_actorId_createdAt_idx`       | 0.017 ms |
+  | Admin invite list `(createdById, createdAt DESC)` | Index Scan `InviteLink_createdById_createdAt_idx`        | 0.016 ms |
 
   Every query uses an explicit `select`; the invite list is paginated.
+
 - **Caching (mandate 5).** Five new keys, all via `keys.*`: `tp:auth:sess:<sid>` (300 s, deleted on
   revoke/logout/password change), `tp:auth:ticket:<id>` (60 s, GETDEL), `tp:auth:seen:<sid>` (300 s
   write throttle), `tp:auth:totp:<userId>` (600 s), `tp:auth:totpused:<userId>:<code>` (90 s).
@@ -177,20 +178,20 @@ those two statements from generated SQL**; the guard test catches the mistake.
 
 ## Test inventory added by this spec
 
-| File | Cases | Covers |
-|---|---|---|
-| `services/auth/password.test.ts` | 7 | argon2 params, verification, salting, policy |
-| `services/auth/crypto.test.ts` | 6 | token entropy/hashing, AES-GCM round-trip + tamper, email rate keys |
-| `services/auth/totp.test.ts` | 6 | RFC 6238 vectors, skew window, malformed input, otpauth URI |
-| `services/auth/auth-flows.integration.test.ts` | 20 | invites (incl. concurrency), registration, verification, login, 2FA, sessions, reset, CSV — real Postgres + Redis |
-| `server/rate-limit.test.ts` | 5 | window, isolation, reset, fail-open |
-| `server/authz.test.ts` | 13 | role ladder + ownership |
-| `server/auth/vipps-stub.test.ts` | 3 | stub is inert and flagged off |
-| `lib/csv.test.ts` | 8 | RFC-4180 + Excel dialects |
-| `app/auth-coverage.test.ts` | 5 | authorize() chokepoint coverage |
-| `i18n/message-keys.test.ts` | 3 | runtime message keys resolve in both locales |
-| `prisma/migrations.test.ts` | 3 | hybrid-search objects are never dropped |
-| `e2e/auth.spec.ts` | 4 | the acceptance flows end to end |
+| File                                           | Cases | Covers                                                                                                            |
+| ---------------------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------- |
+| `services/auth/password.test.ts`               | 7     | argon2 params, verification, salting, policy                                                                      |
+| `services/auth/crypto.test.ts`                 | 6     | token entropy/hashing, AES-GCM round-trip + tamper, email rate keys                                               |
+| `services/auth/totp.test.ts`                   | 6     | RFC 6238 vectors, skew window, malformed input, otpauth URI                                                       |
+| `services/auth/auth-flows.integration.test.ts` | 20    | invites (incl. concurrency), registration, verification, login, 2FA, sessions, reset, CSV — real Postgres + Redis |
+| `server/rate-limit.test.ts`                    | 5     | window, isolation, reset, fail-open                                                                               |
+| `server/authz.test.ts`                         | 13    | role ladder + ownership                                                                                           |
+| `server/auth/vipps-stub.test.ts`               | 3     | stub is inert and flagged off                                                                                     |
+| `lib/csv.test.ts`                              | 8     | RFC-4180 + Excel dialects                                                                                         |
+| `app/auth-coverage.test.ts`                    | 5     | authorize() chokepoint coverage                                                                                   |
+| `i18n/message-keys.test.ts`                    | 3     | runtime message keys resolve in both locales                                                                      |
+| `prisma/migrations.test.ts`                    | 3     | hybrid-search objects are never dropped                                                                           |
+| `e2e/auth.spec.ts`                             | 4     | the acceptance flows end to end                                                                                   |
 
 Totals: **141 unit/integration** (66 before this spec — measured by re-running only the pre-existing
 10 files) and **17 e2e** (9 before: 6 shell + 3 axe), all green.

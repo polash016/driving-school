@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
-import type { AttemptStatus, ItemType, Prisma, PrismaClient } from "@prisma/client";
+import type {
+  AttemptStatus,
+  ItemType,
+  Prisma,
+  PrismaClient,
+} from "@prisma/client";
 import { z } from "zod";
 import {
   ConflictError,
@@ -112,7 +117,9 @@ export function createAttemptService(deps: AttemptServiceDeps) {
 
     if (input.mode === "EXAM") {
       if (!input.licenseClassCode) {
-        throw new ValidationError({ reason: "licenseClassCode required for EXAM" });
+        throw new ValidationError({
+          reason: "licenseClassCode required for EXAM",
+        });
       }
       const licenseClass = await db.licenseClass.findFirst({
         where: { code: input.licenseClassCode, isEnabled: true },
@@ -123,12 +130,18 @@ export function createAttemptService(deps: AttemptServiceDeps) {
           passMark: true,
         },
       });
-      if (!licenseClass) throw new NotFoundError({ licenseClassCode: input.licenseClassCode });
+      if (!licenseClass)
+        throw new NotFoundError({ licenseClassCode: input.licenseClassCode });
       const blueprint = await db.examBlueprint.findFirst({
-        where: { licenseClassId: licenseClass.id, isDefault: true, isActive: true },
+        where: {
+          licenseClassId: licenseClass.id,
+          isDefault: true,
+          isActive: true,
+        },
         select: { id: true, topicDistribution: true, imageRatio: true },
       });
-      if (!blueprint) throw new InternalError({ reason: "no default blueprint" });
+      if (!blueprint)
+        throw new InternalError({ reason: "no default blueprint" });
 
       distribution = distributionSchema.parse(blueprint.topicDistribution);
       const sum = Object.values(distribution).reduce((a, b) => a + b, 0);
@@ -148,7 +161,12 @@ export function createAttemptService(deps: AttemptServiceDeps) {
         const licenseClass = await db.licenseClass.findFirst({
           where: { isEnabled: true },
           orderBy: { sortOrder: "asc" },
-          select: { timeLimitMin: true, questionCount: true, passMark: true, id: true },
+          select: {
+            timeLimitMin: true,
+            questionCount: true,
+            passMark: true,
+            id: true,
+          },
         });
         if (licenseClass) {
           if (input.timed) timeLimitSec = licenseClass.timeLimitMin * 60;
@@ -156,13 +174,16 @@ export function createAttemptService(deps: AttemptServiceDeps) {
             licenseClassId = licenseClass.id;
             // The official ratio (38 of 45), scaled to whatever length the student chose.
             passMark = Math.ceil(
-              (requestedCount * licenseClass.passMark) / licenseClass.questionCount,
+              (requestedCount * licenseClass.passMark) /
+                licenseClass.questionCount,
             );
           }
         }
       }
       if (input.mode === "TOPIC" && (input.topicSlugs?.length ?? 0) === 0) {
-        throw new ValidationError({ reason: "topicSlugs required for TOPIC mode" });
+        throw new ValidationError({
+          reason: "topicSlugs required for TOPIC mode",
+        });
       }
       let slugs = input.topicSlugs ?? [];
       if (slugs.length === 0) {
@@ -172,7 +193,10 @@ export function createAttemptService(deps: AttemptServiceDeps) {
         });
         slugs = roots.map((r) => r.slug);
       }
-      if (input.mode === "SIGN") typeFilter = "SIGN";
+      // An explicit itemType wins; SIGN mode implies its own type so the Sign Test tile does not
+      // have to send both. EXAM deliberately never filters — the official paper mixes types.
+      typeFilter =
+        input.itemType ?? (input.mode === "SIGN" ? "SIGN" : undefined);
       const count = input.questionCount ?? DEFAULT_PRACTICE_COUNT;
       distribution = evenDistribution(slugs, count);
     }
@@ -197,13 +221,19 @@ export function createAttemptService(deps: AttemptServiceDeps) {
     });
 
     if (assembled.warnings.length > 0) {
-      logger.warn({ userId, mode: input.mode, warnings: assembled.warnings }, "assembly warnings");
+      logger.warn(
+        { userId, mode: input.mode, warnings: assembled.warnings },
+        "assembly warnings",
+      );
     }
     if (assembled.questions.length === 0) {
       throw new ExamStateError({ reason: "no questions available" });
     }
     if (input.mode === "EXAM" && assembled.shortfall > 0) {
-      throw new InternalError({ reason: "pool cannot fill exam blueprint", shortfall: assembled.shortfall });
+      throw new InternalError({
+        reason: "pool cannot fill exam blueprint",
+        shortfall: assembled.shortfall,
+      });
     }
 
     const attempt = await db.$transaction(async (tx) => {
@@ -249,7 +279,10 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       now,
     );
 
-    return serveAttempt(userId, { attemptId: attempt.id, locale: input.locale });
+    return serveAttempt(userId, {
+      attemptId: attempt.id,
+      locale: input.locale,
+    });
   }
 
   async function loadOwnedAttempt(userId: string, attemptId: string) {
@@ -285,7 +318,10 @@ export function createAttemptService(deps: AttemptServiceDeps) {
     const input = serveInputSchema.parse(rawInput);
     let attempt = await loadOwnedAttempt(userId, input.attemptId);
 
-    if (attempt.status === "IN_PROGRESS" && isExpired(clock, attempt.expiresAt)) {
+    if (
+      attempt.status === "IN_PROGRESS" &&
+      isExpired(clock, attempt.expiresAt)
+    ) {
       await gradeAndClose(attempt, "EXPIRED");
       attempt = await loadOwnedAttempt(userId, input.attemptId);
     }
@@ -299,13 +335,20 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       questionCount: attempt.questionCountSnapshot,
       timeRemainingSec:
         attempt.status === "IN_PROGRESS"
-          ? remainingSeconds(clock, attempt.startedAt, attempt.timeLimitSecSnapshot)
+          ? remainingSeconds(
+              clock,
+              attempt.startedAt,
+              attempt.timeLimitSecSnapshot,
+            )
           : 0,
       questions: rows,
     });
   }
 
-  async function servedRows(attemptId: string, locale: string): Promise<ServedQuestionRow[]> {
+  async function servedRows(
+    attemptId: string,
+    locale: string,
+  ): Promise<ServedQuestionRow[]> {
     const roots = await rootSlugMap();
     const questions = await db.examAttemptQuestion.findMany({
       where: { attemptId },
@@ -390,7 +433,10 @@ export function createAttemptService(deps: AttemptServiceDeps) {
     // different one is refused. In practice mode the answer is revealed the moment it is given,
     // so a changeable answer would make every practice score a formality. The database enforces
     // this too (`tp_attempt_question_immutable`); this check is what turns it into a message.
-    if (question.answeredOptionKey !== null && question.answeredOptionKey !== input.optionKey) {
+    if (
+      question.answeredOptionKey !== null &&
+      question.answeredOptionKey !== input.optionKey
+    ) {
       throw new ConflictError(
         { attemptId: attempt.id, position: input.position },
         "quiz.errors.answerLocked",
@@ -523,7 +569,8 @@ export function createAttemptService(deps: AttemptServiceDeps) {
           submittedAt: clock.now(),
           correctCount: grade.correctCount,
           passed: grade.passed,
-          topicBreakdown: grade.topicBreakdown as unknown as Prisma.InputJsonValue,
+          topicBreakdown:
+            grade.topicBreakdown as unknown as Prisma.InputJsonValue,
         },
       });
       // Attest inside the same transaction (spec-04b): after this the DB refuses to change the
@@ -542,7 +589,9 @@ export function createAttemptService(deps: AttemptServiceDeps) {
     let attempt = await loadOwnedAttempt(userId, input.attemptId);
 
     if (attempt.status === "IN_PROGRESS") {
-      const status = isExpired(clock, attempt.expiresAt) ? "EXPIRED" : "SUBMITTED";
+      const status = isExpired(clock, attempt.expiresAt)
+        ? "EXPIRED"
+        : "SUBMITTED";
       await gradeAndClose(attempt, status);
       attempt = await loadOwnedAttempt(userId, input.attemptId);
     }
@@ -605,7 +654,9 @@ export function createAttemptService(deps: AttemptServiceDeps) {
     }));
 
     const breakdown = z
-      .array(z.object({ topicSlug: z.string(), total: z.int(), correct: z.int() }))
+      .array(
+        z.object({ topicSlug: z.string(), total: z.int(), correct: z.int() }),
+      )
       .parse(attempt.topicBreakdown ?? []);
 
     const rootSlugs = [...new Set(breakdown.map((b) => b.topicSlug))];
@@ -645,12 +696,23 @@ export function createAttemptService(deps: AttemptServiceDeps) {
     const input = submitInputSchema.parse(rawInput);
     const attempt = await loadOwnedAttempt(userId, input.attemptId);
     if (attempt.status === "IN_PROGRESS") {
-      throw new ExamStateError({ attemptId: attempt.id, reason: "still in progress" });
+      throw new ExamStateError({
+        attemptId: attempt.id,
+        reason: "still in progress",
+      });
     }
     return buildStoredResult(attempt, input.locale);
   }
 
-  return { startQuiz, serveAttempt, answer, revealAnswered, setFlag, submit, getResult };
+  return {
+    startQuiz,
+    serveAttempt,
+    answer,
+    revealAnswered,
+    setFlag,
+    submit,
+    getResult,
+  };
 }
 
 export type AttemptService = ReturnType<typeof createAttemptService>;
@@ -679,7 +741,10 @@ export function evenDistribution(
  */
 export function rebalanceToAvailability(
   distribution: Record<string, number>,
-  candidates: Record<string, { masterItemId: string; conceptGroupId?: string | null }[]>,
+  candidates: Record<
+    string,
+    { masterItemId: string; conceptGroupId?: string | null }[]
+  >,
 ): Record<string, number> {
   const out: Record<string, number> = {};
   let deficit = 0;

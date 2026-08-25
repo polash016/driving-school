@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { InternalError } from "@/lib/errors";
 import { schoolConfig } from "../../../config/school.config";
-import { optionalProviders, vippsLoginEnabled, vippsProvider } from "./vipps-stub";
+import {
+  optionalProviders,
+  vippsLoginEnabled,
+  vippsProvider,
+} from "./vipps-stub";
 
 /**
  * Spec-03 in-scope item: "Vipps Login: leave a clearly-marked adapter stub + feature flag".

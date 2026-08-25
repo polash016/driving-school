@@ -15,6 +15,7 @@ export function SubmitButton({
   name,
   value,
   disabled = false,
+  icon,
 }: {
   label: string;
   pendingLabel?: string;
@@ -25,6 +26,8 @@ export function SubmitButton({
   value?: string;
   /** Unavailable for a reason the caller knows about, on top of the pending state. */
   disabled?: boolean;
+  /** Decorative glyph shown above the label. Hidden from assistive tech by the caller. */
+  icon?: React.ReactNode;
 }) {
   const { pending } = useFormStatus();
 
@@ -39,6 +42,7 @@ export function SubmitButton({
       name={name}
       value={value}
     >
+      {icon}
       {pending ? (pendingLabel ?? label) : label}
     </Button>
   );

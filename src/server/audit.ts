@@ -52,6 +52,9 @@ export const AUDIT = {
   translationApproved: "i18n.translation_approved",
   translationRejected: "i18n.translation_rejected",
   translationEdited: "i18n.translation_edited",
+  imagesUploaded: "image.uploaded",
+  imageDeleted: "image.deleted",
+  signUpdated: "sign.updated",
 } as const;
 
 export type AuditAction = (typeof AUDIT)[keyof typeof AUDIT];

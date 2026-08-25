@@ -64,13 +64,19 @@ function countsFrom(byStatus: Record<string, number>) {
 }
 
 /** approved / (approved + retired) — null until at least one item reached a terminal state. */
-function acceptanceRate(counts: { approved: number; retired: number }): number | null {
+function acceptanceRate(counts: {
+  approved: number;
+  retired: number;
+}): number | null {
   const terminal = counts.approved + counts.retired;
   return terminal === 0 ? null : counts.approved / terminal;
 }
 
 function stemOf(content: unknown): string {
-  const value = content as { en?: { stem?: string }; nb?: { stem?: string } } | null;
+  const value = content as {
+    en?: { stem?: string };
+    nb?: { stem?: string };
+  } | null;
   return (value?.en?.stem ?? value?.nb?.stem ?? "").slice(0, 160);
 }
 
@@ -154,7 +160,10 @@ export async function listBatches(db: PrismaClient, rawInput: unknown = {}) {
   // into a 10k-row read (measured at 27 ms; this is ~2 ms). Served by MasterItem(batchId, status).
   const grouped = await db.masterItem.groupBy({
     by: ["batchId", "status"],
-    where: { batchId: { in: batches.map((batch) => batch.id) }, deletedAt: null },
+    where: {
+      batchId: { in: batches.map((batch) => batch.id) },
+      deletedAt: null,
+    },
     _count: { _all: true },
   });
   const byBatch = new Map<string, Record<string, number>>();
@@ -177,7 +186,10 @@ export async function listBatches(db: PrismaClient, rawInput: unknown = {}) {
 }
 
 /** Set detail — served by MasterItem(batchId, status). */
-export async function getBatch(db: PrismaClient, id: string): Promise<BatchDetail> {
+export async function getBatch(
+  db: PrismaClient,
+  id: string,
+): Promise<BatchDetail> {
   const batch = await db.generationBatch.findUnique({
     where: { id },
     select: {
@@ -226,7 +238,11 @@ export async function attachItemsToBatch(
   if (!batch) throw new NotFoundError({ batchId: input.batchId });
 
   const claimed = await db.masterItem.findMany({
-    where: { id: { in: input.itemIds }, deletedAt: null, batchId: { not: null } },
+    where: {
+      id: { in: input.itemIds },
+      deletedAt: null,
+      batchId: { not: null },
+    },
     select: { id: true, batchId: true },
   });
   const foreign = claimed.filter((item) => item.batchId !== input.batchId);

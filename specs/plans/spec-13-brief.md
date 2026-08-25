@@ -1,6 +1,7 @@
 # Brief — Spec 13: Performance, PWA/Offline, Accessibility Audit (Opus expands to a full plan)
 
 **Key decisions already made**
+
 - Budgets in CI: `@next/bundle-analyzer` + a size-limit script asserting exam-route JS <150KB gz; axe already wired (`e2e/a11y.spec.ts` from spec-01 — extend to home/exam/dashboard, fail CI on serious+).
 - The deferred spec-01 item lands here: Lighthouse CI (`@lhci/cli`, mobile preset) — Perf ≥90 / A11y ≥95 / BP ≥95 on home, exam, dashboard. Needs full Chrome in CI image.
 - RSC audit: every `"use client"` file justified in a table in the notes (interactive? → keep; else convert).

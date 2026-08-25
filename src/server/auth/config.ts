@@ -29,7 +29,9 @@ export const authConfig = {
       credentials: { ticketId: { type: "text" } },
       async authorize(credentials) {
         const ticketId =
-          typeof credentials?.ticketId === "string" ? credentials.ticketId : null;
+          typeof credentials?.ticketId === "string"
+            ? credentials.ticketId
+            : null;
         if (!ticketId) return null;
         try {
           const user = await consumeLoginTicket(db, ticketId);

@@ -11,7 +11,9 @@ import { PrismaClient } from "@prisma/client";
 import { generateTheoryQuestions } from "../src/server/services/generation/theory";
 import { redis } from "../src/server/redis";
 
-(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(".env");
+(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(
+  ".env",
+);
 const db = new PrismaClient();
 
 async function main(): Promise<void> {
@@ -38,7 +40,9 @@ async function main(): Promise<void> {
       `${outcome.accepted} passed the quality gate, ${outcome.rejected.length} rejected.`,
   );
   for (const rejection of outcome.rejected) {
-    console.log(`  rejected [${rejection.reasons.join(", ")}] ${rejection.stem}`);
+    console.log(
+      `  rejected [${rejection.reasons.join(", ")}] ${rejection.stem}`,
+    );
   }
 }
 

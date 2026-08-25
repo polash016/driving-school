@@ -44,8 +44,14 @@ export interface ProviderCredentials {
 
 export interface ProviderAdapter {
   kind: AiProviderKind;
-  chat(credentials: ProviderCredentials, request: ChatRequest): Promise<ChatResponse>;
-  embed?(credentials: ProviderCredentials, request: EmbedRequest): Promise<number[][]>;
+  chat(
+    credentials: ProviderCredentials,
+    request: ChatRequest,
+  ): Promise<ChatResponse>;
+  embed?(
+    credentials: ProviderCredentials,
+    request: EmbedRequest,
+  ): Promise<number[][]>;
   /** Cheapest possible call that proves the key works — used by "Test connection". */
   ping(credentials: ProviderCredentials, model: string): Promise<void>;
 }

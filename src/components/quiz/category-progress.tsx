@@ -24,21 +24,27 @@ export async function CategoryProgress({
   return (
     <section className="space-y-2">
       <div className="space-y-0.5">
-        <h2 className="text-sm font-medium text-foreground">{t("categoryTitle")}</h2>
+        <h2 className="text-sm font-medium text-foreground">
+          {t("categoryTitle")}
+        </h2>
         <p className="text-xs text-muted-foreground">{t("categorySubtitle")}</p>
       </div>
 
       <Card className="[--card-spacing:--spacing(4)]">
         <CardContent className="space-y-3">
           {!anyData ? (
-            <p className="text-sm text-muted-foreground">{t("categoryNothingYet")}</p>
+            <p className="text-sm text-muted-foreground">
+              {t("categoryNothingYet")}
+            </p>
           ) : null}
 
           <ul className="space-y-2.5">
             {categories.map((category) => (
               <li key={category.topicSlug} className="space-y-1">
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="truncate text-sm text-foreground">{category.topicName}</span>
+                  <span className="truncate text-sm text-foreground">
+                    {category.topicName}
+                  </span>
                   <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                     {category.percent === null
                       ? t("categoryEmpty")

@@ -26,6 +26,15 @@ export const startQuizInputSchema = z
     topicSlugs: z.array(z.string().min(1)).max(20).optional(), // TOPIC mode
     questionCount: z.int().min(1).max(100).optional(), // TOPIC/SIGN/PRACTICE; EXAM uses blueprint
     /**
+     * Restrict the paper to one kind of question (spec-08 amendment, DECISIONS 2026-08-24).
+     *
+     * This is what makes the homepage's Theory / Image / Sign tiles ONE engine with one parameter
+     * rather than three code paths: they differ only by which candidates assembly may draw from.
+     * No new attempt mode, no migration. Omit it and every type is eligible, which is what a mock
+     * exam wants — the official test mixes them.
+     */
+    itemType: itemTypeSchema.optional(),
+    /**
      * Run this attempt against the official clock. EXAM is always timed; the student chooses for
      * everything else, which is what makes a self-configured full-length rehearsal possible.
      */

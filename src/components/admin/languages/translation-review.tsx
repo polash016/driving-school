@@ -84,14 +84,14 @@ export function TranslationReview({
   const tErrors = useTranslations();
   const [editing, setEditing] = useState<string | null>(null);
 
-  const [reviewState, reviewAction] = useActionState<ActionResult | undefined, FormData>(
-    reviewTranslationAction,
-    undefined,
-  );
-  const [editState, editAction] = useActionState<ActionResult | undefined, FormData>(
-    editTranslationAction,
-    undefined,
-  );
+  const [reviewState, reviewAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(reviewTranslationAction, undefined);
+  const [editState, editAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(editTranslationAction, undefined);
   const error = [reviewState, editState].find((state) => state?.ok === false);
 
   if (rows.length === 0) {
@@ -104,12 +104,22 @@ export function TranslationReview({
 
   return (
     <div className="space-y-4">
-      {error?.ok === false ? <FormAlert>{tErrors(error.messageKey)}</FormAlert> : null}
+      {error?.ok === false ? (
+        <FormAlert>{tErrors(error.messageKey)}</FormAlert>
+      ) : null}
 
       {rows.map((row) => {
-        const sourceOptions = (row.source?.options ?? []) as Array<{ key: string; text: string }>;
-        const valueOptions = (row.value.options ?? []) as Array<{ key: string; text: string }>;
-        const translatedByKey = new Map(valueOptions.map((option) => [option.key, option.text]));
+        const sourceOptions = (row.source?.options ?? []) as Array<{
+          key: string;
+          text: string;
+        }>;
+        const valueOptions = (row.value.options ?? []) as Array<{
+          key: string;
+          text: string;
+        }>;
+        const translatedByKey = new Map(
+          valueOptions.map((option) => [option.key, option.text]),
+        );
 
         return (
           <Card key={row.id} className="[--card-spacing:--spacing(4)]">
@@ -136,15 +146,25 @@ export function TranslationReview({
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2 rounded-[var(--radius-control)] bg-muted/50 p-3">
-                  <p className="text-xs font-medium text-muted-foreground">{t("sourceSide")}</p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {t("sourceSide")}
+                  </p>
                   <p className="text-sm text-foreground" lang="en">
-                    {String(row.source?.stem ?? row.source?.name ?? row.source?.text ?? "")}
+                    {String(
+                      row.source?.stem ??
+                        row.source?.name ??
+                        row.source?.text ??
+                        "",
+                    )}
                   </p>
                   {sourceOptions.length > 0 ? (
                     <ul className="space-y-1 text-sm text-muted-foreground">
                       {sourceOptions.map((option) => (
                         <li key={option.key}>
-                          <span className="font-mono text-xs">{option.key}</span> {option.text}
+                          <span className="font-mono text-xs">
+                            {option.key}
+                          </span>{" "}
+                          {option.text}
                         </li>
                       ))}
                     </ul>
@@ -160,7 +180,9 @@ export function TranslationReview({
                     {t("translationSide")}
                   </p>
                   <p className="text-sm text-foreground">
-                    {String(row.value.stem ?? row.value.name ?? row.value.text ?? "")}
+                    {String(
+                      row.value.stem ?? row.value.name ?? row.value.text ?? "",
+                    )}
                   </p>
                   {sourceOptions.length > 0 ? (
                     <ul className="space-y-1 text-sm text-muted-foreground">
@@ -168,13 +190,17 @@ export function TranslationReview({
                           rather than a shorter list nobody notices. */}
                       {sourceOptions.map((option) => (
                         <li key={option.key}>
-                          <span className="font-mono text-xs">{option.key}</span>{" "}
+                          <span className="font-mono text-xs">
+                            {option.key}
+                          </span>{" "}
                           <span
                             className={cn(
-                              !translatedByKey.get(option.key) && "text-destructive italic",
+                              !translatedByKey.get(option.key) &&
+                                "text-destructive italic",
                             )}
                           >
-                            {translatedByKey.get(option.key) ?? t("optionMissing")}
+                            {translatedByKey.get(option.key) ??
+                              t("optionMissing")}
                           </span>
                         </li>
                       ))}
@@ -187,7 +213,10 @@ export function TranslationReview({
                 <form action={editAction} className="space-y-2">
                   <input type="hidden" name="id" value={row.id} />
                   <input type="hidden" name="code" value={code} />
-                  <label className="block text-xs text-muted-foreground" htmlFor={`v-${row.id}`}>
+                  <label
+                    className="block text-xs text-muted-foreground"
+                    htmlFor={`v-${row.id}`}
+                  >
                     {t("editLabel")}
                   </label>
                   <textarea
@@ -197,7 +226,9 @@ export function TranslationReview({
                     defaultValue={JSON.stringify(row.value, null, 2)}
                     className="w-full rounded-[var(--radius-control)] border border-input bg-transparent p-2 font-mono text-xs text-foreground"
                   />
-                  <p className="text-xs text-muted-foreground">{t("editHint")}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("editHint")}
+                  </p>
                   <div className="flex gap-2">
                     <SubmitButton
                       className="h-9"
@@ -226,7 +257,10 @@ export function TranslationReview({
                       pendingLabel={t("saving")}
                     />
                   </form>
-                  <form action={reviewAction} className="flex items-center gap-2">
+                  <form
+                    action={reviewAction}
+                    className="flex items-center gap-2"
+                  >
                     <input type="hidden" name="id" value={row.id} />
                     <input type="hidden" name="code" value={code} />
                     <input type="hidden" name="action" value="REJECT" />

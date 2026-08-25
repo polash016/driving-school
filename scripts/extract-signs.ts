@@ -47,6 +47,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import sharp from "sharp";
+import { CAPTION_TOLERANCE, splitLines, type TextLine } from "./sign-pairing";
 
 const run = promisify(execFile);
 
@@ -65,7 +66,10 @@ const LAST_PAGE = 304;
  */
 const SECTIONS: Record<string, { signClass: string; prefix: string }> = {
   "Warning signs": { signClass: "FARE", prefix: "FA" },
-  "Give way and priority signs": { signClass: "VIKEPLIKT_OG_FORKJORS", prefix: "VP" },
+  "Give way and priority signs": {
+    signClass: "VIKEPLIKT_OG_FORKJORS",
+    prefix: "VP",
+  },
   "Prohibitory signs": { signClass: "FORBUD", prefix: "FO" },
   "Mandatory signs": { signClass: "PABUD", prefix: "PA" },
   "Informative signs": { signClass: "OPPLYSNING", prefix: "OP" },
@@ -75,22 +79,11 @@ const SECTIONS: Record<string, { signClass: string; prefix: string }> = {
   "Marker signs": { signClass: "MARKERING", prefix: "MA" },
 };
 
-/** Anything set at 20pt or above is a section heading; captions are set at 10.56/11.04pt. */
-const HEADING_PT = 20;
-/**
- * How far above an image's bottom edge its caption may start. The placement rect includes the
- * printed white margin, so a caption can overlap it — see note 3 in the header comment.
- */
-const CAPTION_TOLERANCE = 15;
-/** Consecutive caption lines closer than this are one wrapped caption. */
-const LINE_GAP = 6;
-
 /** Every image in the chapter must come out named and classified, or the run is not trustworthy. */
 const EXPECTED_IMAGES = 287;
 
 type Placement = { y: number; y2: number };
-type Line = { y: number; y2: number; text: string; size: number };
-type Page = { images: Placement[]; headings: Line[]; captions: Line[] };
+type Page = { images: Placement[]; headings: TextLine[]; captions: TextLine[] };
 
 type ExtractedSign = {
   code: string;
@@ -126,7 +119,9 @@ async function placements(page: number): Promise<Placement[]> {
 
 const decode = (s: string) =>
   s
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) =>
+      String.fromCodePoint(parseInt(hex, 16)),
+    )
     .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
@@ -138,39 +133,50 @@ const decode = (s: string) =>
  * Text lines split into section headings and captions by font size, with page-footer numbers and
  * the Symbol-font bullet (U+F0B7) the book prints before each caption dropped.
  */
-async function text(page: number): Promise<{ headings: Line[]; captions: Line[] }> {
-  const stext = await mutool(["draw", "-F", "stext", "-o", "-", PDF, String(page)]);
-  const lines: Line[] = [];
-  for (const match of stext.matchAll(/<line bbox="([^"]+)"[^>]*>([\s\S]*?)<\/line>/g)) {
+async function text(
+  page: number,
+): Promise<{ headings: TextLine[]; captions: TextLine[] }> {
+  const stext = await mutool([
+    "draw",
+    "-F",
+    "stext",
+    "-o",
+    "-",
+    PDF,
+    String(page),
+  ]);
+  const lines: TextLine[] = [];
+  for (const match of stext.matchAll(
+    /<line bbox="([^"]+)"[^>]*>([\s\S]*?)<\/line>/g,
+  )) {
     const [, y, , y2] = match[1].split(/\s+/).map(Number);
     const value = [...match[2].matchAll(/\sc="([^"]*)"/g)]
       .map((c) => decode(c[1]))
       .join("")
-      .replace(//g, "")
+      .replace(/\uf0b7/g, "")
       .trim();
     if (!value || /^\d+$/.test(value)) continue; // page footer
-    const sizes = [...match[2].matchAll(/<font [^>]*size="([\d.]+)"/g)].map((s) => Number(s[1]));
+    const sizes = [...match[2].matchAll(/<font [^>]*size="([\d.]+)"/g)].map(
+      (s) => Number(s[1]),
+    );
     lines.push({ y, y2, text: value, size: Math.max(0, ...sizes) });
   }
-  lines.sort((a, b) => a.y - b.y);
-
-  const captions: Line[] = [];
-  for (const line of lines.filter((l) => l.size < HEADING_PT)) {
-    const previous = captions.at(-1);
-    if (previous && line.y - previous.y2 < LINE_GAP) {
-      previous.text += ` ${line.text}`;
-      previous.y2 = line.y2;
-    } else {
-      captions.push({ ...line });
-    }
-  }
-  return { headings: lines.filter((l) => l.size >= HEADING_PT && l.text in SECTIONS), captions };
+  // Shared with scripts/sign-pairing.test.ts, which pins down the four cases these rules exist for.
+  return splitLines(lines, (value) => value in SECTIONS);
 }
 
 /** Raw image bytes for one page, in the same order `mutool trace` reports their placements. */
 async function pageImages(page: number, dir: string): Promise<string[]> {
   const prefix = join(dir, `p${page}`);
-  await run("pdfimages", ["-png", "-f", String(page), "-l", String(page), PDF, prefix]);
+  await run("pdfimages", [
+    "-png",
+    "-f",
+    String(page),
+    "-l",
+    String(page),
+    PDF,
+    prefix,
+  ]);
   return (await readdir(dir))
     .filter((f) => f.startsWith(`p${page}-`))
     .sort()
@@ -282,7 +288,9 @@ async function main(): Promise<void> {
   await rm(scratch, { recursive: true, force: true });
 
   if (unpaired.length > 0) {
-    console.error(`${unpaired.length} image(s) could not be paired with a name and class:`);
+    console.error(
+      `${unpaired.length} image(s) could not be paired with a name and class:`,
+    );
     for (const u of unpaired.slice(0, 20)) console.error(`  ${u}`);
     process.exitCode = 1;
     return;
@@ -337,7 +345,12 @@ async function main(): Promise<void> {
     return acc;
   }, {});
   console.log(`Extracted ${signs.length} signs to ${SIGNS_DIR}`);
-  console.log("By class:", Object.entries(byClass).map(([k, v]) => `${k}=${v}`).join(" "));
+  console.log(
+    "By class:",
+    Object.entries(byClass)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(" "),
+  );
   console.log(`Manifest: ${MANIFEST}`);
   console.log("Next: pnpm signs:enrich  (adds meanings and Norwegian)");
 }

@@ -9,7 +9,10 @@ import { Link } from "@/i18n/navigation";
  * signed in. Rendered on the server so no session detail reaches the client bundle.
  */
 export async function AccountMenu({ locale }: { locale: string }) {
-  const [user, t] = await Promise.all([getSessionUser(), getTranslations("nav")]);
+  const [user, t] = await Promise.all([
+    getSessionUser(),
+    getTranslations("nav"),
+  ]);
 
   if (!user) {
     return (

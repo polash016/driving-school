@@ -28,6 +28,7 @@
     "signs:questions": "tsx scripts/seed-sign-questions.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1116.0",
     "@node-rs/argon2": "^2.1.0",
     "@phosphor-icons/react": "^2.1.10",
     "@prisma/client": "^6.19.3",

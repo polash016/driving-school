@@ -28,7 +28,9 @@ import { transitionItem } from "../src/server/services/question-bank/transitions
 import { deleteItem } from "../src/server/services/question-bank/items";
 import { redis } from "../src/server/redis";
 
-(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(".env");
+(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(
+  ".env",
+);
 const db = new PrismaClient();
 
 /** A stronger status wins; among equals the older question wins. */
@@ -47,7 +49,11 @@ interface Totals {
   keptForRecord: number;
 }
 
-async function resolveRound(admin: SessionUser, apply: boolean, totals: Totals): Promise<number> {
+async function resolveRound(
+  admin: SessionUser,
+  apply: boolean,
+  totals: Totals,
+): Promise<number> {
   const repeats = await findRepeatPairs(db);
   if (repeats.length === 0) return 0;
 
@@ -55,7 +61,13 @@ async function resolveRound(admin: SessionUser, apply: boolean, totals: Totals):
     const [candidate, match] = await Promise.all([
       db.masterItem.findUnique({
         where: { id: repeat.id },
-        select: { id: true, status: true, createdAt: true, deletedAt: true, content: true },
+        select: {
+          id: true,
+          status: true,
+          createdAt: true,
+          deletedAt: true,
+          content: true,
+        },
       }),
       db.masterItem.findUnique({
         where: { id: repeat.matchedItemId },
@@ -63,7 +75,8 @@ async function resolveRound(admin: SessionUser, apply: boolean, totals: Totals):
       }),
     ]);
     // An earlier pair in this same round may already have removed one of them.
-    if (!candidate || !match || candidate.deletedAt || match.deletedAt) continue;
+    if (!candidate || !match || candidate.deletedAt || match.deletedAt)
+      continue;
 
     const keepMatch =
       (RANK[match.status] ?? 0) > (RANK[candidate.status] ?? 0) ||
@@ -72,7 +85,8 @@ async function resolveRound(admin: SessionUser, apply: boolean, totals: Totals):
     const loser = keepMatch ? candidate : match;
     const winner = keepMatch ? match : candidate;
 
-    const stem = (candidate.content as { en?: { stem?: string } })?.en?.stem ?? "";
+    const stem =
+      (candidate.content as { en?: { stem?: string } })?.en?.stem ?? "";
     console.log(
       `  ${repeat.similarity.toFixed(3)}  drop ${loser.id} (${loser.status}) ` +
         `keep ${winner.id} (${winner.status})  — ${stem.slice(0, 90)}`,
@@ -103,7 +117,9 @@ async function resolveRound(admin: SessionUser, apply: boolean, totals: Totals):
     } catch {
       // Served questions are kept on purpose — a sat exam must still explain itself.
       totals.keptForRecord++;
-      console.log(`    kept (already sat by a student) — retired only: ${loser.id}`);
+      console.log(
+        `    kept (already sat by a student) — retired only: ${loser.id}`,
+      );
     }
   }
   return repeats.length;
@@ -147,7 +163,9 @@ async function main(): Promise<void> {
 
   const left = await findRepeatPairs(db);
   console.log(`${left.length} repeat pair(s) remaining.`);
-  const servable = await db.masterItem.count({ where: { status: "APPROVED", deletedAt: null } });
+  const servable = await db.masterItem.count({
+    where: { status: "APPROVED", deletedAt: null },
+  });
   console.log(`${servable} question(s) still servable.`);
 }
 

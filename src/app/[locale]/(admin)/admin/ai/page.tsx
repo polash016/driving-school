@@ -27,7 +27,9 @@ export default async function AiSettingsPage({
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-8">
       <header className="space-y-1.5">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">{t("title")}</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          {t("title")}
+        </h1>
         <p className="text-sm/relaxed text-muted-foreground">{t("subtitle")}</p>
       </header>
       <AiProviderPanel providers={providers} routes={routes} />

@@ -13,16 +13,18 @@ export function ResetPasswordForm({ token }: { token: string }) {
   const t = useTranslations("auth.reset");
   const tErrors = useTranslations();
   const locale = useLocale();
-  const [state, formAction] = useActionState<ActionResult | undefined, FormData>(
-    resetPasswordAction,
-    undefined,
-  );
+  const [state, formAction] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(resetPasswordAction, undefined);
 
   if (state?.ok) {
     return (
       <div className="space-y-4">
         <FormAlert tone="success">{t("successTitle")}</FormAlert>
-        <p className="text-sm/relaxed text-muted-foreground">{t("successBody")}</p>
+        <p className="text-sm/relaxed text-muted-foreground">
+          {t("successBody")}
+        </p>
         <Link
           href="/login"
           className="inline-flex min-h-11 items-center rounded-md text-sm font-medium text-primary underline-offset-4 hover:underline"

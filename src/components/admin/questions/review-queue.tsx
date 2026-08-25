@@ -101,13 +101,15 @@ export function ReviewQueue({ items }: { items: ReviewItem[] }) {
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
-      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+        return;
       if (rejecting) return;
 
       const key = event.key.toLowerCase();
       if (key === "a") act("APPROVED");
       else if (key === "r") setRejecting(true);
-      else if (key === "j") setIndex((value) => Math.min(value + 1, queue.length - 1));
+      else if (key === "j")
+        setIndex((value) => Math.min(value + 1, queue.length - 1));
       else if (key === "k") setIndex((value) => Math.max(value - 1, 0));
       else return;
       event.preventDefault();
@@ -128,7 +130,9 @@ export function ReviewQueue({ items }: { items: ReviewItem[] }) {
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
       <div className="space-y-4">
-        {message ? <FormAlert tone={message.tone}>{message.text}</FormAlert> : null}
+        {message ? (
+          <FormAlert tone={message.tone}>{message.text}</FormAlert>
+        ) : null}
 
         <div
           className="rounded-[var(--radius-base)] bg-card p-5 shadow-card ring-1 ring-foreground/5"
@@ -151,7 +155,9 @@ export function ReviewQueue({ items }: { items: ReviewItem[] }) {
           />
           {current.citations.length > 0 ? (
             <p className="mt-3 text-xs text-muted-foreground">
-              {current.citations.map((c) => `${c.sourceCode} ${c.ref}`).join(" · ")}
+              {current.citations
+                .map((c) => `${c.sourceCode} ${c.ref}`)
+                .join(" · ")}
             </p>
           ) : null}
         </div>
@@ -162,8 +168,13 @@ export function ReviewQueue({ items }: { items: ReviewItem[] }) {
             aria-label={t("rejectTitle")}
             className="space-y-2 rounded-[var(--radius-base)] border border-destructive/40 bg-destructive/5 p-4"
           >
-            <p className="text-sm font-medium text-foreground">{t("rejectTitle")}</p>
-            <label className="block text-xs text-muted-foreground" htmlFor="reject-note">
+            <p className="text-sm font-medium text-foreground">
+              {t("rejectTitle")}
+            </p>
+            <label
+              className="block text-xs text-muted-foreground"
+              htmlFor="reject-note"
+            >
               {t("noteLabel")}
             </label>
             <textarea
@@ -205,13 +216,15 @@ export function ReviewQueue({ items }: { items: ReviewItem[] }) {
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" disabled={pending} onClick={() => act("APPROVED")}>
+            <Button
+              type="button"
+              disabled={pending}
+              onClick={() => act("APPROVED")}
+            >
               {t("approve")}
             </Button>
             <Button asChild variant="outline">
-              <Link href={`/admin/questions/${current.id}`}>
-                {t("edit")}
-              </Link>
+              <Link href={`/admin/questions/${current.id}`}>{t("edit")}</Link>
             </Button>
             <Button
               type="button"
@@ -226,7 +239,9 @@ export function ReviewQueue({ items }: { items: ReviewItem[] }) {
       </div>
 
       <aside className="space-y-3">
-        <p className="text-sm text-muted-foreground">{t("remaining", { count: queue.length })}</p>
+        <p className="text-sm text-muted-foreground">
+          {t("remaining", { count: queue.length })}
+        </p>
         <p className="text-xs text-muted-foreground">{t("shortcuts")}</p>
         <ol className="space-y-1">
           {queue.map((item, position) => (

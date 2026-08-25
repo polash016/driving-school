@@ -148,7 +148,8 @@ export const theoryGenerationPrompt: PromptTemplate<{
               },
               correctOptionKey: "a",
               difficulty: 3,
-              testsPoint: "one short phrase naming the specific rule this question tests",
+              testsPoint:
+                "one short phrase naming the specific rule this question tests",
               citations: [{ sourceCode: "trafikkreglene", ref: "§ 7" }],
             },
           ],

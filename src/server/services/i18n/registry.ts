@@ -50,10 +50,16 @@ const globalMemo = globalThis as unknown as { [MEMO_KEY]?: Memo };
 function build(languages: LanguageSnapshot[]): LocaleRegistry {
   // Keep the synchronous prefix map in step, so email links and auth redirects are right for a
   // language that did not exist when this process started.
-  primeLocalePrefixes(Object.fromEntries(languages.map((l) => [l.code, l.urlPrefix])));
-  const sorted = [...languages].sort((a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code));
+  primeLocalePrefixes(
+    Object.fromEntries(languages.map((l) => [l.code, l.urlPrefix])),
+  );
+  const sorted = [...languages].sort(
+    (a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code),
+  );
   const byCode = new Map(sorted.map((language) => [language.code, language]));
-  const prefixes = Object.fromEntries(sorted.map((language) => [language.code, language.urlPrefix]));
+  const prefixes = Object.fromEntries(
+    sorted.map((language) => [language.code, language.urlPrefix]),
+  );
   const defaultLocale = byCode.has(schoolConfig.locales.default)
     ? schoolConfig.locales.default
     : (sorted[0]?.code ?? "en");
@@ -64,7 +70,8 @@ function build(languages: LanguageSnapshot[]): LocaleRegistry {
     codes: sorted.map((language) => language.code),
     prefixes,
     has: (code) => byCode.has(code),
-    directionOf: (code) => (byCode.get(code)?.direction === "RTL" ? "rtl" : "ltr"),
+    directionOf: (code) =>
+      byCode.get(code)?.direction === "RTL" ? "rtl" : "ltr",
     get: (code) => byCode.get(code),
     visible: () => sorted.filter((language) => language.studentVisible),
   };
@@ -129,7 +136,10 @@ export async function getRegistry(db?: PrismaClient): Promise<LocaleRegistry> {
     return registry;
   } catch (error) {
     // A language list that cannot be read must not take the site down: en and nb still work.
-    logger.error({ error }, "language registry unreadable — serving the compiled languages");
+    logger.error(
+      { error },
+      "language registry unreadable — serving the compiled languages",
+    );
     return BUILTIN_REGISTRY;
   }
 }
@@ -145,7 +155,10 @@ export async function invalidateRegistry(): Promise<void> {
  * actually exists. Never throws — an unknown code falls back to the default rather than 500ing a
  * page, because a deactivated language is a normal thing for a profile to still point at.
  */
-export function resolveLocale(registry: LocaleRegistry, candidate: unknown): string {
+export function resolveLocale(
+  registry: LocaleRegistry,
+  candidate: unknown,
+): string {
   return typeof candidate === "string" && registry.has(candidate)
     ? candidate
     : registry.defaultLocale;

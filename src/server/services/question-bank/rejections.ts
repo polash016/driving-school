@@ -57,7 +57,10 @@ export async function recordRejection(
       select: { id: true },
     });
   } catch (error) {
-    logger.warn({ source: input.source, error }, "rejection ledger write failed");
+    logger.warn(
+      { source: input.source, error },
+      "rejection ledger write failed",
+    );
   }
 }
 
@@ -79,7 +82,8 @@ const LESSON_BY_CODE: Record<string, string> = {
   AMBIGUOUS_DISTRACTOR: "a wrong option was arguably also correct",
   CITATION_MISMATCH: "the citation did not support the question",
   DUPLICATE: "it repeated a question already in the bank",
-  LANGUAGE_QUALITY: "the Norwegian or English was poor or the two did not match",
+  LANGUAGE_QUALITY:
+    "the Norwegian or English was poor or the two did not match",
   IMAGE_MISMATCH: "it described something the image does not show",
   OUT_OF_SCOPE: "it was outside what a Class B learner is examined on",
   OTHER: "a reviewer rejected it",
@@ -111,7 +115,9 @@ export async function buildRejectionLessons(
   db: PrismaClient,
   topicId: string | null,
 ): Promise<RejectionLessons> {
-  const where: Prisma.GenerationRejectionWhereInput = topicId ? { topicId } : {};
+  const where: Prisma.GenerationRejectionWhereInput = topicId
+    ? { topicId }
+    : {};
 
   const [reviewer, machine, grouped] = await Promise.all([
     db.generationRejection.findMany({

@@ -26,7 +26,13 @@ interface Row {
   updatedAt: Date;
 }
 
-const STATUSES = ["DRAFT", "IN_REVIEW", "APPROVED", "NEEDS_REVIEW", "RETIRED"] as const;
+const STATUSES = [
+  "DRAFT",
+  "IN_REVIEW",
+  "APPROVED",
+  "NEEDS_REVIEW",
+  "RETIRED",
+] as const;
 const TYPES = ["TEXT", "IMAGE", "SIGN"] as const;
 
 /** Bulk is only useful if it says precisely what happened to each item. */
@@ -50,12 +56,16 @@ function BulkSummary({ outcomes }: { outcomes: BulkOutcome[] }) {
         })}
       </FormAlert>
       {waiting > 0 ? (
-        <p className="text-sm text-muted-foreground">{t("bulkAwaitingSecond")}</p>
+        <p className="text-sm text-muted-foreground">
+          {t("bulkAwaitingSecond")}
+        </p>
       ) : null}
       {failures.length > 0 ? (
         <ul className="space-y-1 text-sm text-muted-foreground">
           {failures.slice(0, 8).map((failure) => (
-            <li key={failure.itemId}>{tErrors(failure.messageKey ?? "errors.internal")}</li>
+            <li key={failure.itemId}>
+              {tErrors(failure.messageKey ?? "errors.internal")}
+            </li>
           ))}
         </ul>
       ) : null}
@@ -188,13 +198,21 @@ export function QuestionTable({
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             {/* The queue that matters for bulk review: what THIS reviewer can still move. */}
-            <Button asChild variant={query.awaitingMyReview ? "secondary" : "outline"}>
+            <Button
+              asChild
+              variant={query.awaitingMyReview ? "secondary" : "outline"}
+            >
               <Link href="/admin/questions?awaitingMyReview=1">
                 {t("awaitingMyReview", { count: awaitingMine })}
               </Link>
             </Button>
-            <Button asChild variant={query.status === "DRAFT" ? "secondary" : "ghost"}>
-              <Link href="/admin/questions?status=DRAFT">{t("filterDrafts")}</Link>
+            <Button
+              asChild
+              variant={query.status === "DRAFT" ? "secondary" : "ghost"}
+            >
+              <Link href="/admin/questions?status=DRAFT">
+                {t("filterDrafts")}
+              </Link>
             </Button>
             <Button asChild variant="ghost">
               <Link href="/admin/questions">{t("clear")}</Link>
@@ -223,7 +241,11 @@ export function QuestionTable({
           </span>
           {/* Each button submits its own action — a hidden one never fires, which is why bulk
               approve silently posted an empty action before. */}
-          <SubmitButton label={t("bulkApprove")} name="action" value="APPROVE" />
+          <SubmitButton
+            label={t("bulkApprove")}
+            name="action"
+            value="APPROVE"
+          />
           <SubmitButton
             label={t("bulkRetire")}
             name="action"
@@ -241,7 +263,9 @@ export function QuestionTable({
         </form>
       ) : null}
 
-      {state?.ok === false ? <FormAlert>{tErrors(state.messageKey)}</FormAlert> : null}
+      {state?.ok === false ? (
+        <FormAlert>{tErrors(state.messageKey)}</FormAlert>
+      ) : null}
       {state?.ok ? <BulkSummary outcomes={state.data} /> : null}
 
       {page.items.length === 0 ? (
@@ -265,21 +289,38 @@ export function QuestionTable({
                         page.items.every((row) => selected.includes(row.id))
                       }
                       onChange={(event) =>
-                        setSelected(event.target.checked ? page.items.map((row) => row.id) : [])
+                        setSelected(
+                          event.target.checked
+                            ? page.items.map((row) => row.id)
+                            : [],
+                        )
                       }
                     />
                   </th>
                 ) : null}
-                <th scope="col" className="p-3 font-medium">{t("columnQuestion")}</th>
-                <th scope="col" className="p-3 font-medium">{t("columnTopic")}</th>
-                <th scope="col" className="p-3 font-medium">{t("columnStatus")}</th>
-                <th scope="col" className="p-3 font-medium">{t("columnDifficulty")}</th>
-                <th scope="col" className="p-3 font-medium">{t("columnSource")}</th>
+                <th scope="col" className="p-3 font-medium">
+                  {t("columnQuestion")}
+                </th>
+                <th scope="col" className="p-3 font-medium">
+                  {t("columnTopic")}
+                </th>
+                <th scope="col" className="p-3 font-medium">
+                  {t("columnStatus")}
+                </th>
+                <th scope="col" className="p-3 font-medium">
+                  {t("columnDifficulty")}
+                </th>
+                <th scope="col" className="p-3 font-medium">
+                  {t("columnSource")}
+                </th>
               </tr>
             </thead>
             <tbody>
               {page.items.map((row) => (
-                <tr key={row.id} className="border-b border-border/60 last:border-0">
+                <tr
+                  key={row.id}
+                  className="border-b border-border/60 last:border-0"
+                >
                   {canBulkAct ? (
                     <td className="p-3">
                       <input
@@ -305,24 +346,31 @@ export function QuestionTable({
                       {row.stemPreview}
                     </Link>
                   </td>
-                  <td className="p-3 text-muted-foreground">{topicLabel(row.topicId)}</td>
+                  <td className="p-3 text-muted-foreground">
+                    {topicLabel(row.topicId)}
+                  </td>
                   <td className="p-3">
                     <span
                       className={cn(
                         "rounded-full px-2 py-0.5 text-xs font-medium",
                         row.status === "APPROVED" &&
                           "bg-[var(--status-success-soft)] text-[var(--status-success)]",
-                        row.status === "RETIRED" && "bg-muted text-muted-foreground",
+                        row.status === "RETIRED" &&
+                          "bg-muted text-muted-foreground",
                         row.status === "IN_REVIEW" &&
                           "bg-[var(--status-warning-soft)] text-[var(--status-warning)]",
-                        row.status === "NEEDS_REVIEW" && "bg-destructive/10 text-destructive",
-                        row.status === "DRAFT" && "bg-muted text-muted-foreground",
+                        row.status === "NEEDS_REVIEW" &&
+                          "bg-destructive/10 text-destructive",
+                        row.status === "DRAFT" &&
+                          "bg-muted text-muted-foreground",
                       )}
                     >
                       {row.status}
                     </span>
                   </td>
-                  <td className="p-3 text-muted-foreground">{row.difficulty}/5</td>
+                  <td className="p-3 text-muted-foreground">
+                    {row.difficulty}/5
+                  </td>
                   <td className="p-3 text-muted-foreground">
                     {row.createdBy === "AI" ? t("sourceAI") : t("sourceHUMAN")}
                   </td>
@@ -334,17 +382,22 @@ export function QuestionTable({
       )}
 
       {lastPage > 1 ? (
-        <nav className="flex items-center justify-center gap-2" aria-label="pagination">
-          {Array.from({ length: lastPage }, (_, index) => index + 1).map((number) => (
-            <Button
-              key={number}
-              asChild
-              size="sm"
-              variant={number === page.page ? "secondary" : "ghost"}
-            >
-              <Link href={`/admin/questions?page=${number}`}>{number}</Link>
-            </Button>
-          ))}
+        <nav
+          className="flex items-center justify-center gap-2"
+          aria-label="pagination"
+        >
+          {Array.from({ length: lastPage }, (_, index) => index + 1).map(
+            (number) => (
+              <Button
+                key={number}
+                asChild
+                size="sm"
+                variant={number === page.page ? "secondary" : "ghost"}
+              >
+                <Link href={`/admin/questions?page=${number}`}>{number}</Link>
+              </Button>
+            ),
+          )}
         </nav>
       ) : null}
     </div>

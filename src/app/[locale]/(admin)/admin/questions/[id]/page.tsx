@@ -6,6 +6,7 @@ import { ItemStatusBar } from "@/components/admin/questions/item-status-bar";
 import { QuestionLanguages } from "@/components/admin/languages/question-languages";
 import { pickBilingualText } from "@/lib/i18n-content";
 import { requireUser } from "@/server/auth/require-user";
+import { listPickableImages } from "@/server/services/images/library";
 import { db } from "@/server/db";
 import { getItem } from "@/server/services/question-bank/items";
 import type { AppLocale } from "../../../../../../../config/school.config";
@@ -20,7 +21,7 @@ export default async function EditQuestionPage({
   setRequestLocale(locale);
   const user = await requireUser("INSTRUCTOR");
 
-  const [t, item, topics, licenseClasses] = await Promise.all([
+  const [t, item, topics, licenseClasses, images] = await Promise.all([
     getTranslations("admin.questions"),
     // A deleted question is gone, not broken: show the not-found page rather than an error.
     getItem(db, id).catch((error) => {
@@ -32,12 +33,24 @@ export default async function EditQuestionPage({
       select: { id: true, name: true },
       orderBy: { sortOrder: "asc" },
     }),
-    db.licenseClass.findMany({ select: { id: true, code: true }, orderBy: { sortOrder: "asc" } }),
+    db.licenseClass.findMany({
+      select: { id: true, code: true },
+      orderBy: { sortOrder: "asc" },
+    }),
+    listPickableImages(db),
   ]);
 
   const content = item.content as {
-    en: { stem: string; options: { key: string; text: string }[]; explanation?: string };
-    nb: { stem: string; options: { key: string; text: string }[]; explanation?: string };
+    en: {
+      stem: string;
+      options: { key: string; text: string }[];
+      explanation?: string;
+    };
+    nb: {
+      stem: string;
+      options: { key: string; text: string }[];
+      explanation?: string;
+    };
   };
 
   return (
@@ -69,12 +82,14 @@ export default async function EditQuestionPage({
           label: pickBilingualText(topic.name, locale as AppLocale),
         }))}
         licenseClasses={licenseClasses}
+        images={images}
         item={{
           id: item.id,
           topicId: item.topicId,
           licenseClassId: item.licenseClassId,
           difficulty: item.difficulty,
           type: item.type,
+          sourceImageId: item.sourceImageId ?? null,
           version: item.version,
           correctOptionKey: item.correctOptionKey,
           content,

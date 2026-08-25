@@ -30,13 +30,18 @@ export default async function HomePage({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const [t, user] = await Promise.all([getTranslations("home"), getSessionUser()]);
+  const [t, user] = await Promise.all([
+    getTranslations("home"),
+    getSessionUser(),
+  ]);
 
   if (!user) {
     return (
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-4 py-10">
         <div className="space-y-3 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t("title")}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            {t("title")}
+          </h1>
           <p className="text-balance text-muted-foreground">{t("subtitle")}</p>
         </div>
         <Card>
@@ -55,37 +60,57 @@ export default async function HomePage({
   }
 
   // How much material is actually ready to serve — an empty pool must say so, not fail on tap.
-  const [approvedTotal, examReady, topics, history, resumable, categories] = await Promise.all([
-    db.masterItem.count({
-      where: { status: "APPROVED", deletedAt: null, variants: { some: { isActive: true } } },
-    }),
-    // Whether an exam can actually be assembled — a total is not the same as a full blueprint.
-    examReadiness(db, schoolConfig.licenseClassSeeds[0].code),
-    db.topic.findMany({
-      where: { parentId: null, isActive: true, deletedAt: null },
-      select: { id: true, slug: true, name: true },
-      orderBy: { sortOrder: "asc" },
-    }),
-    listAttemptHistory(db, user, user.id, { page: 1, pageSize: 3 }),
-    // A test left half-finished is offered back before anything new is started.
-    getResumableAttempt(db, user, user.id),
-    // Category standing, from tests only — practice does not tell you how you perform under test
-    // conditions, which is the question this panel answers.
-    categoryPerformance(db, user, user.id, locale as AppLocale),
-  ]);
+  // Counted per type, because the three tiles draw from three different pools: a school with a
+  // full theory bank and no sign registry must get a working Theory tile and an honestly disabled
+  // Sign tile, not three tiles of which two fail on tap.
+  // Served by MasterItem_topicId_status_type_idx.
+  const [byType, examReady, topics, history, resumable, categories] =
+    await Promise.all([
+      db.masterItem.groupBy({
+        by: ["type"],
+        where: {
+          status: "APPROVED",
+          deletedAt: null,
+          variants: { some: { isActive: true } },
+        },
+        _count: { _all: true },
+      }),
+      // Whether an exam can actually be assembled — a total is not the same as a full blueprint.
+      examReadiness(db, schoolConfig.licenseClassSeeds[0].code),
+      db.topic.findMany({
+        where: { parentId: null, isActive: true, deletedAt: null },
+        select: { id: true, slug: true, name: true },
+        orderBy: { sortOrder: "asc" },
+      }),
+      listAttemptHistory(db, user, user.id, { page: 1, pageSize: 3 }),
+      // A test left half-finished is offered back before anything new is started.
+      getResumableAttempt(db, user, user.id),
+      // Category standing, from tests only — practice does not tell you how you perform under test
+      // conditions, which is the question this panel answers.
+      categoryPerformance(db, user, user.id, locale as AppLocale),
+    ]);
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4 py-8">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t("title")}</h1>
-        <p className="text-balance text-sm/relaxed text-muted-foreground">{t("subtitle")}</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          {t("title")}
+        </h1>
+        <p className="text-balance text-sm/relaxed text-muted-foreground">
+          {t("subtitle")}
+        </p>
       </header>
 
       {resumable ? <ResumeCard attempt={resumable} /> : null}
 
       <StartTiles
         locale={locale as AppLocale}
-        approvedTotal={approvedTotal}
+        counts={{
+          TEXT: byType.find((row) => row.type === "TEXT")?._count._all ?? 0,
+          IMAGE: byType.find((row) => row.type === "IMAGE")?._count._all ?? 0,
+          SIGN: byType.find((row) => row.type === "SIGN")?._count._all ?? 0,
+        }}
+        signTestEnabled={schoolConfig.featureFlags.signTest}
         examReady={examReady.ready}
         examShortfall={examReady.shortfall.length}
         topics={topics.map((topic) => ({

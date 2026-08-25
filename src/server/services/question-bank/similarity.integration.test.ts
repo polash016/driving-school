@@ -27,8 +27,16 @@ const d = describe.skipIf(!enabled);
 
 const DIMENSIONS = 1536;
 const RUN = randomUUID().slice(0, 8);
-const actor: SessionUser = { id: "", role: "ADMIN", email: `sim-${RUN}@example.no` };
-const reviewer: SessionUser = { id: "", role: "ADMIN", email: `sim-rev-${RUN}@example.no` };
+const actor: SessionUser = {
+  id: "",
+  role: "ADMIN",
+  email: `sim-${RUN}@example.no`,
+};
+const reviewer: SessionUser = {
+  id: "",
+  role: "ADMIN",
+  email: `sim-rev-${RUN}@example.no`,
+};
 
 let topicId = "";
 
@@ -114,11 +122,18 @@ afterAll(async () => {
   });
   const ids = items.map((item) => item.id);
   await db.generationRejection.deleteMany({
-    where: { OR: [{ masterItemId: { in: ids } }, { createdById: { in: [actor.id, reviewer.id] } }] },
+    where: {
+      OR: [
+        { masterItemId: { in: ids } },
+        { createdById: { in: [actor.id, reviewer.id] } },
+      ],
+    },
   });
   await db.itemVariant.deleteMany({ where: { masterItemId: { in: ids } } });
   await db.masterItem.deleteMany({ where: { id: { in: ids } } });
-  await db.auditLog.deleteMany({ where: { actorId: { in: [actor.id, reviewer.id] } } });
+  await db.auditLog.deleteMany({
+    where: { actorId: { in: [actor.id, reviewer.id] } },
+  });
   await db.user.deleteMany({ where: { id: { in: [actor.id, reviewer.id] } } });
   await db.$disconnect();
   await redis.quit().catch(() => undefined);
@@ -155,7 +170,9 @@ d("finding repeats already in the bank", () => {
     const b = await makeItem("Repeat pair right", atAngle(44, 45, 3)); // cos ≈ 0.9986
 
     const pairs = await findRepeatPairs(db);
-    const mine = pairs.filter((pair) => [a, b].includes(pair.id) && [a, b].includes(pair.matchedItemId));
+    const mine = pairs.filter(
+      (pair) => [a, b].includes(pair.id) && [a, b].includes(pair.matchedItemId),
+    );
     expect(mine).toHaveLength(1);
   });
 
@@ -163,12 +180,19 @@ d("finding repeats already in the bank", () => {
     const a = await makeItem("Retire-resolves left", axis(46));
     const b = await makeItem("Retire-resolves right", atAngle(46, 47, 3));
 
-    await transitionItem(db, actor, { id: b, to: "RETIRED", reason: "DUPLICATE" });
+    await transitionItem(db, actor, {
+      id: b,
+      to: "RETIRED",
+      reason: "DUPLICATE",
+    });
 
     const pairs = await findRepeatPairs(db);
-    expect(pairs.some((pair) => [a, b].includes(pair.id) && [a, b].includes(pair.matchedItemId))).toBe(
-      false,
-    );
+    expect(
+      pairs.some(
+        (pair) =>
+          [a, b].includes(pair.id) && [a, b].includes(pair.matchedItemId),
+      ),
+    ).toBe(false);
   });
 });
 
@@ -191,7 +215,8 @@ d("grouping alternates", () => {
     expect(groups.get(left)).not.toBe(groups.get(right));
     // The pair that did merge shares a group, so the constraint still does its job.
     const merged =
-      groups.get(left) === groups.get(middle) || groups.get(middle) === groups.get(right);
+      groups.get(left) === groups.get(middle) ||
+      groups.get(middle) === groups.get(right);
     expect(merged).toBe(true);
   });
 });
@@ -243,7 +268,9 @@ d("the rejection ledger", () => {
     const lessons = await buildRejectionLessons(db, topicId);
     expect(lessons.block).toContain("Uncited claim about speed");
     expect(lessons.block).toContain("it did not cite the law it was testing");
-    expect(lessons.topReasons.some((reason) => reason.code === "MISSING_CITATION")).toBe(true);
+    expect(
+      lessons.topReasons.some((reason) => reason.code === "MISSING_CITATION"),
+    ).toBe(true);
   });
 
   it("returns an empty block for a topic nothing has been rejected on", async () => {

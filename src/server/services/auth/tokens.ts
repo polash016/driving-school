@@ -58,14 +58,26 @@ export async function consumeAuthToken(
   const tokenHash = hashToken(token);
   const row = await db.authToken.findUnique({
     where: { tokenHash },
-    select: { id: true, userId: true, type: true, expiresAt: true, consumedAt: true },
+    select: {
+      id: true,
+      userId: true,
+      type: true,
+      expiresAt: true,
+      consumedAt: true,
+    },
   });
 
   if (!row || row.type !== type || row.consumedAt) {
-    throw new ValidationError({ reason: "token invalid" }, "auth.errors.tokenInvalid");
+    throw new ValidationError(
+      { reason: "token invalid" },
+      "auth.errors.tokenInvalid",
+    );
   }
   if (row.expiresAt <= now) {
-    throw new ValidationError({ reason: "token expired" }, "auth.errors.tokenExpired");
+    throw new ValidationError(
+      { reason: "token expired" },
+      "auth.errors.tokenExpired",
+    );
   }
 
   const consumed = await db.authToken.updateMany({
@@ -73,7 +85,10 @@ export async function consumeAuthToken(
     data: { consumedAt: now },
   });
   if (consumed.count !== 1) {
-    throw new ValidationError({ reason: "token replay" }, "auth.errors.tokenInvalid");
+    throw new ValidationError(
+      { reason: "token replay" },
+      "auth.errors.tokenInvalid",
+    );
   }
   return row.userId;
 }

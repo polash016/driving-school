@@ -30,7 +30,9 @@ d("rateLimit", () => {
       expect(result.count).toBe(attempt);
       expect(result.remaining).toBe(5 - attempt);
     }
-    await expect(rateLimit("loginIp", key)).rejects.toBeInstanceOf(RateLimitError);
+    await expect(rateLimit("loginIp", key)).rejects.toBeInstanceOf(
+      RateLimitError,
+    );
     await redis.del(keys.rateLimit("loginIp", key));
   });
 
@@ -52,7 +54,10 @@ d("rateLimit", () => {
     await rateLimit("loginIp", key);
     const other = await rateLimit("registerIp", key);
     expect(other.count).toBe(1);
-    await redis.del(keys.rateLimit("loginIp", key), keys.rateLimit("registerIp", key));
+    await redis.del(
+      keys.rateLimit("loginIp", key),
+      keys.rateLimit("registerIp", key),
+    );
   });
 
   it("resets a counter after a successful login", async () => {

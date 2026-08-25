@@ -4,8 +4,15 @@ import { NotFoundError } from "@/lib/errors";
 import { pickBilingualText } from "@/lib/i18n-content";
 import type { AppLocale } from "../../../../config/school.config";
 import { authorizeOwner, type SessionUser } from "@/server/authz";
-import { idSchema, localeSchema, paginatedSchema } from "@/server/contracts/common";
-import { attemptModeSchema, attemptStatusSchema } from "@/server/contracts/models";
+import {
+  idSchema,
+  localeSchema,
+  paginatedSchema,
+} from "@/server/contracts/common";
+import {
+  attemptModeSchema,
+  attemptStatusSchema,
+} from "@/server/contracts/models";
 
 /**
  * A student's own exam record (spec-04b). Every attempt they have sat, with the score that was
@@ -112,7 +119,9 @@ export async function listAttemptHistory(
       durationSec: row.submittedAt
         ? Math.max(
             0,
-            Math.round((row.submittedAt.getTime() - row.startedAt.getTime()) / 1000),
+            Math.round(
+              (row.submittedAt.getTime() - row.startedAt.getTime()) / 1000,
+            ),
           )
         : null,
     })),
@@ -174,7 +183,9 @@ export async function getResumableAttempt(
 
   let timeRemainingSec: number | null = null;
   if (attempt.timeLimitSecSnapshot) {
-    const elapsed = Math.floor((Date.now() - attempt.startedAt.getTime()) / 1000);
+    const elapsed = Math.floor(
+      (Date.now() - attempt.startedAt.getTime()) / 1000,
+    );
     timeRemainingSec = attempt.timeLimitSecSnapshot - elapsed;
     if (timeRemainingSec <= 0) return null; // the clock ran out while they were away
   }
@@ -239,7 +250,10 @@ export async function getAttemptSummary(
     durationSec: attempt.submittedAt
       ? Math.max(
           0,
-          Math.round((attempt.submittedAt.getTime() - attempt.startedAt.getTime()) / 1000),
+          Math.round(
+            (attempt.submittedAt.getTime() - attempt.startedAt.getTime()) /
+              1000,
+          ),
         )
       : null,
   });
@@ -304,7 +318,9 @@ export async function categoryPerformance(
   authorizeOwner(session, userId);
 
   const [rows, topics] = await Promise.all([
-    db.$queryRaw<Array<{ topicId: string; answered: bigint; correct: bigint }>>(Prisma.sql`
+    db.$queryRaw<
+      Array<{ topicId: string; answered: bigint; correct: bigint }>
+    >(Prisma.sql`
       SELECT q."topicId",
              count(*) FILTER (WHERE q."answeredOptionKey" IS NOT NULL) AS "answered",
              count(*) FILTER (WHERE q."isCorrect" IS TRUE)             AS "correct"
@@ -317,7 +333,13 @@ export async function categoryPerformance(
     `),
     db.topic.findMany({
       where: { isActive: true, deletedAt: null },
-      select: { id: true, slug: true, name: true, parentId: true, sortOrder: true },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        parentId: true,
+        sortOrder: true,
+      },
       orderBy: { sortOrder: "asc" },
     }),
   ]);
@@ -326,7 +348,8 @@ export async function categoryPerformance(
   const byId = new Map(topics.map((topic) => [topic.id, topic]));
   const rootOf = (topicId: string) => {
     let node = byId.get(topicId);
-    while (node?.parentId && byId.has(node.parentId)) node = byId.get(node.parentId);
+    while (node?.parentId && byId.has(node.parentId))
+      node = byId.get(node.parentId);
     return node;
   };
 
@@ -350,7 +373,9 @@ export async function categoryPerformance(
         answered: total.answered,
         correct: total.correct,
         percent:
-          total.answered === 0 ? null : Math.round((total.correct / total.answered) * 100),
+          total.answered === 0
+            ? null
+            : Math.round((total.correct / total.answered) * 100),
       });
     });
 }

@@ -32,7 +32,9 @@ describe("legal text chunking", () => {
   });
 
   it("keeps text before the first section under a fallback reference", () => {
-    const chunks = chunkLegalText("Innledende bestemmelser om vegtrafikk.\n\n§ 1. Formål\nTekst.");
+    const chunks = chunkLegalText(
+      "Innledende bestemmelser om vegtrafikk.\n\n§ 1. Formål\nTekst.",
+    );
     expect(chunks[0].ref).toBe("—");
     expect(chunks[1].ref).toBe("§ 1");
   });

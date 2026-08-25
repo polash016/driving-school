@@ -1,9 +1,11 @@
 # Spec 02 — Database Schema (Prisma + PostgreSQL)
 
 ## Objective
+
 Design the complete schema. This is the highest-leverage spec — think hard (use Fable), because everything depends on it.
 
 ## Entities (minimum)
+
 - User (role: ADMIN | INSTRUCTOR | STUDENT), Profile, StudentGroup, GroupMembership.
 - LicenseClass (code B/A/AM146…, questionCount, timeLimitMin, passMark) — seeded, config-driven.
 - Topic (temaliste taxonomy, hierarchical, slug, bilingual names).
@@ -15,11 +17,13 @@ Design the complete schema. This is the highest-leverage spec — think hard (us
 - TopicMastery (userId, topicId, rolling stats), ReadinessSnapshot, HomeworkAssignment, AuditLog, KbChunk (for spec 05: source, ref, text, embedding vector via pgvector).
 
 ## Requirements
+
 - Explicit indexes for every hot path: attempt resume (userId,status), item sampling (topicId,status,type), variant dedupe (contentHash), mastery lookup (userId,topicId). Document each index's purpose in schema comments.
 - Enums over strings. `deletedAt` soft delete on content tables. `createdAt/updatedAt` everywhere.
 - Seed script: license classes, full temaliste topic tree (bilingual), one demo blueprint for B.
 
 ## Acceptance checklist
+
 - [ ] `prisma migrate dev` clean; seed runs; ERD generated (prisma-erd) and committed.
 - [ ] For each of the 5 hottest queries, an EXPLAIN shows index usage (documented in specs/notes-02.md).
 - [ ] Zod schemas generated/written for every model used at API boundaries.

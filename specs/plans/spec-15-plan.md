@@ -19,7 +19,7 @@ first, then Arabic with right-to-left layout.
 ## The three constraints that shape everything
 
 **1. Translations cannot live in the existing content JSON.** `ItemVariant.content` is frozen by
-the `tp_item_variant_immutable` trigger, and its `contentHash` is both `@unique` *and* the
+the `tp_item_variant_immutable` trigger, and its `contentHash` is both `@unique` _and_ the
 per-student seen-window key (`tp:quiz:seen:<userId>`). Writing a third locale into that JSON would
 change every hash, break every student's seen-window, and fight the immutability guarantees built
 for defensibility. Same for `MasterItem.content` once APPROVED (`tp_approved_item_frozen`).
@@ -31,12 +31,13 @@ for defensibility. Same for `MasterItem.content` once APPROVED (`tp_approved_ite
 **2. The locale set is hardcoded in four places** — `prisma enum Locale`, `contracts/common.ts`,
 `config/school.config.ts`, and `LOCALE_PREFIXES`. All four must become runtime data. One BCP-47
 schema in a new client-safe `src/lib/locale.ts` replaces both duplicate Zod enums; `school.config`
-keeps its list, redefined as the *compiled fallback set* rather than the truth.
+keeps its list, redefined as the _compiled fallback set_ rather than the truth.
 
 **3. There is no job runner.** BullMQ is not installed. Batch work is `tsx` scripts. Translation is
-therefore a **resumable, chunked service** driven by a script *and* an admin button — not a queue.
+therefore a **resumable, chunked service** driven by a script _and_ an admin button — not a queue.
 
 Two facts that make this feasible, both verified:
+
 - Next 16's `proxy.ts` **defaults to the Node.js runtime**, so locale middleware can read Redis.
 - next-intl's `Locale` type resolves to `string` (this app does not augment `AppConfig`), so
   arbitrary language codes typecheck, and `getRequestConfig` may return messages from any async
@@ -53,7 +54,7 @@ Two facts that make this feasible, both verified:
   Missing or unapproved → falls back to English. `buildClientQuestion` stops being able to throw.
 - **D2 — `en` is the base catalogue and the universal fallback; `nb` stays a base locale.** `en`
   and `nb` keep living in the JSON columns and the on-disk message files exactly as today. Only
-  *added* languages use the overlay. Nothing about the existing two-language product changes.
+  _added_ languages use the overlay. Nothing about the existing two-language product changes.
 - **D3 — Translate a question as one unit, never string-by-string.** Stem, all options and the
   explanation go to the model together, with **both** the Norwegian (the legal source) and the
   English (the fluent pivot) as context. A question is a single semantic object: translating an
@@ -65,7 +66,7 @@ Two facts that make this feasible, both verified:
 - **D5 — A language reaches students only at 100% coverage.** `studentVisible` cannot be turned on
   below full coverage of every required unit. No student ever meets a half-Arabic test.
 - **D6 — § references are never translated.** Citations are `{sourceCode, ref}` — `"§ 7"` is a
-  legal address, not prose. What *is* translated is the source's display name (`KbSource.name`,
+  legal address, not prose. What _is_ translated is the source's display name (`KbSource.name`,
   monolingual today). Students currently see the raw slug, `"trafikkreglene § 7"`; this becomes a
   translated label plus the verbatim reference. The knowledge base itself stays Norwegian: it is
   the grounding the AI cites, and a translation layer between a question and the law it rests on is
@@ -167,8 +168,8 @@ model TranslationBatch {
 
 Plus: `Profile.preferredLocale` **enum → String** (`ALTER COLUMN … TYPE TEXT USING …::text`, then
 drop `enum Locale`) — 8 production call sites, all pass-through. And `ExamAttempt.locale String`,
-set at start: a disputed mark must be answerable with *the language the student actually sat it
-in*. `AiTask` gains `TRANSLATION`.
+set at start: a disputed mark must be answerable with _the language the student actually sat it
+in_. `AiTask` gains `TRANSLATION`.
 
 ### Locale runtime — `src/i18n/`
 
@@ -183,8 +184,8 @@ in*. `AiTask` gains `TRANSLATION`.
   `routing.locales`. It builds `Link`/`redirect`/`getPathname` from `localePrefix.mode`,
   `localePrefix.prefixes` and `localeCookie` only, and `getLocalePrefix()` falls back to
   `/<locale>` for anything not in the prefixes map. So `<Link locale="ar">` already emits
-  `/ar/login` for a language that did not exist at build time. *(An earlier draft of this plan
-  proposed replacing these with in-house wrappers — that was wrong, and it is now deleted work.)*
+  `/ar/login` for a language that did not exist at build time. _(An earlier draft of this plan
+  proposed replacing these with in-house wrappers — that was wrong, and it is now deleted work.)_
 - **`routing.ts`** — stays **static and client-safe** (it reaches the client through
   `navigation.ts`, so it can never be async). It only needs `localePrefix.prefixes` for the
   built-ins and `defaultLocale`.
@@ -200,7 +201,7 @@ in*. `AiTask` gains `TRANSLATION`.
   pins to `globalThis` outside production, so importing it into the middleware bundle creates a
   second connection pool. Registry reads there go memo → Redis → compiled fallback.
 - **`request.ts`** — messages become `base(en.json) ⟵ merge ⟵ locale file if base ⟵ merge ⟵ DB
-  overlay`. English is always the floor, so a missing key renders English, never a raw key.
+overlay`. English is always the floor, so a missing key renders English, never a raw key.
 - **`src/lib/locale-url.ts`** — `LOCALE_PREFIXES` becomes a registry lookup; `localePath` /
   `absoluteUrl` keep their signatures (used by auth redirects and emails).
 - **`src/lib/i18n-content.ts`** — `pickLocale` / `pickBilingualText` gain an optional overlay and a
@@ -237,7 +238,7 @@ in*. `AiTask` gains `TRANSLATION`.
 - **`translation.ui` v1.0.0** — batches of ~60 message keys. Hard rule: **ICU placeholders survive
   exactly** — 45 of the 534 keys carry `{count}`, `{minutes}`, `{school}` and friends; a dropped
   placeholder is a crash, not a typo.
-- **Sync** = find every unit where no `Translation` row exists *or* `sourceHash` has moved, and
+- **Sync** = find every unit where no `Translation` row exists _or_ `sourceHash` has moved, and
   translate only those. Hooked into `transitionItem(→ APPROVED)` so new questions queue themselves.
 - **Token discipline**: `TranslationMemory` lookup by `sourceHash` before any call; batching;
   glossary instead of re-explaining terminology; cheap model routed to the translation task.
@@ -250,7 +251,7 @@ in*. `AiTask` gains `TRANSLATION`.
    Both already exist in `similarity.ts`, and the embedding model is multilingual, so this needs no
    back-translation round trip. Below threshold → `qaFlags` and forced review.
 3. **Answer integrity** — of the translated options, the one under the correct key must be the
-   nearest neighbour of the *English* correct option. This catches the failure that actually
+   nearest neighbour of the _English_ correct option. This catches the failure that actually
    matters: options translated in a way that moves the answer.
 
 Anything flagged goes to review regardless of `requiresApproval`.
@@ -263,7 +264,7 @@ Anything flagged goes to review regardless of `requiresApproval`.
 - **Review queue** `/admin/languages/[code]/review`: source (en + nb) beside the translation,
   QA flags shown, approve / reject / edit, keyboard-driven — reuses the `review-queue.tsx` pattern.
 - **Language tabs on the question detail page** so a reviewing teacher sees one question in every
-  language side by side. *(You asked for this explicitly.)* Admin chrome itself stays en/nb.
+  language side by side. _(You asked for this explicitly.)_ Admin chrome itself stays en/nb.
 
 ### Student UI
 
@@ -298,13 +299,13 @@ history renders in Spanish · axe on `/es`.
 
 ## Token budget (measured against current content)
 
-| | per language, one-off |
-|---|---|
-| 130 questions (en+nb source in, batched) | ~66k |
-| 534 UI keys (batched 60/call) | ~17k |
-| 32 topics + licence class + source name | ~3k |
-| QA embeddings | negligible (multilingual embed, no round trip) |
-| **Total** | **≈ 85–90k tokens** |
+|                                          | per language, one-off                          |
+| ---------------------------------------- | ---------------------------------------------- |
+| 130 questions (en+nb source in, batched) | ~66k                                           |
+| 534 UI keys (batched 60/call)            | ~17k                                           |
+| 32 topics + licence class + source name  | ~3k                                            |
+| QA embeddings                            | negligible (multilingual embed, no round trip) |
+| **Total**                                | **≈ 85–90k tokens**                            |
 
 Incremental sync afterwards costs only what changed — a new question is ~500 tokens.
 `TranslationMemory` removes repeated option texts and topic names entirely.

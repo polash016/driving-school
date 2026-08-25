@@ -38,10 +38,12 @@ export const schoolConfigSchema = z
        * to the server's own zone, so a container in another region would show students the
        * wrong times ("last active", exam timestamps).
        */
-      timeZone: z.string().refine(
-        (zone) => Intl.supportedValuesOf("timeZone").includes(zone),
-        "must be an IANA time zone",
-      ),
+      timeZone: z
+        .string()
+        .refine(
+          (zone) => Intl.supportedValuesOf("timeZone").includes(zone),
+          "must be an IANA time zone",
+        ),
     }),
     licenseClassSeeds: z
       .array(
@@ -72,6 +74,29 @@ export const schoolConfigSchema = z
         translation: z.string().min(1),
       }),
       dailyBudgetUsd: z.number().positive(),
+    }),
+    /**
+     * Where uploaded question images live (spec-06 amendment D3). The driver is config, not code,
+     * so a school can start on a VPS directory and move to object storage without a rewrite.
+     *
+     * Credentials are NEVER here — they come from the environment (see `storageEnv` below).
+     * Nothing in this block is a secret; it is committed and read on the client-safe path.
+     */
+    storage: z.object({
+      driver: z.enum(["local", "s3"]),
+      /**
+       * Absolute or repo-relative directory for the `local` driver. Deliberately OUTSIDE
+       * `public/`: these bytes are served through an authenticated route, never as static files.
+       */
+      localDir: z.string().min(1),
+      /** `s3` driver only. Endpoint is set for S3-compatible stores (MinIO, Hetzner, Backblaze). */
+      bucket: z.string().optional(),
+      region: z.string().optional(),
+      endpoint: z.string().optional(),
+      /** Reject anything larger at the boundary, before a byte is written. */
+      maxUploadBytes: z.int().positive(),
+      /** Batch ceiling for one upload request. */
+      maxBatch: z.int().positive(),
     }),
     examPolicyDefaults: z.object({
       focusLossPolicy: z.enum(["warn", "log", "autosubmit"]),
@@ -120,6 +145,15 @@ export const schoolConfig: SchoolConfig = Object.freeze(
         translation: "translation-default",
       },
       dailyBudgetUsd: 20,
+    },
+    storage: {
+      driver: "local",
+      localDir: process.env.STORAGE_LOCAL_DIR ?? "storage",
+      bucket: process.env.STORAGE_BUCKET,
+      region: process.env.STORAGE_REGION,
+      endpoint: process.env.STORAGE_ENDPOINT,
+      maxUploadBytes: 15 * 1024 * 1024,
+      maxBatch: 50,
     },
     examPolicyDefaults: {
       focusLossPolicy: "warn",

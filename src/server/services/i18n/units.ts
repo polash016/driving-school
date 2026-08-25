@@ -42,11 +42,7 @@ export interface MessagePayload {
 }
 
 export type UnitPayload =
-  | QuestionPayload
-  | TopicPayload
-  | SignPayload
-  | NamePayload
-  | MessagePayload;
+  QuestionPayload | TopicPayload | SignPayload | NamePayload | MessagePayload;
 
 export interface TranslationUnit {
   entity: TranslatableEntity;
@@ -88,7 +84,14 @@ export function hashUnit(
   glossaryVersion: number,
 ): string {
   return createHash("sha256")
-    .update(canonical({ e: unit.entity, en: unit.en, nb: unit.nb ?? null, g: glossaryVersion }))
+    .update(
+      canonical({
+        e: unit.entity,
+        en: unit.en,
+        nb: unit.nb ?? null,
+        g: glossaryVersion,
+      }),
+    )
     .digest("hex");
 }
 
