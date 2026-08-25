@@ -14,6 +14,7 @@ export function SubmitButton({
   variant,
   name,
   value,
+  disabled = false,
 }: {
   label: string;
   pendingLabel?: string;
@@ -22,6 +23,8 @@ export function SubmitButton({
   /** Submits this field with the form — how one form offers several actions. */
   name?: string;
   value?: string;
+  /** Unavailable for a reason the caller knows about, on top of the pending state. */
+  disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
 
@@ -30,7 +33,7 @@ export function SubmitButton({
       type="submit"
       size="lg"
       variant={variant}
-      disabled={pending}
+      disabled={pending || disabled}
       aria-busy={pending}
       className={className}
       name={name}

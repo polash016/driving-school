@@ -50,18 +50,17 @@ test.afterAll(async () => {
     where: { userId: { in: ids } },
     select: { id: true },
   });
-  await db.$executeRawUnsafe('ALTER TABLE "ExamAttempt" DISABLE TRIGGER "attempt_result_final"');
-  await db.$executeRawUnsafe(
-    'ALTER TABLE "ExamAttemptQuestion" DISABLE TRIGGER "attempt_question_immutable"',
-  );
-  await db.examAttemptQuestion.deleteMany({
-    where: { attemptId: { in: attempts.map((a) => a.id) } },
+  // Submitted attempts are protected by triggers, which is the point of them — so cleanup has to
+  // suspend them deliberately. `SET LOCAL session_replication_role` does that for THIS transaction
+  // only: no global `ALTER TABLE`, so a concurrently-running spec file cannot re-enable the
+  // triggers underneath us, and nothing is left disabled if this process dies.
+  await db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL session_replication_role = 'replica'");
+    await tx.examAttemptQuestion.deleteMany({
+      where: { attemptId: { in: attempts.map((a) => a.id) } },
+    });
+    await tx.examAttempt.deleteMany({ where: { id: { in: attempts.map((a) => a.id) } } });
   });
-  await db.examAttempt.deleteMany({ where: { id: { in: attempts.map((a) => a.id) } } });
-  await db.$executeRawUnsafe('ALTER TABLE "ExamAttempt" ENABLE TRIGGER "attempt_result_final"');
-  await db.$executeRawUnsafe(
-    'ALTER TABLE "ExamAttemptQuestion" ENABLE TRIGGER "attempt_question_immutable"',
-  );
   await db.auditLog.deleteMany({ where: { actorId: { in: ids } } });
   await db.user.deleteMany({ where: { id: { in: ids } } });
   await db.$disconnect();
@@ -199,6 +198,9 @@ test("an answer cannot be changed once it is given, and the test resumes where i
   // Answer question 1, then move on.
   await page.getByRole("radio").first().click();
   await expect(page.getByText("Answer recorded — it cannot be changed.")).toBeVisible();
+  // The card locks and the explanation lands in the same update; waiting for the options to go
+  // disabled means the reveal has finished moving things before anything below it is clicked.
+  await expect(page.getByRole("radio").first()).toBeDisabled();
   await page.getByRole("button", { name: "Next" }).click();
   await expect(page.getByText(/Question 2 of \d+/)).toBeVisible();
 

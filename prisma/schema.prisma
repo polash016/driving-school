@@ -366,6 +366,12 @@ model Sign {
   name      Json // bilingual { en, nb }
   meaning   Json // bilingual { en, nb }
   isActive  Boolean   @default(true)
+  /// True while this row still carries extracted/AI-drafted content rather than the official
+  /// Statens vegvesen asset and a human-checked skiltforskriften code. Students are never shown
+  /// the flag; it exists so /admin/signs can list exactly what still needs a person to look at it.
+  provisional Boolean @default(false)
+  /// Where this row came from, in words — the book and page, or the asset pack version.
+  sourceNote  String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

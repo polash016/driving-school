@@ -111,6 +111,8 @@ erDiagram
   Json name
   Json meaning
   Boolean isActive
+  Boolean provisional
+  String sourceNote "nullable"
   DateTime createdAt
   DateTime updatedAt
 }
@@ -714,6 +716,11 @@ Properties as follows:
 - `name`:
 - `meaning`:
 - `isActive`:
+- `provisional`
+  > True while this row still carries extracted/AI-drafted content rather than the official
+  > Statens vegvesen asset and a human-checked skiltforskriften code. Students are never shown
+  > the flag; it exists so /admin/signs can list exactly what still needs a person to look at it.
+- `sourceNote`: Where this row came from, in words — the book and page, or the asset pack version.
 - `createdAt`:
 - `updatedAt`:
 

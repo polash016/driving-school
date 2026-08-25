@@ -22,6 +22,7 @@ export default async function AdminLayout({
     ...(user.role === "ADMIN"
       ? [
           { href: "/admin/ai" as const, label: t("ai") },
+          { href: "/admin/languages" as const, label: t("languages") },
           { href: "/admin/security" as const, label: t("security") },
           { href: "/admin/invites" as const, label: t("invites") },
         ]

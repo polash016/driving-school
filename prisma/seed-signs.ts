@@ -28,6 +28,8 @@ const manifestSchema = z.object({
     .array(
       z.object({
         code: z.string().min(1).max(16),
+        // Must stay in step with the SignClass enum in schema.prisma. MARKERING was missing here,
+        // which silently rejected every marker sign (oppmerkingsskilt) at the manifest boundary.
         signClass: z.enum([
           "FARE",
           "VIKEPLIKT_OG_FORKJORS",
@@ -37,6 +39,7 @@ const manifestSchema = z.object({
           "SERVICE",
           "VEGVISNING",
           "UNDERSKILT",
+          "MARKERING",
         ]),
         file: z.string().min(1),
         name: bilingual,
@@ -84,12 +87,18 @@ async function main(): Promise<void> {
         name: sign.name,
         meaning: sign.meaning,
         isActive: true,
+        provisional: sign.provisional ?? false,
+        sourceNote: sign.sourceNote ?? null,
       },
       update: {
         signClass: sign.signClass,
         svgPath: `/signs/${sign.file}`,
         name: sign.name,
         meaning: sign.meaning,
+        // Deliberately NOT re-flagging: once a person has cleared `provisional` in /admin/signs,
+        // a later re-seed from the same manifest must not quietly undo that review.
+        ...(sign.provisional === false ? { provisional: false } : {}),
+        sourceNote: sign.sourceNote ?? null,
       },
       select: { id: true },
     });

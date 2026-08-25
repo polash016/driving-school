@@ -1,0 +1,229 @@
+import { randomBytes } from "node:crypto";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { ConflictError, ValidationError } from "@/lib/errors";
+import type { SessionUser } from "@/server/authz";
+import { db } from "@/server/db";
+import { redis } from "@/server/redis";
+import { createLanguage, languageCoverage, updateLanguage } from "./languages";
+import { reviewTranslation } from "./review";
+
+/**
+ * The rules that must hold against a real database (spec-15): a runtime language is always served
+ * at `/<code>`, and a language reaches students only when it is finished.
+ */
+const enabled = Boolean(process.env.TEST_DATABASE_URL);
+const d = describe.skipIf(!enabled);
+
+const RUN = randomBytes(3).toString("hex");
+const CODE = `zx-${RUN}`.slice(0, 8);
+const actor: SessionUser = { id: "", role: "ADMIN", email: `lang-${RUN}@example.no` };
+
+beforeAll(async () => {
+  if (!enabled) return;
+  const user = await db.user.create({
+    data: {
+      email: actor.email,
+      role: "ADMIN",
+      emailVerifiedAt: new Date(),
+      profile: { create: { firstName: "Lang", lastName: RUN } },
+    },
+    select: { id: true },
+  });
+  actor.id = user.id;
+});
+
+afterAll(async () => {
+  if (!enabled) return;
+  await db.translation.deleteMany({ where: { locale: CODE } });
+  await db.translationMemory.deleteMany({ where: { locale: CODE } });
+  await db.translationJob.deleteMany({ where: { run: { locale: CODE } } });
+  await db.translationRun.deleteMany({ where: { locale: CODE } });
+  await db.language.deleteMany({ where: { code: CODE } });
+  await db.auditLog.deleteMany({ where: { actorId: actor.id } });
+  await db.user.deleteMany({ where: { id: actor.id } });
+  await db.$disconnect();
+  await redis.quit().catch(() => undefined);
+});
+
+d("adding a language", () => {
+  it("always serves it at /<code>, whatever anyone would prefer", async () => {
+    const language = await createLanguage(db, actor, {
+      code: CODE,
+      englishName: "Test Language",
+      nativeName: "Prøvespråk",
+      shortLabel: "zx",
+      direction: "RTL",
+      requiresApproval: true,
+    });
+    expect(language.code).toBe(CODE);
+
+    const row = await db.language.findUniqueOrThrow({
+      where: { code: CODE },
+      select: { urlPrefix: true, shortLabel: true, studentVisible: true, direction: true },
+    });
+    // The prefix map is compiled into the client bundle, so a custom prefix would make <Link>
+    // and the proxy disagree — a redirect loop rather than an error message.
+    expect(row.urlPrefix).toBe(`/${CODE}`);
+    expect(row.shortLabel).toBe("ZX");
+    expect(row.direction).toBe("RTL");
+    // A brand-new language has nothing translated, so it starts hidden.
+    expect(row.studentVisible).toBe(false);
+  });
+
+  it("refuses a language that already exists", async () => {
+    await expect(
+      createLanguage(db, actor, {
+        code: CODE,
+        englishName: "Again",
+        nativeName: "Igjen",
+        shortLabel: "ZY",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("refuses to re-add a built-in language", async () => {
+    await expect(
+      createLanguage(db, actor, {
+        code: "nb",
+        englishName: "Norwegian",
+        nativeName: "Norsk",
+        shortLabel: "NO",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("refuses a code that is not a language tag", async () => {
+    await expect(
+      createLanguage(db, actor, {
+        code: "../admin",
+        englishName: "Bad",
+        nativeName: "Bad",
+        shortLabel: "XX",
+      }),
+    ).rejects.toThrow();
+  });
+});
+
+d("the coverage gate", () => {
+  it("reports how much a student would actually read in their language", async () => {
+    const coverage = await languageCoverage(db, CODE);
+    expect(coverage.total).toBeGreaterThan(500); // UI keys alone are 534
+    expect(coverage.ready).toBe(0);
+    expect(coverage.percent).toBe(0);
+    expect(coverage.complete).toBe(false);
+    expect(coverage.byEntity.some((entry) => entry.entity === "UI_MESSAGE")).toBe(true);
+  });
+
+  it("refuses to show an unfinished language to students", async () => {
+    await expect(
+      updateLanguage(db, actor, { code: CODE, studentVisible: true }),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    const row = await db.language.findUniqueOrThrow({
+      where: { code: CODE },
+      select: { studentVisible: true },
+    });
+    expect(row.studentVisible).toBe(false);
+  });
+
+  it("counts a translation only while it still matches its source", async () => {
+    const topic = await db.topic.findFirstOrThrow({
+      where: { deletedAt: null },
+      select: { id: true },
+    });
+
+    // A translation stamped with a hash that does not match the current source is stale, and
+    // stale is not coverage — otherwise editing a question would silently un-translate it while
+    // the dashboard kept claiming 100%.
+    const stale = await db.translation.create({
+      data: {
+        locale: CODE,
+        entity: "TOPIC",
+        entityId: topic.id,
+        value: { name: "Stale" },
+        status: "APPROVED",
+        sourceHash: "definitely-not-the-current-hash",
+      },
+      select: { id: true },
+    });
+    expect((await languageCoverage(db, CODE)).ready).toBe(0);
+
+    await db.translation.delete({ where: { id: stale.id } });
+  });
+
+  it("counts machine output only when the language does not require approval", async () => {
+    const topic = await db.topic.findFirstOrThrow({
+      where: { deletedAt: null },
+      select: { id: true },
+    });
+    // Borrow the real hash the extractor would compute, so the row is genuinely fresh.
+    const { extractAll } = await import("./extract");
+    const language = await db.language.findUniqueOrThrow({
+      where: { code: CODE },
+      select: { glossaryVersion: true },
+    });
+    const units = await extractAll(db, { glossaryVersion: language.glossaryVersion });
+    const unit = units.find((candidate) => candidate.entityId === topic.id);
+    expect(unit).toBeDefined();
+
+    const row = await db.translation.create({
+      data: {
+        locale: CODE,
+        entity: "TOPIC",
+        entityId: topic.id,
+        value: { name: "Máquina" },
+        status: "MACHINE",
+        sourceHash: unit!.sourceHash,
+      },
+      select: { id: true },
+    });
+
+    // Approval required: nobody vouched for it, so it does not count and is not served.
+    expect((await languageCoverage(db, CODE)).ready).toBe(0);
+
+    await updateLanguage(db, actor, { code: CODE, requiresApproval: false });
+    expect((await languageCoverage(db, CODE)).ready).toBe(1);
+
+    // Approving it makes it count under either policy.
+    await updateLanguage(db, actor, { code: CODE, requiresApproval: true });
+    await reviewTranslation(db, actor, { id: row.id, action: "APPROVE" });
+    expect((await languageCoverage(db, CODE)).ready).toBe(1);
+
+    await db.translation.delete({ where: { id: row.id } });
+  });
+
+  it("never counts something a check flagged or a reviewer refused", async () => {
+    const topic = await db.topic.findFirstOrThrow({
+      where: { deletedAt: null },
+      select: { id: true },
+    });
+    const { extractAll } = await import("./extract");
+    const language = await db.language.findUniqueOrThrow({
+      where: { code: CODE },
+      select: { glossaryVersion: true },
+    });
+    const units = await extractAll(db, { glossaryVersion: language.glossaryVersion });
+    const unit = units.find((candidate) => candidate.entityId === topic.id)!;
+
+    const row = await db.translation.create({
+      data: {
+        locale: CODE,
+        entity: "TOPIC",
+        entityId: topic.id,
+        value: { name: "Marcado" },
+        status: "NEEDS_REVIEW",
+        sourceHash: unit.sourceHash,
+        qaFlags: ["NUMBER_DRIFT"],
+      },
+      select: { id: true },
+    });
+
+    await updateLanguage(db, actor, { code: CODE, requiresApproval: false });
+    const coverage = await languageCoverage(db, CODE);
+    expect(coverage.ready).toBe(0);
+    expect(coverage.flagged).toBe(1);
+
+    await updateLanguage(db, actor, { code: CODE, requiresApproval: true });
+    await db.translation.delete({ where: { id: row.id } });
+  });
+});

@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { NotFoundError } from "@/lib/errors";
 import { ItemEditor } from "@/components/admin/questions/item-editor";
 import { ItemStatusBar } from "@/components/admin/questions/item-status-bar";
+import { QuestionLanguages } from "@/components/admin/languages/question-languages";
 import { pickBilingualText } from "@/lib/i18n-content";
 import { requireUser } from "@/server/auth/require-user";
 import { db } from "@/server/db";
@@ -49,6 +50,12 @@ export default async function EditQuestionPage({
           {t("version", { version: item.version })} · {item.status}
         </p>
       </header>
+
+      {/* A teacher who reads the language checks it here, against the English (spec-15). */}
+      <QuestionLanguages
+        masterItemId={item.id}
+        source={{ stem: content.en.stem, options: content.en.options }}
+      />
 
       <ItemStatusBar
         itemId={item.id}

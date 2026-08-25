@@ -24,7 +24,7 @@ Legend: ⬜ Not started · 📝 Planned (plan approved) · 🔨 In progress · �
 | 12 | [Security & anti-cheat](spec-12-security-anticheat.md) | 03, 07, 08 | 📝 Planned | [plan](plans/spec-12-plan.md) | — |
 | 13 | [Performance, PWA, a11y](spec-13-performance-pwa-a11y.md) | 08, 09, 10 | ⬜ Brief ready | [brief](plans/spec-13-brief.md) | — |
 | 14 | [Deployment](spec-14-deployment.md) | all | ⬜ Brief ready | [brief](plans/spec-14-brief.md) | — |
-| 15 | [Dynamic languages & AI translation](spec-15-dynamic-languages.md) 🌐 | 01, 04, 05, 07 | 🔨 In progress (Opus) — engine ✅, AI translation next | [plan](plans/spec-15-plan.md) | [notes](notes/spec-15-notes.md) |
+| 15 | [Dynamic languages & AI translation](spec-15-dynamic-languages.md) 🌐 | 01, 04, 05, 07 | 🔨 In progress (Opus) — phase 1 ✅ (engine, pipeline, admin); RTL next | [plan](plans/spec-15-plan.md) | [notes](notes/spec-15-notes.md) |
 
 **Handoff:** Fable phase complete — Opus sessions start at [docs/handoff-opus.md](../docs/handoff-opus.md) and execute 03 → 14.
 

@@ -141,7 +141,11 @@ export function QuizRunner({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 px-4 py-6">
+    // A plain top-to-bottom column that grows and scrolls. An earlier version pinned the
+    // navigator to the bottom with `mt-auto`: pretty when the content is short, but once a
+    // practice explanation appears on a 390px screen the children overlapped and the buttons
+    // underneath stopped being tappable. A reachable control beats a tidy one.
+    <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 py-6">
       <header className="flex items-center justify-between gap-3">
         <p className="text-sm font-medium text-muted-foreground">
           {t("progress", { current: index + 1, total: attempt.questions.length })}
@@ -194,7 +198,7 @@ export function QuizRunner({
         </p>
       ) : null}
 
-      <nav aria-label={t("questionNavigator")} className="mt-auto flex flex-wrap gap-1.5 pt-4">
+      <nav aria-label={t("questionNavigator")} className="flex flex-wrap gap-1.5 pt-2">
         {attempt.questions.map((item, position) => (
           <button
             key={item.position}

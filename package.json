@@ -22,7 +22,10 @@
     "qb:dedupe": "tsx scripts/dedupe-questions.ts",
     "qb:audit": "tsx scripts/exam-audit.ts",
     "i18n:translate": "tsx scripts/translate.ts",
-    "db:seed-signs": "tsx prisma/seed-signs.ts"
+    "db:seed-signs": "tsx prisma/seed-signs.ts",
+    "signs:extract": "tsx scripts/extract-signs.ts",
+    "signs:enrich": "tsx scripts/enrich-signs.ts",
+    "signs:questions": "tsx scripts/seed-sign-questions.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.1.0",
@@ -43,6 +46,7 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "shadcn": "^4.19.0",
+    "sharp": "^0.35.3",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.6.0",
     "tw-animate-css": "^1.4.0",
