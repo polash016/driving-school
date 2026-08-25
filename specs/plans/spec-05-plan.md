@@ -1,4 +1,22 @@
-# Plan — Spec 05: AI Knowledge Base (RAG) & Structured Facts (detailed, authored by Fable for Opus)
+# Plan — Spec 05: AI providers, then the Knowledge Base
+
+> Part 1 (AI provider registry & key vault) **implemented 2026-08-25** — see the spec's amendment
+> and `specs/notes/spec-05-notes.md`. Part 2 (KB ingestion, hybrid search, facts, sign registry) is
+> the remainder of the Fable plan below, unchanged.
+>
+> **Two dependencies the KB half cannot proceed without:**
+> 1. **A working provider key** — embeddings are a real API call. Add one at `/admin/ai`; the
+>    keyword leg of hybrid search and every deterministic test work without it, but the semantic
+>    leg and the golden-query set cannot be measured until a key exists.
+> 2. **The skiltforskriften SVG asset pack** for the sign registry (Statens vegvesen sign
+>    database). The seed validates that every manifest entry has a file; it does not scrape.
+
+## Part 1 — implemented (AI provider registry & key vault)
+`AiProvider` + `AiRoute`, three adapters (Google native, Anthropic native, OpenAI-compatible for
+DeepSeek/OpenRouter/Groq/Mistral/Ollama/OmniRoute), gateway routing with an ordered fallback chain,
+admin screen at `/admin/ai` with write-only keys and a connection test.
+
+## Part 2 — the knowledge base (original plan follows)
 
 ## Decisions (binding)
 - Hybrid search = vector (pgvector HNSW, cosine) + keyword (`textSearch` tsvector, norwegian config, GIN) — **both already migrated** (spec-02 `kb_hybrid_search`). Fusion: Reciprocal Rank Fusion `score = Σ 1/(60 + rank)` over the two result lists — simple, tuning-free, testable.

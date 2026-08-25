@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { hasLocale, NextIntlClientProvider } from "next-intl";
+import { NextIntlClientProvider } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { schoolConfig } from "../../../config/school.config";
 import { SiteHeader } from "@/components/layout/site-header";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
-import { routing } from "@/i18n/routing";
+import { db } from "@/server/db";
+import { getRegistry } from "@/server/services/i18n/registry";
 import "../globals.css";
 
 const geistSans = Geist({
@@ -28,9 +29,14 @@ export const metadata: Metadata = {
   description: schoolConfig.school.name,
 };
 
-export function generateStaticParams() {
-  return routing.locales.map((locale) => ({ locale }));
-}
+/**
+ * Deliberately gone (spec-15): the locale set is runtime data now, so it cannot be enumerated at
+ * build time. It prerendered nothing anyway — `SiteHeader` reads the session, which makes this
+ * layout dynamic. `dynamicParams` defaults to true, so every language renders on demand.
+ *
+ * DO NOT add `export const dynamicParams = false` anywhere in this tree: it would 404 every
+ * language a school adds after the build.
+ */
 
 export default async function LocaleLayout({
   children,
@@ -40,7 +46,9 @@ export default async function LocaleLayout({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  if (!hasLocale(routing.locales, locale)) {
+  // The registry, not a compiled list — a language added in the admin panel is a real language.
+  const registry = await getRegistry(db);
+  if (!registry.has(locale)) {
     notFound();
   }
   setRequestLocale(locale);
@@ -49,6 +57,8 @@ export default async function LocaleLayout({
   return (
     <html
       lang={locale}
+      // Arabic and Hebrew read right to left; the language registry decides, not a hardcoded list.
+      dir={registry.directionOf(locale)}
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full`}
     >
@@ -57,11 +67,11 @@ export default async function LocaleLayout({
           <NextIntlClientProvider>
             <a
               href="#main"
-              className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
+              className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:start-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
             >
               {t("skipToContent")}
             </a>
-            <SiteHeader />
+            <SiteHeader locale={locale} />
             <main id="main" className="flex flex-1 flex-col">
               {children}
             </main>

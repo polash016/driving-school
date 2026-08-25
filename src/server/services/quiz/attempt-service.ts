@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import type { AttemptStatus, ItemType, Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import {
+  ConflictError,
   ExamStateError,
+  ForbiddenError,
   InternalError,
   NotFoundError,
   ValidationError,
@@ -13,6 +15,7 @@ import {
   answerAckSchema,
   answerInputSchema,
   flagInputSchema,
+  revealInputSchema,
   serveInputSchema,
   startQuizInputSchema,
   submitInputSchema,
@@ -21,6 +24,8 @@ import {
   type ClientAttempt,
   type PracticeAnswerResult,
 } from "@/server/contracts/quiz";
+import { attestAttempt } from "@/server/services/assessment/attestation";
+import { loadOverlay } from "@/server/services/i18n/resolve";
 import { assembleQuiz } from "./assembly";
 import { gradeAttempt, type GradableQuestion } from "./grading";
 import type { GradedHook, SeenStore, VariantSource } from "./ports";
@@ -50,6 +55,14 @@ import {
 const DEFAULT_PRACTICE_COUNT = 15;
 const distributionSchema = z.record(z.string(), z.int().positive());
 const optionOrderSchema = z.array(z.string().min(1));
+
+/** Server-decided facts about an attempt that the client must not be able to assert. */
+export interface StartOptions {
+  /** Whether this attempt qualifies towards the pass guarantee (computed server-side). */
+  countsTowardGuarantee?: boolean;
+  /** What the student chose, kept so a disputed result can be explained. */
+  setupSnapshot?: Record<string, unknown>;
+}
 
 export interface AttemptServiceDeps {
   db: PrismaClient;
@@ -84,6 +97,7 @@ export function createAttemptService(deps: AttemptServiceDeps) {
   async function startQuiz(
     userId: string,
     rawInput: unknown,
+    options: StartOptions = {},
   ): Promise<ClientAttempt> {
     const input = startQuizInputSchema.parse(rawInput);
     const now = clock.now();
@@ -127,6 +141,26 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       licenseClassId = licenseClass.id;
       blueprintId = blueprint.id;
     } else {
+      // A self-configured rehearsal can still run against the official clock, and a full-length
+      // one is graded like the real test rather than shown as untimed practice.
+      const requestedCount = input.questionCount ?? DEFAULT_PRACTICE_COUNT;
+      if (input.timed || options.countsTowardGuarantee) {
+        const licenseClass = await db.licenseClass.findFirst({
+          where: { isEnabled: true },
+          orderBy: { sortOrder: "asc" },
+          select: { timeLimitMin: true, questionCount: true, passMark: true, id: true },
+        });
+        if (licenseClass) {
+          if (input.timed) timeLimitSec = licenseClass.timeLimitMin * 60;
+          if (options.countsTowardGuarantee) {
+            licenseClassId = licenseClass.id;
+            // The official ratio (38 of 45), scaled to whatever length the student chose.
+            passMark = Math.ceil(
+              (requestedCount * licenseClass.passMark) / licenseClass.questionCount,
+            );
+          }
+        }
+      }
       if (input.mode === "TOPIC" && (input.topicSlugs?.length ?? 0) === 0) {
         throw new ValidationError({ reason: "topicSlugs required for TOPIC mode" });
       }
@@ -178,6 +212,10 @@ export function createAttemptService(deps: AttemptServiceDeps) {
           userId,
           mode: input.mode,
           status: "IN_PROGRESS",
+          // The language this paper is sat in, frozen at the start (spec-15). A disputed mark has
+          // to be answerable with the exact wording the student saw, and with more than two
+          // languages "re-render it in whatever locale the reader has" stops being good enough.
+          locale: input.locale,
           licenseClassId,
           blueprintId,
           seed,
@@ -186,6 +224,10 @@ export function createAttemptService(deps: AttemptServiceDeps) {
           passMarkSnapshot: passMark,
           startedAt: now,
           expiresAt: computeExpiresAt(now, timeLimitSec),
+          countsTowardGuarantee: options.countsTowardGuarantee ?? false,
+          ...(options.setupSnapshot
+            ? { setupSnapshot: options.setupSnapshot as Prisma.InputJsonValue }
+            : {}),
         },
         select: { id: true },
       });
@@ -248,7 +290,7 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       attempt = await loadOwnedAttempt(userId, input.attemptId);
     }
 
-    const rows = await servedRows(attempt.id);
+    const rows = await servedRows(attempt.id, input.locale);
     return buildClientAttempt({
       id: attempt.id,
       mode: attempt.mode,
@@ -263,12 +305,13 @@ export function createAttemptService(deps: AttemptServiceDeps) {
     });
   }
 
-  async function servedRows(attemptId: string): Promise<ServedQuestionRow[]> {
+  async function servedRows(attemptId: string, locale: string): Promise<ServedQuestionRow[]> {
     const roots = await rootSlugMap();
     const questions = await db.examAttemptQuestion.findMany({
       where: { attemptId },
       select: {
         position: true,
+        variantId: true,
         optionOrder: true,
         answeredOptionKey: true,
         flagged: true,
@@ -284,6 +327,14 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       },
       orderBy: { position: "asc" },
     });
+    // One batched read for the whole paper — the overlay is never fetched per question.
+    const overlay = await loadOverlay(
+      db,
+      locale,
+      "ITEM_VARIANT",
+      questions.map((q) => q.variantId),
+    );
+
     return questions.map((q) => ({
       position: q.position,
       optionOrder: optionOrderSchema.parse(q.optionOrder),
@@ -293,6 +344,7 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       type: q.variant.masterItem.type,
       variantContent: q.variant.content,
       imageUrl: q.variant.masterItem.sourceImage?.url ?? null,
+      translation: overlay.get(q.variantId),
     }));
   }
 
@@ -333,8 +385,19 @@ export function createAttemptService(deps: AttemptServiceDeps) {
     const reveal = attempt.mode !== "EXAM"; // practice-like modes get instant server-graded feedback
     const correct = input.optionKey === question.variant.correctOptionKey;
 
-    // Idempotent autosave: same answer re-sent → no write, same response.
-    if (question.answeredOptionKey !== input.optionKey) {
+    // An answer is written once (developer decision 2026-08-25). Re-sending the SAME answer is
+    // still fine — a retry, a double tap or a reconnect must not become an error — but a
+    // different one is refused. In practice mode the answer is revealed the moment it is given,
+    // so a changeable answer would make every practice score a formality. The database enforces
+    // this too (`tp_attempt_question_immutable`); this check is what turns it into a message.
+    if (question.answeredOptionKey !== null && question.answeredOptionKey !== input.optionKey) {
+      throw new ConflictError(
+        { attemptId: attempt.id, position: input.position },
+        "quiz.errors.answerLocked",
+      );
+    }
+
+    if (question.answeredOptionKey === null) {
       await db.examAttemptQuestion.update({
         where: { id: question.id },
         data: {
@@ -351,6 +414,53 @@ export function createAttemptService(deps: AttemptServiceDeps) {
     return buildPracticeResult({
       position: input.position,
       correct,
+      correctOptionKey: question.variant.correctOptionKey,
+      explanation: question.variant.explanation,
+      locale: input.locale,
+    });
+  }
+
+  /**
+   * Re-read the feedback for a question the student has ALREADY answered (practice-like modes).
+   *
+   * Exists so that navigating back to an answered question — or refreshing the page — shows the
+   * explanation again instead of a blank card. It reveals nothing new: the answer is recorded and
+   * can no longer change, and this is the same payload the student was shown when they answered.
+   *
+   * It is a read, not a re-answer, and it refuses on both counts that matter: never in EXAM mode,
+   * never for a question that has not been answered yet.
+   */
+  async function revealAnswered(
+    userId: string,
+    rawInput: unknown,
+  ): Promise<PracticeAnswerResult> {
+    const input = revealInputSchema.parse(rawInput);
+    const attempt = await loadOwnedAttempt(userId, input.attemptId);
+
+    if (attempt.mode === "EXAM") {
+      throw new ForbiddenError({ attemptId: attempt.id }, "errors.forbidden");
+    }
+
+    const question = await db.examAttemptQuestion.findUnique({
+      where: {
+        attemptId_position: { attemptId: attempt.id, position: input.position },
+      },
+      select: {
+        answeredOptionKey: true,
+        variant: { select: { correctOptionKey: true, explanation: true } },
+      },
+    });
+    if (!question) throw new NotFoundError();
+    if (question.answeredOptionKey === null) {
+      throw new ConflictError(
+        { attemptId: attempt.id, position: input.position },
+        "quiz.errors.notAnsweredYet",
+      );
+    }
+
+    return buildPracticeResult({
+      position: input.position,
+      correct: question.answeredOptionKey === question.variant.correctOptionKey,
       correctOptionKey: question.variant.correctOptionKey,
       explanation: question.variant.explanation,
       locale: input.locale,
@@ -416,6 +526,9 @@ export function createAttemptService(deps: AttemptServiceDeps) {
           topicBreakdown: grade.topicBreakdown as unknown as Prisma.InputJsonValue,
         },
       });
+      // Attest inside the same transaction (spec-04b): after this the DB refuses to change the
+      // result at all, so the digest has to be written while the record is still being closed.
+      await attestAttempt(tx, attempt.id);
     });
 
     if (deps.onGraded) await deps.onGraded(attempt.userId);
@@ -446,6 +559,7 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       where: { attemptId: attempt.id },
       select: {
         position: true,
+        variantId: true,
         optionOrder: true,
         answeredOptionKey: true,
         flagged: true,
@@ -465,6 +579,16 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       orderBy: { position: "asc" },
     });
 
+    // A past paper reads in the language it is being viewed in, from the same overlay the live
+    // exam used. The attempt also records the language it was SAT in, so a dispute can always be
+    // answered with the wording the student actually saw.
+    const overlay = await loadOverlay(
+      db,
+      locale,
+      "ITEM_VARIANT",
+      questions.map((q) => q.variantId),
+    );
+
     const gradedRows: GradedQuestionRow[] = questions.map((q) => ({
       position: q.position,
       optionOrder: optionOrderSchema.parse(q.optionOrder),
@@ -477,6 +601,7 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       correctOptionKey: q.variant.correctOptionKey,
       isCorrect: q.isCorrect ?? false,
       explanation: q.variant.explanation,
+      translation: overlay.get(q.variantId),
     }));
 
     const breakdown = z
@@ -508,7 +633,24 @@ export function createAttemptService(deps: AttemptServiceDeps) {
     });
   }
 
-  return { startQuiz, serveAttempt, answer, setFlag, submit };
+  /**
+   * The stored result of a CLOSED attempt — what the student sees in their history (spec-04b).
+   * Refuses an attempt that is still running: correctness and explanations must not leak into a
+   * live exam, which is the same invariant the serializer enforces on the way out.
+   */
+  async function getResult(
+    userId: string,
+    rawInput: unknown,
+  ): Promise<AttemptResult> {
+    const input = submitInputSchema.parse(rawInput);
+    const attempt = await loadOwnedAttempt(userId, input.attemptId);
+    if (attempt.status === "IN_PROGRESS") {
+      throw new ExamStateError({ attemptId: attempt.id, reason: "still in progress" });
+    }
+    return buildStoredResult(attempt, input.locale);
+  }
+
+  return { startQuiz, serveAttempt, answer, revealAnswered, setFlag, submit, getResult };
 }
 
 export type AttemptService = ReturnType<typeof createAttemptService>;
@@ -537,15 +679,17 @@ export function evenDistribution(
  */
 export function rebalanceToAvailability(
   distribution: Record<string, number>,
-  candidates: Record<string, { masterItemId: string }[]>,
+  candidates: Record<string, { masterItemId: string; conceptGroupId?: string | null }[]>,
 ): Record<string, number> {
   const out: Record<string, number> = {};
   let deficit = 0;
   const capacity = new Map<string, number>();
   for (const slug of Object.keys(distribution).sort()) {
-    // capacity = distinct master items (a master can appear only once per attempt)
+    // capacity = distinct CONCEPTS, not rows: a master appears at most once per attempt, and
+    // re-phrasings of one rule (same conceptGroupId) are one question as far as a paper is
+    // concerned. Counting rows here promises a topic more questions than assembly can serve.
     const distinctMasters = new Set(
-      (candidates[slug] ?? []).map((c) => c.masterItemId),
+      (candidates[slug] ?? []).map((c) => c.conceptGroupId ?? c.masterItemId),
     ).size;
     capacity.set(slug, distinctMasters);
     const take = Math.min(distribution[slug], distinctMasters);

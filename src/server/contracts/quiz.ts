@@ -25,6 +25,11 @@ export const startQuizInputSchema = z
     licenseClassCode: z.string().min(1).optional(), // EXAM mode: required (validated in service)
     topicSlugs: z.array(z.string().min(1)).max(20).optional(), // TOPIC mode
     questionCount: z.int().min(1).max(100).optional(), // TOPIC/SIGN/PRACTICE; EXAM uses blueprint
+    /**
+     * Run this attempt against the official clock. EXAM is always timed; the student chooses for
+     * everything else, which is what makes a self-configured full-length rehearsal possible.
+     */
+    timed: z.boolean().optional(),
     locale: localeSchema,
   })
   .strict();
@@ -47,6 +52,18 @@ export const answerAckSchema = z
   .object({ position: z.int().min(1), saved: z.literal(true) })
   .strict();
 export type AnswerAck = z.infer<typeof answerAckSchema>;
+
+/**
+ * Re-read the feedback for a question the student already answered (practice-like modes only).
+ * Not a re-answer: answers are write-once, so this can only ever return what was already shown.
+ */
+export const revealInputSchema = z
+  .object({
+    attemptId: idSchema,
+    position: z.int().min(1),
+    locale: localeSchema,
+  })
+  .strict();
 
 export const flagInputSchema = z
   .object({

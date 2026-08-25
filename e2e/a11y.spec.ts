@@ -3,7 +3,14 @@ import { expect, test } from "@playwright/test";
 
 // WCAG 2.1 AA is Norwegian law (universell utforming) — no serious/critical
 // violations allowed on the shell, in either locale or theme.
-for (const path of ["/en", "/no"]) {
+for (const path of [
+  "/en",
+  "/no",
+  "/en/login",
+  "/no/login",
+  "/en/forgot-password",
+  "/no/forgot-password",
+]) {
   test(`axe: no serious/critical violations on ${path}`, async ({ page }) => {
     await page.goto(path);
     const results = await new AxeBuilder({ page })

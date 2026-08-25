@@ -22,3 +22,20 @@ describe("school.config", () => {
     }
   });
 });
+
+describe("locale formatting", () => {
+  it("pins an IANA time zone so dates never follow the host's clock", () => {
+    expect(schoolConfig.locales.timeZone).toBe("Europe/Oslo");
+    expect(Intl.supportedValuesOf("timeZone")).toContain(
+      schoolConfig.locales.timeZone,
+    );
+  });
+
+  it("rejects a config without a valid zone", () => {
+    const broken = {
+      ...schoolConfig,
+      locales: { ...schoolConfig.locales, timeZone: "Mars/Olympus" },
+    };
+    expect(() => schoolConfigSchema.parse(broken)).toThrow();
+  });
+});

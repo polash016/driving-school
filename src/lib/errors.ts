@@ -20,48 +20,80 @@ export abstract class AppError extends Error {
 export class ValidationError extends AppError {
   readonly code = "VALIDATION";
   readonly httpStatus = 400;
-  constructor(meta?: Record<string, unknown>) {
-    super("errors.validation", meta);
+  /** `messageKey` overrides the default user-facing message with a more specific one. */
+  constructor(meta?: Record<string, unknown>, messageKey = "errors.validation") {
+    super(messageKey, meta);
   }
 }
 
 export class AuthError extends AppError {
   readonly code = "UNAUTHENTICATED";
   readonly httpStatus = 401;
-  constructor(meta?: Record<string, unknown>) {
-    super("errors.unauthenticated", meta);
+  /** `messageKey` overrides the default user-facing message with a more specific one. */
+  constructor(meta?: Record<string, unknown>, messageKey = "errors.unauthenticated") {
+    super(messageKey, meta);
   }
 }
 
 export class ForbiddenError extends AppError {
   readonly code = "FORBIDDEN";
   readonly httpStatus = 403;
-  constructor(meta?: Record<string, unknown>) {
-    super("errors.forbidden", meta);
+  /** `messageKey` overrides the default user-facing message with a more specific one. */
+  constructor(meta?: Record<string, unknown>, messageKey = "errors.forbidden") {
+    super(messageKey, meta);
   }
 }
 
 export class NotFoundError extends AppError {
   readonly code = "NOT_FOUND";
   readonly httpStatus = 404;
-  constructor(meta?: Record<string, unknown>) {
-    super("errors.notFound", meta);
+  /** `messageKey` overrides the default user-facing message with a more specific one. */
+  constructor(meta?: Record<string, unknown>, messageKey = "errors.notFound") {
+    super(messageKey, meta);
   }
 }
 
 export class ConflictError extends AppError {
   readonly code = "CONFLICT";
   readonly httpStatus = 409;
-  constructor(meta?: Record<string, unknown>) {
-    super("errors.conflict", meta);
+  /** `messageKey` overrides the default user-facing message with a more specific one. */
+  constructor(meta?: Record<string, unknown>, messageKey = "errors.conflict") {
+    super(messageKey, meta);
   }
 }
 
 export class RateLimitError extends AppError {
   readonly code = "RATE_LIMITED";
   readonly httpStatus = 429;
+  /** `messageKey` overrides the default user-facing message with a more specific one. */
+  constructor(meta?: Record<string, unknown>, messageKey = "errors.rateLimited") {
+    super(messageKey, meta);
+  }
+}
+
+/**
+ * Credentials were correct but the account has 2FA enabled and no valid code was supplied —
+ * the login UI shows the code step (spec-03).
+ */
+export class TotpRequiredError extends AppError {
+  readonly code = "TOTP_REQUIRED";
+  readonly httpStatus = 401;
   constructor(meta?: Record<string, unknown>) {
-    super("errors.rateLimited", meta);
+    super("auth.errors.totpRequired", meta);
+  }
+}
+
+/**
+ * An ADMIN whose 2FA is not provisioned yet: enrolment must finish before any session is
+ * issued. Carries the one-time setup ticket the enrolment step consumes.
+ */
+export class TotpSetupRequiredError extends AppError {
+  readonly code = "TOTP_SETUP_REQUIRED";
+  readonly httpStatus = 401;
+  readonly ticketId: string;
+  constructor(ticketId: string, meta?: Record<string, unknown>) {
+    super("auth.errors.totpSetupRequired", meta);
+    this.ticketId = ticketId;
   }
 }
 

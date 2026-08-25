@@ -11,7 +11,9 @@ test("language switcher navigates to /no and persists across reload", async ({
   page,
 }) => {
   await page.goto("/en");
-  await page.getByRole("button", { name: /norwegian/i }).click();
+  // Languages are listed in their own name now — a school can add any language, so a
+  // message key per language stopped being possible.
+  await page.getByRole("button", { name: /norsk bokm/i }).click();
   await expect(page).toHaveURL(/\/no$/);
   await expect(
     page.getByRole("heading", { name: "Klar for teoriprøven?" }),

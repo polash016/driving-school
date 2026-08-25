@@ -1,5 +1,7 @@
 import type { AttemptMode, AttemptStatus, ItemType } from "@prisma/client";
 import { pickLocale } from "@/lib/i18n-content";
+import { mergeQuestion } from "@/server/services/i18n/resolve";
+import type { UnitPayload } from "@/server/services/i18n/units";
 import type { Locale } from "@/server/contracts/common";
 import {
   explanationSchema,
@@ -35,6 +37,12 @@ export interface ServedQuestionRow {
   type: ItemType;
   variantContent: unknown; // ItemVariant.content JSON (validated here)
   imageUrl: string | null;
+  /**
+   * Translated text for this variant, when the student's language has one that is servable
+   * (spec-15). Resolved by the caller in one batched query — never fetched here, so this stays a
+   * pure builder and cannot become an N+1.
+   */
+  translation?: unknown;
 }
 
 export function buildClientQuestion(
@@ -42,11 +50,17 @@ export function buildClientQuestion(
   locale: Locale,
 ): ClientQuestion {
   const content = variantContentSchema.parse(row.variantContent);
-  const localized = pickLocale(content, locale);
+  const authored = pickLocale(content, locale);
+  // Translation is an OVERLAY: keys and their order come from the authored side, always, and a
+  // translation contributes text and nothing else. A translated question missing an option would
+  // otherwise have thrown here — which, in a live exam, means a 500 mid-attempt.
+  const localized = mergeQuestion(authored, row.translation as UnitPayload | undefined);
   const textByKey = new Map(localized.options.map((o) => [o.key, o.text]));
 
   const options = row.optionOrder.map((key) => {
     const text = textByKey.get(key);
+    // Still a hard error, because now it can only mean the AUTHORED content is inconsistent with
+    // the option order stored on the attempt — a real data bug, not a translation problem.
     if (!text) throw new Error(`optionOrder key ${key} missing in content`);
     return { key, text };
   });

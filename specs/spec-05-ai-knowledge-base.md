@@ -13,3 +13,32 @@ The legal ground truth every AI generation cites. No KB citation → no question
 - [ ] `kb.search("vikeplikt høyreregel")` returns the right Trafikkreglene chunks (golden-set test with 10 queries).
 - [ ] Changing a fact flags all citing MasterItems as NEEDS_REVIEW automatically (test).
 - [ ] Sign registry complete for all sign classes; each sign renders its SVG in both locales.
+
+---
+
+## Amendment — 2026-08-24 (approved; see DECISIONS.md · spec-05 · AI provider registry)
+
+**This spec's first deliverable, before the KB itself**: nothing here can run without a working AI
+provider, and the school must be able to supply its own keys without a redeploy.
+
+### Added scope
+- **`AiProvider`** (kind `GOOGLE | ANTHROPIC | OPENAI_COMPATIBLE`, label, base URL, encrypted API key,
+  active, priority) and **`AiRoute`** (task → provider + model id + ordered fallbacks) for the tasks
+  `vision`, `generation`, `validation`, `embedding`, `image`. The OpenAI-compatible adapter covers
+  DeepSeek, OpenRouter, Groq, Mistral, Ollama and the existing OmniRoute endpoint by base URL.
+- **Gateway refactor** keeping the `aiJson` / `aiEmbed` surface unchanged: resolve provider + model per
+  task from the DB (cached `tp:ai:routes`, 5 min, invalidated on save), dispatch to
+  `src/server/ai/providers/*`, fall back down the chain on quota/5xx. Env keys remain the fallback so CI
+  and dev need no database.
+- **Admin screen `/admin/ai`**: add / rotate / delete keys (write-only — the UI shows `sk-…4f2a` and
+  never the value), per-task routing, *Test connection* (one cheap call reporting latency and model id),
+  daily spend meter against the configured budget. Every mutation audit-logged.
+- Keys are encrypted at rest with the AES-256-GCM helpers from spec-03
+  (`src/server/services/auth/crypto.ts`), keyed from `AUTH_SECRET`.
+
+### Added acceptance checklist
+- [ ] A key added through the UI is never returned by any response: grep the rendered HTML, the RSC
+      payload and every JSON boundary for the plaintext → no hit (test, not inspection).
+- [ ] *Test connection* succeeds against a live provider; forcing the primary to 429 makes the next
+      route in the chain answer, and the fallback is logged with both model ids.
+- [ ] Every AI call resolves its model from the DB route with env used only when no route exists (test).

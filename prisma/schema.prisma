@@ -1,6 +1,7 @@
 // TeoriPro — complete schema (spec-02). Every index carries a comment naming the
 // query it serves. Bilingual content is Json of shape { en: …, nb: … }.
-// Auth.js adapter tables (Account/Session/VerificationToken) arrive with spec-03's migration.
+// Auth.js runs credentials-only (spec-03): no adapter tables — login sessions live in
+// UserSession, email-verify/reset tokens in AuthToken. Adapter + Account arrive with Vipps/OIDC.
 
 generator client {
   provider        = "prisma-client-js"
@@ -27,10 +28,14 @@ enum Role {
   STUDENT
 }
 
-enum Locale {
-  en
-  nb
+enum AuthTokenType {
+  EMAIL_VERIFY
+  PASSWORD_RESET
 }
+
+/// NOTE: the `Locale` enum was removed in spec-15 — languages are runtime data now, held in the
+/// `Language` table. Locale codes are BCP-47 strings validated at the service boundary
+/// (`src/lib/locale.ts`), because an open set does not belong in a Postgres enum.
 
 enum QuizMode {
   PRACTICE
@@ -49,6 +54,57 @@ enum ItemStatus {
   APPROVED
   NEEDS_REVIEW // set automatically when a cited fact/chunk changes (spec-05)
   RETIRED
+}
+
+/// AI provider families the gateway can talk to (spec-05). OPENAI_COMPATIBLE covers DeepSeek,
+/// OpenRouter, Groq, Mistral, Ollama and the OmniRoute endpoint by base URL.
+enum AiProviderKind {
+  GOOGLE
+  ANTHROPIC
+  OPENAI_COMPATIBLE
+}
+
+/// What the gateway is being asked to do; each task routes to its own provider + model.
+enum AiTask {
+  VISION
+  GENERATION
+  VALIDATION
+  EMBEDDING
+  IMAGE
+  TRANSLATION
+}
+
+enum BatchKind {
+  IMAGE
+  THEORY
+  MANUAL
+}
+
+enum BatchStatus {
+  PENDING
+  RUNNING
+  READY
+  FAILED
+}
+
+/// Why a human rejected an AI-drafted item — a taxonomy, so rejection reasons can be ranked
+/// (spec-04 accuracy dashboard) and fed back as few-shot examples (spec-06).
+enum RejectionReason {
+  WRONG_ANSWER
+  AMBIGUOUS_DISTRACTOR
+  CITATION_MISMATCH
+  DUPLICATE
+  LANGUAGE_QUALITY
+  IMAGE_MISMATCH
+  OUT_OF_SCOPE
+  OTHER
+}
+
+/// Who refused a question: the deterministic gate, the duplicate check, or a human reviewer.
+enum RejectionSource {
+  GATE
+  DUPLICATE
+  REVIEWER
 }
 
 enum Provenance {
@@ -129,21 +185,28 @@ model User {
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime? // GDPR: PII anonymized, aggregates preserved (spec-12)
 
-  profile             Profile?
-  memberships         GroupMembership[]
-  attempts            ExamAttempt[]
-  masteries           TopicMastery[]
-  readinessSnapshots  ReadinessSnapshot[]
-  mistakeCards        MistakeCard[]
-  homeworkCompletions HomeworkCompletion[]
-  createdInvites      InviteLink[]         @relation("InviteCreator")
-  createdGroups       StudentGroup[]       @relation("GroupCreator")
-  createdItems        MasterItem[]         @relation("ItemCreator")
-  reviewedItems       MasterItem[]         @relation("ItemReviewer")
-  uploadedImages      ImageAsset[]         @relation("ImageUploader")
-  createdHomework     HomeworkAssignment[] @relation("HomeworkCreator")
-  auditEvents         AuditLog[]           @relation("AuditActor")
-  updatedSettings     Setting[]            @relation("SettingUpdater")
+  profile                Profile?
+  memberships            GroupMembership[]
+  attempts               ExamAttempt[]
+  masteries              TopicMastery[]
+  readinessSnapshots     ReadinessSnapshot[]
+  mistakeCards           MistakeCard[]
+  homeworkCompletions    HomeworkCompletion[]
+  createdInvites         InviteLink[]         @relation("InviteCreator")
+  createdGroups          StudentGroup[]       @relation("GroupCreator")
+  createdItems           MasterItem[]         @relation("ItemCreator")
+  reviewedItems          MasterItem[]         @relation("ItemReviewer")
+  uploadedImages         ImageAsset[]         @relation("ImageUploader")
+  createdHomework        HomeworkAssignment[] @relation("HomeworkCreator")
+  auditEvents            AuditLog[]           @relation("AuditActor")
+  updatedSettings        Setting[]            @relation("SettingUpdater")
+  sessions               UserSession[]
+  authTokens             AuthToken[]
+  createdBatches         GenerationBatch[]    @relation("BatchCreator")
+  reviewedTranslations   Translation[]        @relation("TranslationReviewer")
+  startedTranslationRuns TranslationRun[]     @relation("TranslationRunStarter")
+  itemApprovals          ItemApproval[]       @relation("ItemApprover")
+  aiProviders            AiProvider[]         @relation("AiProviderCreator")
 
   // Admin user lists filtered by role/active (spec-11)
   @@index([role, isActive])
@@ -155,7 +218,7 @@ model Profile {
   firstName         String
   lastName          String
   phone             String?
-  preferredLocale   Locale   @default(en)
+  preferredLocale   String   @default("en") // BCP-47; validated against the Language registry
   preferredQuizMode QuizMode @default(PRACTICE) // quick-start toggle, persisted per user (spec-08/09)
   avatarUrl         String?
   instructorNote    String? // visible to instructors/admin only (spec-11)
@@ -199,7 +262,8 @@ model InviteLink {
   token       String    @unique // lookup on registration (spec-03)
   role        Role      @default(STUDENT)
   groupId     String?
-  maxUses     Int? // null = single-use enforced at service level? no — null = unlimited; 1 = single-use
+  email       String? // when set, registration must use this address (CSV + individual invites)
+  maxUses     Int? // null = unlimited; 1 = single-use (omitted input → 1, spec-03 invite service)
   usedCount   Int       @default(0)
   expiresAt   DateTime?
   createdById String
@@ -208,6 +272,47 @@ model InviteLink {
 
   group     StudentGroup? @relation(fields: [groupId], references: [id])
   createdBy User          @relation("InviteCreator", fields: [createdById], references: [id])
+
+  // Admin invite list, newest first (spec-03 minimal page, spec-11 full UI)
+  @@index([createdById, createdAt(sort: Desc)])
+}
+
+// Login sessions (spec-03). The JWT carries this row's id as `sid`; the jwt callback
+// checks revocation through Redis tp:auth:sess:<sid> so revoke takes effect immediately.
+model UserSession {
+  id         String    @id @default(cuid())
+  userId     String
+  userAgent  String?
+  ip         String?
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  revokedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // "my active sessions" on the account security page
+  @@index([userId, revokedAt])
+  // stale-session sweep (cron, spec-14)
+  @@index([lastSeenAt])
+}
+
+// Email verification + password reset tokens (spec-03). Only the sha256 hash is stored;
+// the plaintext token exists solely in the email that was sent.
+model AuthToken {
+  id         String        @id @default(cuid())
+  tokenHash  String        @unique // lookup on verify/reset
+  type       AuthTokenType
+  userId     String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime      @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // invalidate a user's outstanding tokens of one type on issue/consume
+  @@index([userId, type, consumedAt])
+  // expiry sweep
+  @@index([expiresAt])
 }
 
 // ────────────────────────────────────────────────── Curriculum & registries ──
@@ -246,6 +351,8 @@ model Topic {
   masterItems      MasterItem[]
   masteries        TopicMastery[]
   attemptQuestions ExamAttemptQuestion[]
+  batches          GenerationBatch[]
+  rejections       GenerationRejection[]
 
   // Tree traversal (children of a node)
   @@index([parentId])
@@ -271,43 +378,162 @@ model Sign {
 // ─────────────────────────────────────────────────────────────── Content ──
 
 model MasterItem {
-  id             String     @id @default(cuid())
-  type           ItemType
-  status         ItemStatus @default(DRAFT)
-  topicId        String
-  licenseClassId String? // null = applies to all license classes
-  difficulty     Int        @default(3) // 1..5 (validated at service boundary)
-  content        Json // bilingual template { en: {stem, options[], explanation}, nb: {…} }
-  parameterSlots Json? // slots + constraint rules for deterministic expansion (spec-07)
-  legalCitations Json // display payload; queryable links live in MasterItemCitation
-  version        Int        @default(1) // bumped on content edit; variants snapshot masterVersion
-  createdBy      Provenance
-  modelVersion   String? // AI provenance (spec-06)
-  promptVersion  String?
-  sourceImageId  String?
-  createdById    String?
-  reviewedById   String?
-  reviewedAt     DateTime?
-  reviewNote     String? // rejection reason / review comment (spec-04)
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-  deletedAt      DateTime?
+  id               String                       @id @default(cuid())
+  type             ItemType
+  status           ItemStatus                   @default(DRAFT)
+  topicId          String
+  licenseClassId   String? // null = applies to all license classes
+  difficulty       Int                          @default(3) // 1..5 (validated at service boundary)
+  content          Json // bilingual template { en: {stem, options[], explanation}, nb: {…} }
+  /// The authored answer (spec-04). Nullable only so a DRAFT can be incomplete and an abandoned
+  /// item can be retired — a DB CHECK constraint (`MasterItem_correct_key_required`) enforces
+  /// NOT NULL for every reviewable or servable status.
+  /// Publish copies it onto each ItemVariant, which is what grading actually reads.
+  correctOptionKey String?
+  parameterSlots   Json? // slots + constraint rules for deterministic expansion (spec-07)
+  legalCitations   Json // display payload; queryable links live in MasterItemCitation
+  version          Int                          @default(1) // bumped on content edit; variants snapshot masterVersion
+  createdBy        Provenance
+  modelVersion     String? // AI provenance (spec-06)
+  promptVersion    String?
+  sourceImageId    String?
+  createdById      String?
+  reviewedById     String?
+  reviewedAt       DateTime?
+  reviewNote       String? // free-text review comment (spec-04)
+  reviewReason     RejectionReason? // structured rejection reason — rankable, feeds spec-06 few-shot
+  batchId          String? // the generation SET this item belongs to (spec-04 amendment)
+  /// Retire-and-replace lineage (spec-04b): an APPROVED question is frozen, so a correction is a
+  /// NEW question pointing back at the one it supersedes. Exam results stay explainable by
+  /// pointing at a question whose text never changed.
+  replacesId       String?
+  /// Embedding of the question stem, used to catch a question the AI has already written and to
+  /// keep two phrasings of the same rule out of one exam. Raw SQL (pgvector); see the migration.
+  stemEmbedding    Unsupported("vector(1536)")?
+  /// Questions that test the SAME point in different words share a group. They are alternates:
+  /// two students may each get one, but one student never gets both in a single test.
+  conceptGroupId   String?
+  // Admin search: GENERATED tsvector over the en+nb stems, created in raw SQL because Prisma
+  // cannot express generated columns. CAUTION: `prisma migrate dev` proposes dropping it in every
+  // new migration — strip that statement; prisma/migrations.test.ts fails the build if it lands.
+  searchText       Unsupported("tsvector")?
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+  deletedAt        DateTime?
 
-  topic         Topic                @relation(fields: [topicId], references: [id])
-  licenseClass  LicenseClass?        @relation(fields: [licenseClassId], references: [id])
-  sourceImage   ImageAsset?          @relation(fields: [sourceImageId], references: [id])
-  createdByUser User?                @relation("ItemCreator", fields: [createdById], references: [id])
-  reviewedBy    User?                @relation("ItemReviewer", fields: [reviewedById], references: [id])
+  topic         Topic                 @relation(fields: [topicId], references: [id])
+  licenseClass  LicenseClass?         @relation(fields: [licenseClassId], references: [id])
+  sourceImage   ImageAsset?           @relation(fields: [sourceImageId], references: [id])
+  batch         GenerationBatch?      @relation(fields: [batchId], references: [id])
+  replaces      MasterItem?           @relation("ItemReplacement", fields: [replacesId], references: [id])
+  replacedBy    MasterItem[]          @relation("ItemReplacement")
+  approvals     ItemApproval[]
+  createdByUser User?                 @relation("ItemCreator", fields: [createdById], references: [id])
+  reviewedBy    User?                 @relation("ItemReviewer", fields: [reviewedById], references: [id])
   variants      ItemVariant[]
   citations     MasterItemCitation[]
   mistakeCards  MistakeCard[]
+  rejections    GenerationRejection[]
 
   // Assembly sampling (spec-07): approved items per topic/type
   @@index([topicId, status, type])
   // Review queue oldest-first (spec-04)
   @@index([status, createdAt])
+  // Admin question table: newest-edited first, with or without a status filter (spec-04)
+  @@index([status, updatedAt(sort: Desc)])
   // "questions generated from this image" (spec-06)
   @@index([sourceImageId])
+  // Set detail: every question of one set, grouped by state (spec-04)
+  @@index([batchId, status])
+  // Accuracy dashboard: AI items in a terminal state over a date range (spec-04)
+  @@index([createdBy, status, reviewedAt])
+  // Admin search box (GIN over the generated tsvector)
+  @@index([searchText], type: Gin)
+  // "what replaced this retired question" (spec-04b)
+  @@index([replacesId])
+  // "other phrasings of this same point" — assembly excludes repeats within one attempt
+  @@index([conceptGroupId])
+}
+
+/// One reviewer's sign-off on one question (spec-04b). AI-drafted questions need two distinct
+/// approvers, human-authored ones need a single approver who is not the author — enforced in
+/// `transitions.ts` and asserted by tests. The rows are the audit trail: who vouched for this.
+model ItemApproval {
+  id           String   @id @default(cuid())
+  masterItemId String
+  approverId   String
+  /// The version the approver actually read — an approval never carries over to different text.
+  itemVersion  Int
+  note         String?
+  createdAt    DateTime @default(now())
+
+  masterItem MasterItem @relation(fields: [masterItemId], references: [id], onDelete: Cascade)
+  approver   User       @relation("ItemApprover", fields: [approverId], references: [id])
+
+  // One approval per reviewer per version — a second click is not a second pair of eyes.
+  @@unique([masterItemId, approverId, itemVersion])
+  @@index([masterItemId])
+}
+
+/// A generated question SET — the unit reviewed, curated and measured (spec-04 amendment).
+/// Populated manually in spec-04; by the AI pipeline in spec-06.
+model GenerationBatch {
+  id             String      @id @default(cuid())
+  kind           BatchKind
+  status         BatchStatus @default(PENDING)
+  sourceImageId  String? // IMAGE batches (spec-06)
+  topicId        String? // THEORY batches
+  licenseClassId String?
+  requestedCount Int         @default(5)
+  providerId     String? // spec-05 AiProvider — plain column until that table exists
+  modelVersion   String?
+  promptVersion  String?
+  notes          String?
+  createdById    String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  items       MasterItem[]
+  rejections  GenerationRejection[]
+  sourceImage ImageAsset?           @relation(fields: [sourceImageId], references: [id])
+  topic       Topic?                @relation(fields: [topicId], references: [id])
+  createdBy   User?                 @relation("BatchCreator", fields: [createdById], references: [id])
+
+  // Set board, newest first
+  @@index([status, createdAt(sort: Desc)])
+  // "sets made from this image" (spec-06)
+  @@index([sourceImageId])
+}
+
+/// A question that was refused — by the quality gate, by the duplicate check, or by a reviewer.
+/// Kept as a teaching set: every generation run is shown recent refusals for its topic, with the
+/// reason, so the model stops making the same mistake. Rejections are never deleted; that is the
+/// whole point of them.
+model GenerationRejection {
+  id            String          @id @default(cuid())
+  source        RejectionSource
+  /// Set to the item when a reviewer refused something that had already been saved.
+  masterItemId  String?
+  batchId       String?
+  topicId       String?
+  stemEn        String
+  stemNb        String?
+  /// Machine codes: quality-gate codes (MISSING_CITATION…), DUPLICATE_*, or a reviewer's reason.
+  reasonCodes   String[]
+  /// The reviewer's own words. Optional, and worth more than the code when it is there.
+  note          String?
+  modelVersion  String?
+  promptVersion String?
+  createdById   String?
+  createdAt     DateTime        @default(now())
+
+  batch      GenerationBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  topic      Topic?           @relation(fields: [topicId], references: [id])
+  masterItem MasterItem?      @relation(fields: [masterItemId], references: [id], onDelete: SetNull)
+
+  // "What has been refused on this topic lately" — the few-shot lookup, newest first.
+  @@index([topicId, createdAt(sort: Desc)])
+  @@index([batchId])
 }
 
 // Queryable citation links — powers "affected items" lookup on fact/chunk change (spec-05)
@@ -374,9 +600,10 @@ model ImageAsset {
   updatedAt          DateTime    @updatedAt
   deletedAt          DateTime?
 
-  uploadedBy  User?            @relation("ImageUploader", fields: [uploadedById], references: [id])
+  uploadedBy  User?             @relation("ImageUploader", fields: [uploadedById], references: [id])
   detections  ImageDetection[]
   masterItems MasterItem[]
+  batches     GenerationBatch[]
 
   // Dedupe check on upload (spec-06)
   @@index([perceptualHash])
@@ -430,6 +657,10 @@ model ExamAttempt {
   licenseClassId        String?
   blueprintId           String?
   seed                  String // deterministic assembly/shuffle seed
+  /// The language this attempt was SAT in (spec-15). A disputed mark has to be answerable with
+  /// the exact wording the student saw, and with more than two languages the paper can no longer
+  /// be re-rendered in whichever locale the reader happens to be using.
+  locale                String        @default("en")
   // Config snapshots — official rules frozen at start so mid-attempt config changes can't corrupt grading
   questionCountSnapshot Int
   timeLimitSecSnapshot  Int? // null = untimed (practice)
@@ -440,6 +671,18 @@ model ExamAttempt {
   correctCount          Int?
   passed                Boolean?
   topicBreakdown        Json? // per-topic result snapshot written at grading
+  /// sha256 over the canonical record (questions served, option order, answers, grade) computed
+  /// at submit (spec-04b). Re-computing it from the stored rows proves the result was neither
+  /// edited nor re-graded after the fact.
+  resultHash            String?
+  attestedAt            DateTime?
+  /// Whether this attempt qualifies towards the pass guarantee — decided from the student's setup
+  /// (all categories, full length) at the moment they start, and frozen with the rest of the
+  /// result. Telling them afterwards that it did not count would be worthless.
+  countsTowardGuarantee Boolean       @default(false)
+  /// What the student chose: timer on/off, question count, categories. Kept so a disputed result
+  /// can be explained without reconstructing it from the questions.
+  setupSnapshot         Json?
   focusLossCount        Int           @default(0) // exam-mode chrome events (spec-08, policy spec-12)
   anomalyFlagged        Boolean       @default(false) // impossible answer speed etc. (spec-12)
   createdAt             DateTime      @default(now())
@@ -603,8 +846,14 @@ model KbChunk {
   sourceId   String
   ref        String // section reference, e.g. "§ 7-2"
   text       String
-  // pgvector embedding; HNSW index + tsvector/GIN for hybrid search added via raw SQL in the migration
+  // pgvector embedding; its HNSW index is raw SQL (20260824054002_kb_hybrid_search) because
+  // Prisma has no hnsw index type. CAUTION: `prisma migrate dev` therefore proposes
+  // `DROP INDEX "KbChunk_embedding_hnsw_idx"` in every new migration — delete that line from the
+  // generated SQL. `prisma/migrations.test.ts` fails the build if it is ever committed.
   embedding  Unsupported("vector(1536)")?
+  // Generated tsvector column (norwegian) created by the same raw SQL migration — declared here so
+  // the schema matches the database and migrations stop trying to drop it.
+  textSearch Unsupported("tsvector")?
   tokenCount Int?
   isActive   Boolean                      @default(true)
   createdAt  DateTime                     @default(now())
@@ -615,6 +864,8 @@ model KbChunk {
 
   // Chunk listing per source (admin KB screen)
   @@index([sourceId])
+  // Keyword leg of hybrid search (spec-05): to_tsquery('norwegian', …) @@ "textSearch"
+  @@index([textSearch], type: Gin)
 }
 
 // Typed legal facts — templates reference keys, never literals (spec-05)
@@ -633,6 +884,51 @@ model Fact {
 }
 
 // ─────────────────────────────────────────────────────────────── Platform ──
+
+/// An AI provider the school has configured (spec-05). The API key is encrypted at rest with the
+/// AES-256-GCM helpers from spec-03 and never leaves the server — the admin UI shows a mask.
+model AiProvider {
+  id              String         @id @default(cuid())
+  kind            AiProviderKind
+  label           String
+  baseUrl         String? // required for OPENAI_COMPATIBLE; defaults per kind otherwise
+  encryptedApiKey String
+  /// Last four characters of the key, for recognising which key is configured without exposing it.
+  keyHint         String
+  isActive        Boolean        @default(true)
+  lastCheckedAt   DateTime?
+  lastCheckOk     Boolean?
+  lastCheckError  String?
+  createdById     String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  routes    AiRoute[]
+  createdBy User?     @relation("AiProviderCreator", fields: [createdById], references: [id])
+
+  @@index([isActive])
+}
+
+/// Which provider and model serve one task, and in what order (spec-05). Ordered fallbacks are
+/// what make free tiers usable: a quota error moves to the next route rather than failing the job.
+model AiRoute {
+  id         String   @id @default(cuid())
+  task       AiTask
+  providerId String
+  model      String
+  /// Lower runs first. The first route that answers wins.
+  priority   Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  provider AiProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  // One entry per provider+model per task; ordering is explicit.
+  @@unique([task, providerId, model])
+  // Route resolution: active routes for a task, cheapest priority first
+  @@index([task, isActive, priority])
+}
 
 // Runtime-editable policies (spec-11 settings screen) — deploy-time identity stays in school.config.ts
 model Setting {
@@ -664,4 +960,282 @@ model AuditLog {
   @@index([actorId, createdAt])
   // "history of this entity"
   @@index([entityType, entityId])
+}
+
+// ─────────────────────────────────────────────── Languages & translation (spec-15) ──
+
+enum TextDirection {
+  LTR
+  RTL
+}
+
+enum TranslationStatus {
+  /// The AI wrote it and no human has looked. Served only when the language does not require
+  /// approval — the row still records that nobody vouched for it.
+  MACHINE
+  /// A QA check flagged it, or a reviewer sent it back. NEVER served, under any policy.
+  NEEDS_REVIEW
+  APPROVED
+  /// Refused. Never served, and its note becomes a worked example in the next prompt.
+  REJECTED
+}
+
+/// What a translation row points at. The entity decides where the source is read from and how the
+/// row is validated — a UI message carries ICU placeholders, a question does not.
+enum TranslatableEntity {
+  UI_MESSAGE
+  /// The authored question — the unit a reviewer approves.
+  MASTER_ITEM
+  /// The published question — the unit actually served to a student. Derived from MASTER_ITEM at
+  /// no token cost, except for variants left behind by an older master version.
+  ITEM_VARIANT
+  TOPIC
+  LICENSE_CLASS
+  SIGN
+  EXAM_BLUEPRINT
+  KB_SOURCE
+  FACT
+}
+
+enum TranslationRunKind {
+  FULL
+  SYNC
+  SINGLE_ENTITY
+}
+
+enum TranslationRunStatus {
+  PENDING
+  RUNNING
+  PAUSED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum TranslationJobState {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+  SKIPPED
+}
+
+/// A language the school offers.
+///
+/// `en` and `nb` are seeded as BUILT-IN: their strings live in the on-disk catalogues and in the
+/// `{ en, nb }` content columns, they are compiled into the app, and they are never read from this
+/// table at request time. That is what makes the app keep routing when Postgres and Redis are both
+/// unreachable — the two original languages have no runtime dependency at all.
+model Language {
+  code             String        @id // BCP-47: "en", "nb", "es", "ar"
+  englishName      String // admin-facing
+  nativeName       String // shown to students in the switcher: "Español", "العربية"
+  shortLabel       String // switcher chip: "EN", "NO", "ES"
+  /// Runtime-added languages MUST use "/<code>" — `localePrefix.prefixes` is compiled into the
+  /// client bundle, so a prefix that differs from the code would make <Link> and the proxy
+  /// disagree and loop. `nb → /no` is the grandfathered exception.
+  urlPrefix        String        @unique
+  direction        TextDirection @default(LTR)
+  isBuiltIn        Boolean       @default(false)
+  /// Whether AI translations need a human sign-off before students see them. The school's call,
+  /// per language. Note this is read by the RESOLVER, not written into `status` — so flipping it
+  /// changes what students see immediately, and flipping it back does not lose the audit trail.
+  requiresApproval Boolean       @default(true)
+  /// How many distinct reviewers must approve a translation. One by default: an AI-drafted
+  /// question needs two, but requiring two speakers of every language would make a language
+  /// impossible for a small school to ship.
+  minApprovers     Int           @default(1)
+  /// Students only see a language once every unit is translated (and approved, when required).
+  /// Nobody should meet a test that is half in their language and half in English.
+  studentVisible   Boolean       @default(false)
+  fallbackCode     String        @default("en")
+  sortOrder        Int           @default(0)
+  /// Share of translations that get the expensive back-translation QA pass. 1 for a new language;
+  /// lowered once the measured pass rate justifies it.
+  qaSampleRate     Float         @default(1)
+  /// Termbase: { "vikeplikt": "…", "forkjørsvei": "…" } — injected into every prompt so a term
+  /// renders the same way in question 3 and question 91.
+  glossary         Json?
+  /// Bumping this invalidates translation memory: the same source text must be re-translated
+  /// because the terminology it should use has changed.
+  glossaryVersion  Int           @default(1)
+  /// Register/script guidance appended to the prompt ("formal, second person, Modern Standard").
+  styleNote        String?
+  lastSyncedAt     DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  translations Translation[]
+  memory       TranslationMemory[]
+  runs         TranslationRun[]
+
+  // The registry load and the student switcher — the only hot query on this table.
+  @@index([studentVisible, sortOrder])
+}
+
+/// One translated UNIT, overlaid onto the source at render time.
+///
+/// Deliberately NOT stored inside the existing `{ en, nb }` content JSON: `ItemVariant.content` is
+/// frozen by `tp_item_variant_immutable`, and its `contentHash` is both unique and the per-student
+/// seen-window key. An overlay leaves every one of those guarantees untouched.
+///
+/// The unit — not the field — is the row, because for exam content the fallback granularity has to
+/// be the whole question. An Arabic stem with English options is worse for a graded assessment
+/// than plain English throughout. (UI messages are the opposite and merge per key: a UI is a
+/// mosaic by nature, and a missing key must never render as a raw dotted path.)
+model Translation {
+  id           String             @id @default(cuid())
+  locale       String
+  entity       TranslatableEntity
+  /// MasterItem id, ItemVariant id, Topic id, KbSource code — or the message key for UI_MESSAGE.
+  entityId     String
+  /// The whole localized payload, shaped like one side of the source JSON:
+  ///   MASTER_ITEM / ITEM_VARIANT → { stem, options: [{key,text}], explanation }
+  ///   TOPIC                      → { name, description }
+  ///   SIGN                       → { name, meaning }
+  ///   UI_MESSAGE                 → { text }
+  value        Json
+  status       TranslationStatus  @default(MACHINE)
+  /// sha256 of the source payload this was produced from. Staleness is a hash mismatch, full
+  /// stop — which is why a sync never re-translates something that has not changed.
+  sourceHash   String
+  sourceLocale String             @default("en")
+
+  modelVersion     String?
+  promptVersion    String?
+  providerLabel    String?
+  promptTokens     Int?
+  completionTokens Int?
+  /// True when this came from translation memory rather than a fresh call.
+  fromMemory       Boolean @default(false)
+
+  /// Structural + semantic QA output: what was checked and what it found.
+  qaReport      Json?
+  /// Cosine between the source stem and the back-translated stem. Its own scale — deliberately
+  /// NOT the 0.94/0.85 thresholds from question dedupe, which measure a different thing entirely.
+  semanticScore Float?
+  qaFlags       String[]
+
+  reviewedById String?
+  reviewedAt   DateTime?
+  reviewNote   String?
+  runId        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  language   Language        @relation(fields: [locale], references: [code], onDelete: Cascade)
+  reviewedBy User?           @relation("TranslationReviewer", fields: [reviewedById], references: [id])
+  run        TranslationRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  // The resolver lookup, and the runner's idempotency key.
+  @@unique([locale, entity, entityId])
+  // Coverage counters: "how many approved questions in Arabic".
+  @@index([locale, entity, status])
+  // Review queue, oldest machine output first.
+  @@index([locale, status, createdAt])
+  // "This question in every language" — the reviewer's side-by-side, the reverse access pattern.
+  @@index([entity, entityId])
+  // QA triage: worst drift first.
+  @@index([locale, semanticScore])
+}
+
+/// Content-addressed reuse: a given source payload is translated once, ever.
+///
+/// Keyed on the whole unit rather than on segments, deliberately. Segment-level substitution is
+/// how "Right" becomes "correct" in a question about turning right.
+model TranslationMemory {
+  id              String             @id @default(cuid())
+  locale          String
+  /// sha256 over { canonical source payload, entity kind, glossary version }.
+  sourceHash      String
+  contextKind     TranslatableEntity
+  value           Json
+  hits            Int                @default(0)
+  modelVersion    String?
+  promptVersion   String?
+  glossaryVersion Int                @default(1)
+  createdAt       DateTime           @default(now())
+  lastUsedAt      DateTime?
+
+  language Language @relation(fields: [locale], references: [code], onDelete: Cascade)
+
+  // One probe per unit before any AI call — the entire point of the table.
+  @@unique([locale, sourceHash])
+  @@index([locale, lastUsedAt])
+}
+
+/// The termbase as rows, for terms a reviewer curates by hand (the `Language.glossary` blob is the
+/// bulk form injected into prompts; these are the ones with a note explaining the choice).
+model TranslationTerm {
+  id        String   @id @default(cuid())
+  locale    String
+  source    String
+  value     String
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@unique([locale, source])
+}
+
+/// One translation run.
+///
+/// There is no job queue in this stack, so the run IS the queue: progress lives in the database,
+/// work is claimed under a lease, and a killed process loses nothing but its lease.
+model TranslationRun {
+  id               String               @id @default(cuid())
+  locale           String
+  kind             TranslationRunKind
+  status           TranslationRunStatus @default(PENDING)
+  plannedUnits     Int                  @default(0)
+  translatedUnits  Int                  @default(0)
+  memoryHits       Int                  @default(0)
+  failedUnits      Int                  @default(0)
+  /// Translated but flagged by QA, so held for review whatever the language policy says.
+  flaggedUnits     Int                  @default(0)
+  promptTokens     Int                  @default(0)
+  completionTokens Int                  @default(0)
+  estimatedUsd     Float                @default(0)
+  error            String?
+  /// The lock. A run whose lease has lapsed can be taken over — which is what makes a killed
+  /// script recoverable without Redis and without a queue.
+  leaseOwner       String?
+  leaseExpiresAt   DateTime?
+  startedById      String?
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  language     Language         @relation(fields: [locale], references: [code], onDelete: Cascade)
+  startedBy    User?            @relation("TranslationRunStarter", fields: [startedById], references: [id])
+  jobs         TranslationJob[]
+  translations Translation[]
+
+  // Admin run board, newest first.
+  @@index([locale, status, createdAt(sort: Desc)])
+  // Lease sweeper: RUNNING rows whose lease lapsed.
+  @@index([status, leaseExpiresAt])
+}
+
+/// One unit of work inside a run. Exists so the question "which three items failed, and why" has
+/// an answer — which an accuracy-critical pipeline has to be able to give.
+model TranslationJob {
+  id         String              @id @default(cuid())
+  runId      String
+  entity     TranslatableEntity
+  entityId   String
+  sourceHash String
+  state      TranslationJobState @default(QUEUED)
+  attempts   Int                 @default(0)
+  error      String?
+  startedAt  DateTime?
+  finishedAt DateTime?
+
+  run TranslationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  // A unit is planned at most once per run.
+  @@unique([runId, entity, entityId])
+  // The claim query: the next QUEUED batch for this run, grouped by entity kind.
+  @@index([runId, state, entity])
 }

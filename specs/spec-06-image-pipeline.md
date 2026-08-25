@@ -19,3 +19,41 @@ Admin uploads traffic images; AI extracts context and drafts questions; humans a
 - [ ] E2E: upload test image → context sheet with correct sign codes → ≥3 validated candidates in review queue.
 - [ ] Uploading same image twice → dedupe warning. GPS EXIF verifiably stripped.
 - [ ] Kill the worker mid-job → job retries safely, no orphan states.
+
+---
+
+## Amendment — 2026-08-24 (approved; see DECISIONS.md · spec-06 · Storage, AI images, AI revision)
+
+### Added scope
+
+**1. Storage driver port (D3).** `src/server/storage/{index.ts,local.ts,s3.ts}` exposing
+`put/get/stream/delete/exists`; driver chosen by config — `local` (a configured VPS directory outside the
+repo) by default, `s3` (any S3-compatible endpoint: AWS, Hetzner, Backblaze, MinIO) opt-in. Keys
+namespaced `images/{yyyy}/{mm}/{id}.{ext}`. Bytes are **never** served from a public URL: a route
+`/api/images/[id]` behind `requireUser()` streams them, so spec-12 can add signed short-TTL URLs and
+per-student watermarks without touching the pipeline.
+
+**2. No-upload path — composite images (D1).** Admin picks a topic and situation; the AI generates only a
+**sign-free background scene**; the pipeline composites official skiltforskriften SVGs from the spec-05
+sign registry onto it at chosen positions (`sharp`). Diffusion models render Norwegian signs
+inaccurately, and a wrong sign makes the question legally wrong — compositing means the sign codes are
+*known*, so the context sheet is ground truth rather than a guess. The composed image requires human
+approval before any question generated from it can leave DRAFT.
+
+**3. AI revision loop.** `AiRevision` (itemId, instruction, before/after JSON, model + prompt version,
+accepted). In the spec-04 set view: type an instruction ("distractor B is ambiguous") → the AI returns a
+revised item → **diff view** → Accept creates v+1, Reject is logged and changes nothing. Accepted
+revisions are stored as few-shot examples for later generation runs.
+
+**4. Generate more into an existing set** — N further candidates from the same image or topic, deduped
+against the existing pool by embedding similarity before they reach review.
+
+### Added acceptance checklist
+- [ ] The same e2e pipeline passes twice with only config changed: `driver=local` and `driver=s3`
+      (MinIO locally).
+- [ ] Exam images are not publicly reachable: requesting the raw storage path returns 404/403, and
+      `/api/images/[id]` without a session returns 401.
+- [ ] A composite image carries exactly the sign codes requested — asserted by construction and
+      re-verified by a vision read-back; mismatch fails the job.
+- [ ] Revise loop: instruction → diff → accept produces v+1 while attempts already served keep rendering
+      their original variant; reject leaves the item byte-identical and writes an audit row.

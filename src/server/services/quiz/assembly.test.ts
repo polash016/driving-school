@@ -6,6 +6,7 @@ function makePool(
   masters: number,
   variantsPerMaster: number,
   type: VariantCandidate["type"] = "TEXT",
+  options: { conceptGroupId?: (master: number) => string | null; difficulty?: (master: number) => number } = {},
 ): VariantCandidate[] {
   const out: VariantCandidate[] = [];
   for (let m = 0; m < masters; m++) {
@@ -17,6 +18,8 @@ function makePool(
         type,
         topicSlug,
         topicId: `${topicSlug}-id`,
+        difficulty: options.difficulty?.(m) ?? ((m % 5) + 1),
+        conceptGroupId: options.conceptGroupId?.(m) ?? null,
         optionKeys: ["a", "b", "c", "d"],
       });
     }
@@ -119,6 +122,73 @@ describe("assembleQuiz", () => {
     };
     const { questions } = assembleQuiz(mixed);
     expect(questions.filter((q) => q.variantId.includes("x")).length).toBe(4); // 10 × 0.4
+  });
+
+  it("never puts two phrasings of the same point on one paper", () => {
+    // Ten masters, all alternates of each other: exactly one may be served.
+    const pool = makePool("r1", 10, 1, "TEXT", { conceptGroupId: () => "group-speed" });
+    const { questions, shortfall } = assembleQuiz({
+      seed: "seed-concept",
+      distribution: { r1: 5 },
+      imageRatio: 0,
+      candidatesByTopic: { r1: pool },
+      seenHashes: new Set<string>(),
+    });
+    expect(questions).toHaveLength(1);
+    expect(shortfall).toBe(4);
+  });
+
+  it("alternates of different points still fill a paper", () => {
+    const pool = makePool("r1", 10, 1, "TEXT", {
+      conceptGroupId: (master) => `group-${master}`,
+    });
+    const { questions } = assembleQuiz({
+      seed: "seed-concept-2",
+      distribution: { r1: 5 },
+      imageRatio: 0,
+      candidatesByTopic: { r1: pool },
+      seenHashes: new Set<string>(),
+    });
+    expect(questions).toHaveLength(5);
+    expect(new Set(questions.map((q) => q.masterItemId)).size).toBe(5);
+  });
+
+  it("spreads the paper across difficulty bands instead of drifting easy", () => {
+    // 30 masters per band, so the target mix is reachable and any drift is the picker's own.
+    const easy = makePool("r1", 30, 1, "TEXT", { difficulty: () => 1 });
+    const medium = makePool("r1m", 30, 1, "TEXT", { difficulty: () => 3 }).map((c) => ({
+      ...c,
+      topicSlug: "r1",
+      topicId: "r1-id",
+    }));
+    const hard = makePool("r1h", 30, 1, "TEXT", { difficulty: () => 5 }).map((c) => ({
+      ...c,
+      topicSlug: "r1",
+      topicId: "r1-id",
+    }));
+    const { questions, difficultyMix } = assembleQuiz({
+      seed: "seed-difficulty",
+      distribution: { r1: 45 },
+      imageRatio: 0,
+      candidatesByTopic: { r1: [...easy, ...medium, ...hard] },
+      seenHashes: new Set<string>(),
+    });
+    expect(questions).toHaveLength(45);
+    // 45 × (0.3 / 0.4 / 0.3) — exact, because the pool can supply every band.
+    expect(difficultyMix).toEqual({ easy: 14, medium: 18, hard: 13 });
+  });
+
+  it("a pool with only easy questions still assembles a full paper", () => {
+    const { questions, difficultyMix, shortfall } = assembleQuiz({
+      seed: "seed-difficulty-thin",
+      distribution: { r1: 10 },
+      imageRatio: 0,
+      candidatesByTopic: { r1: makePool("r1", 20, 1, "TEXT", { difficulty: () => 1 }) },
+      seenHashes: new Set<string>(),
+    });
+    expect(questions).toHaveLength(10);
+    expect(shortfall).toBe(0);
+    expect(difficultyMix).toEqual({ easy: 10, medium: 0, hard: 0 });
   });
 
   it("option order is a permutation of the candidate's keys", () => {

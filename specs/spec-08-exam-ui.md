@@ -7,7 +7,7 @@ Official-test-parity exam experience that stays calm and silky at 60fps.
 All screens in this spec are **mobile-first at 390px design target** (see Spec 09 viewport rule): excellent on phones, acceptable centered max-w-md on desktop. No desktop-specific student layouts in this iteration.
 
 ## In scope
-- Quick-start tiles (Image / Theory / Sign) with Practice⇄Exam toggle (persisted per user); tap → quiz instantly (Spec 07).
+- Quick-start tiles (Image / Theory / Sign) with Practice⇄Exam toggle (persisted per user); tap → quiz instantly (Spec 07). The three tiles are the same engine with one parameter: `startQuizInput.itemType` (`IMAGE` / `TEXT` / `SIGN`) filters assembly candidates — no new attempt mode, no migration (amendment 2026-08-24).
 - Exam screen: one question/screen, large answer cards (44px+ targets), flag, navigator drawer (answered/flagged/current/skipped), server-synced countdown (amber at 10min, no flashing), image viewer with pinch/scroll zoom, language switcher mid-exam (re-renders current question in other locale, same variant).
 - Practice mode: answer → instant correct/incorrect state + explanation + "Read more" citation expander; next-question prefetched during answer reveal.
 - Review-before-submit grid; submit confirmation dialog.

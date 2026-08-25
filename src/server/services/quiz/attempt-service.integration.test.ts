@@ -1,6 +1,12 @@
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ExamStateError, NotFoundError } from "@/lib/errors";
+import { ConflictError, ExamStateError, ForbiddenError, NotFoundError } from "@/lib/errors";
+import type { SessionUser } from "@/server/authz";
+import {
+  categoryPerformance,
+  getResumableAttempt,
+  listAttemptHistory,
+} from "@/server/services/assessment/history";
 import { createAttemptService, type AttemptService } from "./attempt-service";
 import { InMemorySeenStore } from "./ports";
 import { PrismaVariantSource } from "./prisma-variant-source";
@@ -68,7 +74,7 @@ async function seedFixtures() {
   `);
 
   await db.user.createMany({
-    data: ["u1", "u2", "u3", "u4"].map((id) => ({
+    data: ["u1", "u2", "u3", "u4", "u10", "u11", "u12", "u13", "u14", "u15", "u20", "u21", "u22"].map((id) => ({
       id,
       email: `${id}@test.local`,
       role: "STUDENT",
@@ -122,6 +128,9 @@ async function seedFixtures() {
           topicId,
           difficulty: 3,
           content: variantContent(masterId, 0),
+          // Spec-04 added the master's own answer key; the DB constrains every non-draft item
+          // to carry one, and the variants below publish it.
+          correctOptionKey: "a",
           legalCitations: [],
           createdBy: "HUMAN",
         },
@@ -341,5 +350,355 @@ d("attempt lifecycle (integration)", () => {
     await expect(
       service.submit("u2", { attemptId: attempt.id, locale: "en" }),
     ).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+d("candidate filtering by licence class", () => {
+  it("does not hide class-tagged questions from a practice quiz", async () => {
+    // Regression: practice passes `licenseClassId: null`, which used to be read as "questions
+    // with no class" and hid every class-B question — most of a real bank.
+    const licenseClass = await db.licenseClass.findFirstOrThrow({ select: { id: true } });
+    const tagged = await db.masterItem.findFirst({
+      where: { status: "APPROVED", deletedAt: null, variants: { some: { isActive: true } } },
+      select: { id: true, licenseClassId: true },
+    });
+    if (!tagged) return;
+
+    await db.masterItem.update({
+      where: { id: tagged.id },
+      data: { licenseClassId: licenseClass.id },
+      select: { id: true },
+    });
+
+    const source = new PrismaVariantSource(db);
+    const roots = await db.topic.findMany({
+      where: { parentId: null, deletedAt: null },
+      select: { slug: true },
+    });
+    const slugs = roots.map((topic) => topic.slug);
+
+    const unfiltered = await source.candidatesByTopic({ topicSlugs: slugs });
+    const practice = await source.candidatesByTopic({ topicSlugs: slugs, licenseClassId: null });
+
+    const total = (pools: Record<string, unknown[]>) =>
+      Object.values(pools).reduce((sum, pool) => sum + pool.length, 0);
+    expect(total(practice)).toBe(total(unfiltered));
+
+    await db.masterItem.update({
+      where: { id: tagged.id },
+      data: { licenseClassId: tagged.licenseClassId },
+      select: { id: true },
+    });
+  });
+});
+
+d("an answer is written once (developer decision 2026-08-25)", () => {
+  it("refuses a different answer to a question already answered", async () => {
+    freshService();
+    const attempt = await service.startQuiz("u10", {
+      mode: "EXAM",
+      licenseClassCode: "TB",
+      locale: "en",
+    });
+    const first = attempt.questions[0];
+    const chosen = first.options[0].key;
+    const other = first.options.find((option) => option.key !== chosen)!.key;
+
+    await service.answer("u10", {
+      attemptId: attempt.id,
+      position: 1,
+      optionKey: chosen,
+      locale: "en",
+    });
+
+    await expect(
+      service.answer("u10", {
+        attemptId: attempt.id,
+        position: 1,
+        optionKey: other,
+        locale: "en",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    const stored = await db.examAttemptQuestion.findFirstOrThrow({
+      where: { attemptId: attempt.id, position: 1 },
+      select: { answeredOptionKey: true },
+    });
+    expect(stored.answeredOptionKey).toBe(chosen);
+  });
+
+  it("the database refuses it too, even when the service is bypassed", async () => {
+    freshService();
+    const attempt = await service.startQuiz("u11", {
+      mode: "EXAM",
+      licenseClassCode: "TB",
+      locale: "en",
+    });
+    const first = attempt.questions[0];
+    const chosen = first.options[0].key;
+    const other = first.options.find((option) => option.key !== chosen)!.key;
+
+    await service.answer("u11", {
+      attemptId: attempt.id,
+      position: 1,
+      optionKey: chosen,
+      locale: "en",
+    });
+
+    // Straight at the table — no service, no validation. The trigger is the actual guarantee.
+    await expect(
+      db.examAttemptQuestion.updateMany({
+        where: { attemptId: attempt.id, position: 1 },
+        data: { answeredOptionKey: other },
+      }),
+    ).rejects.toThrow(/already answered/i);
+  });
+
+  it("practice: the answer cannot be improved after the explanation is shown", async () => {
+    freshService();
+    const attempt = await service.startQuiz("u12", {
+      mode: "PRACTICE",
+      questionCount: 3,
+      locale: "en",
+    });
+    const first = attempt.questions[0];
+    const wrong = first.options.find((option) => option.key !== "a")!.key;
+
+    const result = await service.answer("u12", {
+      attemptId: attempt.id,
+      position: 1,
+      optionKey: wrong,
+      locale: "en",
+    });
+    expect("correctOptionKey" in result).toBe(true);
+
+    // The student now knows the answer. It must not help them.
+    await expect(
+      service.answer("u12", {
+        attemptId: attempt.id,
+        position: 1,
+        optionKey: "a",
+        locale: "en",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    const submitted = await service.submit("u12", { attemptId: attempt.id, locale: "en" });
+    expect(submitted.review[0].correct).toBe(false);
+  });
+
+  it("re-sending the SAME answer stays idempotent — a retry is not a change", async () => {
+    freshService();
+    const attempt = await service.startQuiz("u13", {
+      mode: "PRACTICE",
+      questionCount: 3,
+      locale: "en",
+    });
+    const key = attempt.questions[0].options[0].key;
+
+    const one = await service.answer("u13", {
+      attemptId: attempt.id,
+      position: 1,
+      optionKey: key,
+      locale: "en",
+    });
+    const two = await service.answer("u13", {
+      attemptId: attempt.id,
+      position: 1,
+      optionKey: key,
+      locale: "en",
+    });
+    expect(two).toEqual(one);
+  });
+});
+
+d("re-reading the feedback for an answered question", () => {
+  it("returns what was already shown, so navigating back is not a blank card", async () => {
+    freshService();
+    const attempt = await service.startQuiz("u14", {
+      mode: "PRACTICE",
+      questionCount: 3,
+      locale: "en",
+    });
+    const answered = await service.answer("u14", {
+      attemptId: attempt.id,
+      position: 1,
+      optionKey: attempt.questions[0].options[0].key,
+      locale: "en",
+    });
+
+    const reread = await service.revealAnswered("u14", {
+      attemptId: attempt.id,
+      position: 1,
+      locale: "en",
+    });
+    expect(reread).toEqual(answered);
+  });
+
+  it("refuses a question that has not been answered, and refuses EXAM mode outright", async () => {
+    freshService();
+    const practice = await service.startQuiz("u15", {
+      mode: "PRACTICE",
+      questionCount: 3,
+      locale: "en",
+    });
+    await expect(
+      service.revealAnswered("u15", { attemptId: practice.id, position: 2, locale: "en" }),
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    const exam = await service.startQuiz("u15", {
+      mode: "EXAM",
+      licenseClassCode: "TB",
+      locale: "en",
+    });
+    await service.answer("u15", {
+      attemptId: exam.id,
+      position: 1,
+      optionKey: exam.questions[0].options[0].key,
+      locale: "en",
+    });
+    await expect(
+      service.revealAnswered("u15", { attemptId: exam.id, position: 1, locale: "en" }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+d("resuming a test that was walked away from", () => {
+  const session = (id: string): SessionUser => ({
+    id,
+    role: "STUDENT",
+    email: `${id}@test.local`,
+  });
+
+  it("offers the unfinished test back, with how far the student got", async () => {
+    freshService();
+    const attempt = await service.startQuiz("u20", {
+      mode: "PRACTICE",
+      questionCount: 4,
+      locale: "en",
+    });
+    await service.answer("u20", {
+      attemptId: attempt.id,
+      position: 1,
+      optionKey: attempt.questions[0].options[0].key,
+      locale: "en",
+    });
+    await service.answer("u20", {
+      attemptId: attempt.id,
+      position: 2,
+      optionKey: attempt.questions[1].options[0].key,
+      locale: "en",
+    });
+
+    const resumable = await getResumableAttempt(db, session("u20"), "u20");
+    expect(resumable?.id).toBe(attempt.id);
+    expect(resumable?.answeredCount).toBe(2);
+    expect(resumable?.questionCount).toBe(4);
+    expect(resumable?.timeRemainingSec).toBeNull(); // untimed practice
+  });
+
+  it("does not offer a timed test whose clock ran out while they were away", async () => {
+    freshService();
+    // The fake clock sits in the past, so this EXAM's 90 minutes are long gone in real time.
+    const attempt = await service.startQuiz("u21", {
+      mode: "EXAM",
+      licenseClassCode: "TB",
+      locale: "en",
+    });
+    expect(attempt.timeRemainingSec).toBe(5400);
+
+    const resumable = await getResumableAttempt(db, session("u21"), "u21");
+    expect(resumable?.id).not.toBe(attempt.id);
+  });
+
+  it("offers nothing once the test is handed in", async () => {
+    freshService();
+    const attempt = await service.startQuiz("u22", {
+      mode: "PRACTICE",
+      questionCount: 3,
+      locale: "en",
+    });
+    for (const question of attempt.questions) {
+      await service.answer("u22", {
+        attemptId: attempt.id,
+        position: question.position,
+        optionKey: "a",
+        locale: "en",
+      });
+    }
+    await service.submit("u22", { attemptId: attempt.id, locale: "en" });
+
+    expect(await getResumableAttempt(db, session("u22"), "u22")).toBeNull();
+  });
+
+  it("the record is tests only — a mock exam is practice, and practice is not the record", async () => {
+    freshService();
+    const practice = await service.startQuiz("u22", {
+      mode: "PRACTICE",
+      questionCount: 3,
+      locale: "en",
+    });
+    await service.submit("u22", { attemptId: practice.id, locale: "en" });
+
+    const tests = await listAttemptHistory(db, session("u22"), "u22", { page: 1, pageSize: 20 });
+    expect(tests.items.some((item) => item.id === practice.id)).toBe(false);
+
+    const everything = await listAttemptHistory(db, session("u22"), "u22", {
+      page: 1,
+      pageSize: 20,
+      onlyTests: false,
+    });
+    expect(everything.items.some((item) => item.id === practice.id)).toBe(true);
+    expect(everything.items.find((item) => item.id === practice.id)?.kind).toBe("PRACTICE");
+  });
+
+  it("a configured test IS the record, and is named a test whatever its engine mode", async () => {
+    freshService();
+    const configured = await service.startQuiz(
+      "u22",
+      // One category only, so the other stays untested — the "not tested yet" case.
+      { mode: "TOPIC", questionCount: 3, topicSlugs: ["r1"], timed: false, locale: "en" },
+      {
+        countsTowardGuarantee: false,
+        setupSnapshot: { timed: false, questionCount: 3, topicSlugs: ["r1"] },
+      },
+    );
+    for (const question of configured.questions) {
+      await service.answer("u22", {
+        attemptId: configured.id,
+        position: question.position,
+        // "a" is always the correct key in the fixtures; option ORDER is shuffled per attempt,
+        // so a wrong answer has to be chosen by key, not by position.
+        optionKey:
+          question.position === 1
+            ? "a"
+            : question.options.find((option) => option.key !== "a")!.key,
+        locale: "en",
+      });
+    }
+    await service.submit("u22", { attemptId: configured.id, locale: "en" });
+
+    const history = await listAttemptHistory(db, session("u22"), "u22", { page: 1, pageSize: 20 });
+    const row = history.items.find((item) => item.id === configured.id);
+    expect(row?.kind).toBe("TEST");
+    expect(row?.status).toBe("SUBMITTED");
+    expect(row?.durationSec).not.toBeNull();
+
+    // …and it is what the category panel counts. Only answered questions are counted, so a
+    // percentage means "of what you attempted", which is what makes it useful from question one.
+    const categories = await categoryPerformance(db, session("u22"), "u22", "en");
+    const tested = categories.filter((category) => category.answered > 0);
+    expect(tested.length).toBeGreaterThan(0);
+    expect(tested.reduce((sum, category) => sum + category.answered, 0)).toBe(3);
+    expect(tested.reduce((sum, category) => sum + category.correct, 0)).toBe(1);
+    for (const category of categories) {
+      expect(category.percent).toBe(
+        category.answered === 0 ? null : Math.round((category.correct / category.answered) * 100),
+      );
+    }
+    // Every root category is listed, including ones never tested — the gaps are the useful part.
+    expect(tested.map((category) => category.topicSlug)).toEqual(["r1"]);
+    const untested = categories.find((category) => category.topicSlug === "r2");
+    expect(untested?.answered).toBe(0);
+    expect(untested?.percent).toBeNull();
   });
 });

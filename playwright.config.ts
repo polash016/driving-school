@@ -1,5 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// Load .env so specs can seed Postgres directly and reach the dev mail sink (spec-03).
+try {
+  (process as unknown as { loadEnvFile?: (p: string) => void }).loadEnvFile?.(".env");
+} catch {
+  // no .env — specs that need the database will fail loudly rather than silently skip
+}
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,

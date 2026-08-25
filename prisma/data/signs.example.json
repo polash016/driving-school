@@ -1,0 +1,41 @@
+{
+  "_readme": [
+    "Sign registry manifest (spec-05). Copy to signs.json, fill in, drop the SVG/PNG files into",
+    "public/signs/, then run: pnpm db:seed-signs",
+    "",
+    "Where the official assets come from: Statens vegvesen publishes the sign images alongside",
+    "skiltforskriften (vegvesen.no → skilt). Ask your contact there for the asset pack — the sign",
+    "designs are defined by regulation, so they are not someone's artwork to license, but you want",
+    "the authoritative files rather than redrawn approximations.",
+    "",
+    "Wikimedia Commons was checked and is NOT a usable source: codes 100 (farlig sving), 202",
+    "(vikeplikt), 204 (stopp) and 302 (innkjøring forbudt) are absent entirely, and what exists is",
+    "skewed toward service and direction signs. A registry built from it would quiz students on the",
+    "wrong signs.",
+    "",
+    "signClass values: FARE, VIKEPLIKT_OG_FORKJORS, FORBUD, PABUD, OPPLYSNING, SERVICE,",
+    "VEGVISNING, UNDERSKILT"
+  ],
+  "signs": [
+    {
+      "code": "202",
+      "signClass": "VIKEPLIKT_OG_FORKJORS",
+      "file": "202.svg",
+      "name": { "en": "Yield", "nb": "Vikeplikt" },
+      "meaning": {
+        "en": "You must give way to traffic on the crossing road.",
+        "nb": "Du har vikeplikt for trafikken på kryssende veg."
+      }
+    },
+    {
+      "code": "204",
+      "signClass": "VIKEPLIKT_OG_FORKJORS",
+      "file": "204.svg",
+      "name": { "en": "Stop", "nb": "Stopp" },
+      "meaning": {
+        "en": "You must stop completely before entering, then give way.",
+        "nb": "Du må stanse helt før du kjører ut, og deretter vike."
+      }
+    }
+  ]
+}

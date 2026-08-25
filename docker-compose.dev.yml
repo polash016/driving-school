@@ -23,6 +23,16 @@ services:
     volumes:
       - teoripro_redisdata:/data
 
+  # Dev mail sink (spec-03): SMTP on 1025, web inbox on http://localhost:8025.
+  # Production SMTP credentials are a spec-14 concern.
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    environment:
+      MP_MAX_MESSAGES: 500
+
 volumes:
   teoripro_pgdata:
   teoripro_redisdata:

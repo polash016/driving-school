@@ -51,7 +51,11 @@ export class PrismaVariantSource implements VariantSource {
         deletedAt: null,
         topicId: { in: [...rootSlugByTopicId.keys()] },
         ...(params.type ? { type: params.type } : {}),
-        ...(params.licenseClassId !== undefined
+        // Only filter when we actually have a class to assemble for. `null` means "no class in
+        // play" (practice, topic drill), NOT "questions that have no class" — reading it the
+        // second way silently hides every question tagged with a licence class, which is most of
+        // a real question bank.
+        ...(params.licenseClassId
           ? {
               OR: [
                 { licenseClassId: null },
@@ -64,6 +68,8 @@ export class PrismaVariantSource implements VariantSource {
         id: true,
         type: true,
         topicId: true,
+        difficulty: true,
+        conceptGroupId: true,
         variants: {
           where: { isActive: true },
           select: { id: true, contentHash: true, content: true },
@@ -86,6 +92,8 @@ export class PrismaVariantSource implements VariantSource {
           type: item.type,
           topicSlug: rootSlug,
           topicId: item.topicId,
+          difficulty: item.difficulty,
+          conceptGroupId: item.conceptGroupId,
           optionKeys: content.en.options.map((o) => o.key),
         });
       }

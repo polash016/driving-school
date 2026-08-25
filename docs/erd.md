@@ -26,7 +26,7 @@ erDiagram
   String firstName
   String lastName
   String phone "nullable"
-  Locale preferredLocale
+  String preferredLocale
   QuizMode preferredQuizMode
   String avatarUrl "nullable"
   String instructorNote "nullable"
@@ -53,12 +53,31 @@ erDiagram
   String token UK
   Role role
   String groupId FK "nullable"
+  String email "nullable"
   Int maxUses "nullable"
   Int usedCount
   DateTime expiresAt "nullable"
   String createdById FK
   DateTime createdAt
   DateTime revokedAt "nullable"
+}
+"UserSession" {
+  String id PK
+  String userId FK
+  String userAgent "nullable"
+  String ip "nullable"
+  DateTime createdAt
+  DateTime lastSeenAt
+  DateTime revokedAt "nullable"
+}
+"AuthToken" {
+  String id PK
+  String tokenHash UK
+  AuthTokenType type
+  String userId FK
+  DateTime expiresAt
+  DateTime consumedAt "nullable"
+  DateTime createdAt
 }
 "LicenseClass" {
   String id PK
@@ -103,6 +122,7 @@ erDiagram
   String licenseClassId FK "nullable"
   Int difficulty
   Json content
+  String correctOptionKey "nullable"
   Json parameterSlots "nullable"
   Json legalCitations
   Int version
@@ -114,9 +134,52 @@ erDiagram
   String reviewedById FK "nullable"
   DateTime reviewedAt "nullable"
   String reviewNote "nullable"
+  RejectionReason reviewReason "nullable"
+  String batchId FK "nullable"
+  String replacesId FK "nullable"
+  String conceptGroupId "nullable"
   DateTime createdAt
   DateTime updatedAt
   DateTime deletedAt "nullable"
+}
+"ItemApproval" {
+  String id PK
+  String masterItemId FK
+  String approverId FK
+  Int itemVersion
+  String note "nullable"
+  DateTime createdAt
+}
+"GenerationBatch" {
+  String id PK
+  BatchKind kind
+  BatchStatus status
+  String sourceImageId FK "nullable"
+  String topicId FK "nullable"
+  String licenseClassId "nullable"
+  Int requestedCount
+  String providerId "nullable"
+  String modelVersion "nullable"
+  String promptVersion "nullable"
+  String notes "nullable"
+  String createdById FK "nullable"
+  DateTime createdAt
+  DateTime updatedAt
+}
+"GenerationRejection" {
+  String id PK
+  RejectionSource source
+  String masterItemId FK "nullable"
+  String batchId FK "nullable"
+  String topicId FK "nullable"
+  String stemEn
+  String stemNb "nullable"
+  String reasonCodes
+  String note "nullable"
+  String modelVersion "nullable"
+  String promptVersion "nullable"
+  String createdById "nullable"
+  DateTime createdAt
 }
 "MasterItemCitation" {
   String id PK
@@ -191,6 +254,7 @@ erDiagram
   String licenseClassId FK "nullable"
   String blueprintId FK "nullable"
   String seed
+  String locale
   Int questionCountSnapshot
   Int timeLimitSecSnapshot "nullable"
   Int passMarkSnapshot "nullable"
@@ -200,6 +264,10 @@ erDiagram
   Int correctCount "nullable"
   Boolean passed "nullable"
   Json topicBreakdown "nullable"
+  String resultHash "nullable"
+  DateTime attestedAt "nullable"
+  Boolean countsTowardGuarantee
+  Json setupSnapshot "nullable"
   Int focusLossCount
   Boolean anomalyFlagged
   DateTime createdAt
@@ -307,6 +375,31 @@ erDiagram
   DateTime createdAt
   DateTime updatedAt
 }
+"AiProvider" {
+  String id PK
+  AiProviderKind kind
+  String label
+  String baseUrl "nullable"
+  String encryptedApiKey
+  String keyHint
+  Boolean isActive
+  DateTime lastCheckedAt "nullable"
+  Boolean lastCheckOk "nullable"
+  String lastCheckError "nullable"
+  String createdById FK "nullable"
+  DateTime createdAt
+  DateTime updatedAt
+}
+"AiRoute" {
+  String id PK
+  AiTask task
+  String providerId FK
+  String model
+  Int priority
+  Boolean isActive
+  DateTime createdAt
+  DateTime updatedAt
+}
 "Setting" {
   String key PK
   Json value
@@ -325,18 +418,131 @@ erDiagram
   String userAgent "nullable"
   DateTime createdAt
 }
+"Language" {
+  String code PK
+  String englishName
+  String nativeName
+  String shortLabel
+  String urlPrefix UK
+  TextDirection direction
+  Boolean isBuiltIn
+  Boolean requiresApproval
+  Int minApprovers
+  Boolean studentVisible
+  String fallbackCode
+  Int sortOrder
+  Float qaSampleRate
+  Json glossary "nullable"
+  Int glossaryVersion
+  String styleNote "nullable"
+  DateTime lastSyncedAt "nullable"
+  DateTime createdAt
+  DateTime updatedAt
+}
+"Translation" {
+  String id PK
+  String locale FK
+  TranslatableEntity entity
+  String entityId
+  Json value
+  TranslationStatus status
+  String sourceHash
+  String sourceLocale
+  String modelVersion "nullable"
+  String promptVersion "nullable"
+  String providerLabel "nullable"
+  Int promptTokens "nullable"
+  Int completionTokens "nullable"
+  Boolean fromMemory
+  Json qaReport "nullable"
+  Float semanticScore "nullable"
+  String qaFlags
+  String reviewedById FK "nullable"
+  DateTime reviewedAt "nullable"
+  String reviewNote "nullable"
+  String runId FK "nullable"
+  DateTime createdAt
+  DateTime updatedAt
+}
+"TranslationMemory" {
+  String id PK
+  String locale FK
+  String sourceHash
+  TranslatableEntity contextKind
+  Json value
+  Int hits
+  String modelVersion "nullable"
+  String promptVersion "nullable"
+  Int glossaryVersion
+  DateTime createdAt
+  DateTime lastUsedAt "nullable"
+}
+"TranslationTerm" {
+  String id PK
+  String locale
+  String source
+  String value
+  String note "nullable"
+  DateTime createdAt
+}
+"TranslationRun" {
+  String id PK
+  String locale FK
+  TranslationRunKind kind
+  TranslationRunStatus status
+  Int plannedUnits
+  Int translatedUnits
+  Int memoryHits
+  Int failedUnits
+  Int flaggedUnits
+  Int promptTokens
+  Int completionTokens
+  Float estimatedUsd
+  String error "nullable"
+  String leaseOwner "nullable"
+  DateTime leaseExpiresAt "nullable"
+  String startedById FK "nullable"
+  DateTime startedAt "nullable"
+  DateTime finishedAt "nullable"
+  DateTime createdAt
+  DateTime updatedAt
+}
+"TranslationJob" {
+  String id PK
+  String runId FK
+  TranslatableEntity entity
+  String entityId
+  String sourceHash
+  TranslationJobState state
+  Int attempts
+  String error "nullable"
+  DateTime startedAt "nullable"
+  DateTime finishedAt "nullable"
+}
 "Profile" |o--|| "User" : user
 "StudentGroup" }o--|| "User" : createdBy
 "GroupMembership" }o--|| "StudentGroup" : group
 "GroupMembership" }o--|| "User" : user
 "InviteLink" }o--o| "StudentGroup" : group
 "InviteLink" }o--|| "User" : createdBy
+"UserSession" }o--|| "User" : user
+"AuthToken" }o--|| "User" : user
 "Topic" }o--o| "Topic" : parent
 "MasterItem" }o--|| "Topic" : topic
 "MasterItem" }o--o| "LicenseClass" : licenseClass
 "MasterItem" }o--o| "ImageAsset" : sourceImage
+"MasterItem" }o--o| "GenerationBatch" : batch
+"MasterItem" }o--o| "MasterItem" : replaces
 "MasterItem" }o--o| "User" : createdByUser
 "MasterItem" }o--o| "User" : reviewedBy
+"ItemApproval" }o--|| "MasterItem" : masterItem
+"ItemApproval" }o--|| "User" : approver
+"GenerationBatch" }o--o| "ImageAsset" : sourceImage
+"GenerationBatch" }o--o| "Topic" : topic
+"GenerationBatch" }o--o| "User" : createdBy
+"GenerationRejection" }o--o| "GenerationBatch" : batch
+"GenerationRejection" }o--o| "Topic" : topic
+"GenerationRejection" }o--o| "MasterItem" : masterItem
 "MasterItemCitation" }o--|| "MasterItem" : masterItem
 "MasterItemCitation" }o--o| "KbChunk" : kbChunk
 "MasterItemCitation" }o--o| "Fact" : fact
@@ -362,8 +568,17 @@ erDiagram
 "HomeworkCompletion" }o--o| "ExamAttempt" : attempt
 "HomeworkCompletion" }o--|| "User" : user
 "KbChunk" }o--|| "KbSource" : source
+"AiProvider" }o--o| "User" : createdBy
+"AiRoute" }o--|| "AiProvider" : provider
 "Setting" }o--o| "User" : updatedBy
 "AuditLog" }o--o| "User" : actor
+"Translation" }o--|| "Language" : language
+"Translation" }o--o| "User" : reviewedBy
+"Translation" }o--o| "TranslationRun" : run
+"TranslationMemory" }o--|| "Language" : language
+"TranslationRun" }o--|| "Language" : language
+"TranslationRun" }o--o| "User" : startedBy
+"TranslationJob" }o--|| "TranslationRun" : run
 ```
 
 ### `User`
@@ -426,12 +641,37 @@ Properties as follows:
 - `token`:
 - `role`:
 - `groupId`:
+- `email`:
 - `maxUses`:
 - `usedCount`:
 - `expiresAt`:
 - `createdById`:
 - `createdAt`:
 - `revokedAt`:
+
+### `UserSession`
+
+Properties as follows:
+
+- `id`:
+- `userId`:
+- `userAgent`:
+- `ip`:
+- `createdAt`:
+- `lastSeenAt`:
+- `revokedAt`:
+
+### `AuthToken`
+
+Properties as follows:
+
+- `id`:
+- `tokenHash`:
+- `type`:
+- `userId`:
+- `expiresAt`:
+- `consumedAt`:
+- `createdAt`:
 
 ### `LicenseClass`
 
@@ -488,6 +728,11 @@ Properties as follows:
 - `licenseClassId`:
 - `difficulty`:
 - `content`:
+- `correctOptionKey`
+  > The authored answer (spec-04). Nullable only so a DRAFT can be incomplete and an abandoned
+  > item can be retired — a DB CHECK constraint (`MasterItem_correct_key_required`) enforces
+  > NOT NULL for every reviewable or servable status.
+  > Publish copies it onto each ItemVariant, which is what grading actually reads.
 - `parameterSlots`:
 - `legalCitations`:
 - `version`:
@@ -499,9 +744,78 @@ Properties as follows:
 - `reviewedById`:
 - `reviewedAt`:
 - `reviewNote`:
+- `reviewReason`:
+- `batchId`:
+- `replacesId`
+  > Retire-and-replace lineage (spec-04b): an APPROVED question is frozen, so a correction is a
+  > NEW question pointing back at the one it supersedes. Exam results stay explainable by
+  > pointing at a question whose text never changed.
+- `conceptGroupId`
+  > Questions that test the SAME point in different words share a group. They are alternates:
+  > two students may each get one, but one student never gets both in a single test.
 - `createdAt`:
 - `updatedAt`:
 - `deletedAt`:
+
+### `ItemApproval`
+
+One reviewer's sign-off on one question (spec-04b). AI-drafted questions need two distinct
+approvers, human-authored ones need a single approver who is not the author — enforced in
+`transitions.ts` and asserted by tests. The rows are the audit trail: who vouched for this.
+
+Properties as follows:
+
+- `id`:
+- `masterItemId`:
+- `approverId`:
+- `itemVersion`: The version the approver actually read — an approval never carries over to different text.
+- `note`:
+- `createdAt`:
+
+### `GenerationBatch`
+
+A generated question SET — the unit reviewed, curated and measured (spec-04 amendment).
+Populated manually in spec-04; by the AI pipeline in spec-06.
+
+Properties as follows:
+
+- `id`:
+- `kind`:
+- `status`:
+- `sourceImageId`:
+- `topicId`:
+- `licenseClassId`:
+- `requestedCount`:
+- `providerId`:
+- `modelVersion`:
+- `promptVersion`:
+- `notes`:
+- `createdById`:
+- `createdAt`:
+- `updatedAt`:
+
+### `GenerationRejection`
+
+A question that was refused — by the quality gate, by the duplicate check, or by a reviewer.
+Kept as a teaching set: every generation run is shown recent refusals for its topic, with the
+reason, so the model stops making the same mistake. Rejections are never deleted; that is the
+whole point of them.
+
+Properties as follows:
+
+- `id`:
+- `source`:
+- `masterItemId`: Set to the item when a reviewer refused something that had already been saved.
+- `batchId`:
+- `topicId`:
+- `stemEn`:
+- `stemNb`:
+- `reasonCodes`: Machine codes: quality-gate codes (MISSING_CITATION…), DUPLICATE_*, or a reviewer's reason.
+- `note`: The reviewer's own words. Optional, and worth more than the code when it is there.
+- `modelVersion`:
+- `promptVersion`:
+- `createdById`:
+- `createdAt`:
 
 ### `MasterItemCitation`
 
@@ -594,6 +908,10 @@ Properties as follows:
 - `licenseClassId`:
 - `blueprintId`:
 - `seed`:
+- `locale`
+  > The language this attempt was SAT in (spec-15). A disputed mark has to be answerable with
+  > the exact wording the student saw, and with more than two languages the paper can no longer
+  > be re-rendered in whichever locale the reader happens to be using.
 - `questionCountSnapshot`:
 - `timeLimitSecSnapshot`:
 - `passMarkSnapshot`:
@@ -603,6 +921,18 @@ Properties as follows:
 - `correctCount`:
 - `passed`:
 - `topicBreakdown`:
+- `resultHash`
+  > sha256 over the canonical record (questions served, option order, answers, grade) computed
+  > at submit (spec-04b). Re-computing it from the stored rows proves the result was neither
+  > edited nor re-graded after the fact.
+- `attestedAt`:
+- `countsTowardGuarantee`
+  > Whether this attempt qualifies towards the pass guarantee — decided from the student's setup
+  > (all categories, full length) at the moment they start, and frozen with the rest of the
+  > result. Telling them afterwards that it did not count would be worthless.
+- `setupSnapshot`
+  > What the student chose: timer on/off, question count, categories. Kept so a disputed result
+  > can be explained without reconstructing it from the questions.
 - `focusLossCount`:
 - `anomalyFlagged`:
 - `createdAt`:
@@ -737,6 +1067,43 @@ Properties as follows:
 - `createdAt`:
 - `updatedAt`:
 
+### `AiProvider`
+
+An AI provider the school has configured (spec-05). The API key is encrypted at rest with the
+AES-256-GCM helpers from spec-03 and never leaves the server — the admin UI shows a mask.
+
+Properties as follows:
+
+- `id`:
+- `kind`:
+- `label`:
+- `baseUrl`:
+- `encryptedApiKey`:
+- `keyHint`: Last four characters of the key, for recognising which key is configured without exposing it.
+- `isActive`:
+- `lastCheckedAt`:
+- `lastCheckOk`:
+- `lastCheckError`:
+- `createdById`:
+- `createdAt`:
+- `updatedAt`:
+
+### `AiRoute`
+
+Which provider and model serve one task, and in what order (spec-05). Ordered fallbacks are
+what make free tiers usable: a quota error moves to the next route rather than failing the job.
+
+Properties as follows:
+
+- `id`:
+- `task`:
+- `providerId`:
+- `model`:
+- `priority`: Lower runs first. The first route that answers wins.
+- `isActive`:
+- `createdAt`:
+- `updatedAt`:
+
 ### `Setting`
 
 Properties as follows:
@@ -760,3 +1127,184 @@ Properties as follows:
 - `ip`:
 - `userAgent`:
 - `createdAt`:
+
+### `Language`
+
+A language the school offers.
+
+`en` and `nb` are seeded as BUILT-IN: their strings live in the on-disk catalogues and in the
+`{ en, nb }` content columns, they are compiled into the app, and they are never read from this
+table at request time. That is what makes the app keep routing when Postgres and Redis are both
+unreachable — the two original languages have no runtime dependency at all.
+
+Properties as follows:
+
+- `code`:
+- `englishName`:
+- `nativeName`:
+- `shortLabel`:
+- `urlPrefix`
+  > Runtime-added languages MUST use "/<code>" — `localePrefix.prefixes` is compiled into the
+  > client bundle, so a prefix that differs from the code would make <Link> and the proxy
+  > disagree and loop. `nb → /no` is the grandfathered exception.
+- `direction`:
+- `isBuiltIn`:
+- `requiresApproval`
+  > Whether AI translations need a human sign-off before students see them. The school's call,
+  > per language. Note this is read by the RESOLVER, not written into `status` — so flipping it
+  > changes what students see immediately, and flipping it back does not lose the audit trail.
+- `minApprovers`
+  > How many distinct reviewers must approve a translation. One by default: an AI-drafted
+  > question needs two, but requiring two speakers of every language would make a language
+  > impossible for a small school to ship.
+- `studentVisible`
+  > Students only see a language once every unit is translated (and approved, when required).
+  > Nobody should meet a test that is half in their language and half in English.
+- `fallbackCode`:
+- `sortOrder`:
+- `qaSampleRate`
+  > Share of translations that get the expensive back-translation QA pass. 1 for a new language;
+  > lowered once the measured pass rate justifies it.
+- `glossary`
+  > Termbase: { "vikeplikt": "…", "forkjørsvei": "…" } — injected into every prompt so a term
+  > renders the same way in question 3 and question 91.
+- `glossaryVersion`
+  > Bumping this invalidates translation memory: the same source text must be re-translated
+  > because the terminology it should use has changed.
+- `styleNote`: Register/script guidance appended to the prompt ("formal, second person, Modern Standard").
+- `lastSyncedAt`:
+- `createdAt`:
+- `updatedAt`:
+
+### `Translation`
+
+One translated UNIT, overlaid onto the source at render time.
+
+Deliberately NOT stored inside the existing `{ en, nb }` content JSON: `ItemVariant.content` is
+frozen by `tp_item_variant_immutable`, and its `contentHash` is both unique and the per-student
+seen-window key. An overlay leaves every one of those guarantees untouched.
+
+The unit — not the field — is the row, because for exam content the fallback granularity has to
+be the whole question. An Arabic stem with English options is worse for a graded assessment
+than plain English throughout. (UI messages are the opposite and merge per key: a UI is a
+mosaic by nature, and a missing key must never render as a raw dotted path.)
+
+Properties as follows:
+
+- `id`:
+- `locale`:
+- `entity`:
+- `entityId`: MasterItem id, ItemVariant id, Topic id, KbSource code — or the message key for UI_MESSAGE.
+- `value`
+  > The whole localized payload, shaped like one side of the source JSON:
+  > MASTER_ITEM / ITEM_VARIANT → { stem, options: [{key,text}], explanation }
+  > TOPIC                      → { name, description }
+  > SIGN                       → { name, meaning }
+  > UI_MESSAGE                 → { text }
+- `status`:
+- `sourceHash`
+  > sha256 of the source payload this was produced from. Staleness is a hash mismatch, full
+  > stop — which is why a sync never re-translates something that has not changed.
+- `sourceLocale`:
+- `modelVersion`:
+- `promptVersion`:
+- `providerLabel`:
+- `promptTokens`:
+- `completionTokens`:
+- `fromMemory`: True when this came from translation memory rather than a fresh call.
+- `qaReport`: Structural + semantic QA output: what was checked and what it found.
+- `semanticScore`
+  > Cosine between the source stem and the back-translated stem. Its own scale — deliberately
+  > NOT the 0.94/0.85 thresholds from question dedupe, which measure a different thing entirely.
+- `qaFlags`:
+- `reviewedById`:
+- `reviewedAt`:
+- `reviewNote`:
+- `runId`:
+- `createdAt`:
+- `updatedAt`:
+
+### `TranslationMemory`
+
+Content-addressed reuse: a given source payload is translated once, ever.
+
+Keyed on the whole unit rather than on segments, deliberately. Segment-level substitution is
+how "Right" becomes "correct" in a question about turning right.
+
+Properties as follows:
+
+- `id`:
+- `locale`:
+- `sourceHash`: sha256 over { canonical source payload, entity kind, glossary version }.
+- `contextKind`:
+- `value`:
+- `hits`:
+- `modelVersion`:
+- `promptVersion`:
+- `glossaryVersion`:
+- `createdAt`:
+- `lastUsedAt`:
+
+### `TranslationTerm`
+
+The termbase as rows, for terms a reviewer curates by hand (the `Language.glossary` blob is the
+bulk form injected into prompts; these are the ones with a note explaining the choice).
+
+Properties as follows:
+
+- `id`:
+- `locale`:
+- `source`:
+- `value`:
+- `note`:
+- `createdAt`:
+
+### `TranslationRun`
+
+One translation run.
+
+There is no job queue in this stack, so the run IS the queue: progress lives in the database,
+work is claimed under a lease, and a killed process loses nothing but its lease.
+
+Properties as follows:
+
+- `id`:
+- `locale`:
+- `kind`:
+- `status`:
+- `plannedUnits`:
+- `translatedUnits`:
+- `memoryHits`:
+- `failedUnits`:
+- `flaggedUnits`: Translated but flagged by QA, so held for review whatever the language policy says.
+- `promptTokens`:
+- `completionTokens`:
+- `estimatedUsd`:
+- `error`:
+- `leaseOwner`
+  > The lock. A run whose lease has lapsed can be taken over — which is what makes a killed
+  > script recoverable without Redis and without a queue.
+- `leaseExpiresAt`:
+- `startedById`:
+- `startedAt`:
+- `finishedAt`:
+- `createdAt`:
+- `updatedAt`:
+
+### `TranslationJob`
+
+One unit of work inside a run. Exists so the question "which three items failed, and why" has
+an answer — which an accuracy-critical pipeline has to be able to give.
+
+Properties as follows:
+
+- `id`:
+- `runId`:
+- `entity`:
+- `entityId`:
+- `sourceHash`:
+- `state`:
+- `attempts`:
+- `error`:
+- `startedAt`:
+- `finishedAt`:

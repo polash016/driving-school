@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { localeSchema as bcp47LocaleSchema } from "../src/lib/locale";
 
 /**
  * School deployment config — THE single place a school's identity and policy
@@ -8,7 +9,12 @@ import { z } from "zod";
  * parameters live in the LicenseClass table (spec-02) — values here are seed defaults.
  */
 
-const localeSchema = z.enum(["en", "nb"]);
+/**
+ * Shape only — which languages actually exist is runtime data in the `Language` table (spec-15).
+ * The list below is the COMPILED FALLBACK: the two languages whose catalogues and content ship
+ * inside the app, and therefore the ones that keep working when the database is unreachable.
+ */
+const localeSchema = bcp47LocaleSchema;
 
 export const schoolConfigSchema = z
   .object({
@@ -24,8 +30,18 @@ export const schoolConfigSchema = z
       logoDark: z.string().startsWith("/"),
     }),
     locales: z.object({
+      /** The compiled-in languages. Added languages live in the DB, not here. */
       supported: z.array(localeSchema).nonempty(),
       default: localeSchema,
+      /**
+       * IANA zone every server-rendered date is formatted in. Without it next-intl falls back
+       * to the server's own zone, so a container in another region would show students the
+       * wrong times ("last active", exam timestamps).
+       */
+      timeZone: z.string().refine(
+        (zone) => Intl.supportedValuesOf("timeZone").includes(zone),
+        "must be an IANA time zone",
+      ),
     }),
     licenseClassSeeds: z
       .array(
@@ -39,6 +55,8 @@ export const schoolConfigSchema = z
       .nonempty(),
     featureFlags: z.object({
       signTest: z.boolean(),
+      /** Vipps Login (spec-03 ships the adapter stub only; the flow lands in a later spec). */
+      vippsLogin: z.boolean(),
       trailerCalculator: z.boolean(),
       passGuarantee: z.boolean(),
       studentPayments: z.boolean(),
@@ -50,6 +68,8 @@ export const schoolConfigSchema = z
         generation: z.string().min(1),
         validation: z.string().min(1),
         embedding: z.string().min(1),
+        /** Translation runs at volume, so it is routed separately from generation on purpose. */
+        translation: z.string().min(1),
       }),
       dailyBudgetUsd: z.number().positive(),
     }),
@@ -79,12 +99,14 @@ export const schoolConfig: SchoolConfig = Object.freeze(
     locales: {
       supported: ["en", "nb"],
       default: "en",
+      timeZone: "Europe/Oslo",
     },
     licenseClassSeeds: [
       { code: "B", questionCount: 45, timeLimitMin: 90, passMark: 38 },
     ],
     featureFlags: {
       signTest: true,
+      vippsLogin: false,
       trailerCalculator: true,
       passGuarantee: false,
       studentPayments: false,
@@ -95,6 +117,7 @@ export const schoolConfig: SchoolConfig = Object.freeze(
         generation: "generation-default",
         validation: "validation-default",
         embedding: "embedding-default",
+        translation: "translation-default",
       },
       dailyBudgetUsd: 20,
     },
