@@ -11,6 +11,7 @@ import {
   updateLanguage,
 } from "@/server/services/i18n/languages";
 import {
+  bulkApproveTranslations,
   editTranslation,
   reviewTranslation,
 } from "@/server/services/i18n/review";
@@ -169,6 +170,40 @@ export async function reviewTranslationAction(
     });
     revalidatePath(`/admin/languages/${formData.get("code") ?? ""}`);
     return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export interface BulkApproveOutcome {
+  approved: number;
+  skipped: number;
+}
+
+/**
+ * Approve every clean machine translation for a language in one act.
+ *
+ * A language has 534 UI strings; approving those one at a time is not a workflow anybody finishes.
+ * It deliberately refuses anything a check flagged — those are the findings the checks exist for,
+ * and clearing them in bulk would waste them.
+ */
+export async function bulkApproveAction(
+  _prev: ActionResult<BulkApproveOutcome> | undefined,
+  formData: FormData,
+): Promise<ActionResult<BulkApproveOutcome>> {
+  const user = await requireUser("INSTRUCTOR");
+  try {
+    const locale = String(formData.get("code") ?? "");
+    const outcome = await bulkApproveTranslations(db, user, {
+      locale,
+      ...(optionalString(formData, "entity")
+        ? { entity: optionalString(formData, "entity") }
+        : {}),
+      includeFlagged: false,
+    });
+    revalidatePath(`/admin/languages/${locale}`);
+    revalidatePath("/admin/languages");
+    return { ok: true, data: outcome };
   } catch (error) {
     return toActionError(error);
   }

@@ -62,6 +62,13 @@ export async function search(db: PrismaClient, rawInput: unknown) {
   const input = kbSearchInputSchema.parse(rawInput);
   const vector = await embedQuery(input.query);
 
+  // Applied inside BOTH legs rather than to the merged result: filtering afterwards would let
+  // out-of-scope chunks consume the per-leg limit and quietly starve the sources that were asked
+  // for, which is worst exactly when the wanted regulation is the smaller one.
+  const sourceFilter = input.sourceCodes?.length
+    ? Prisma.sql`AND s."code" IN (${Prisma.join(input.sourceCodes)})`
+    : Prisma.empty;
+
   const [semantic, keyword] = await Promise.all([
     vector
       ? db.$queryRaw<LegRow[]>(Prisma.sql`
@@ -69,6 +76,7 @@ export async function search(db: PrismaClient, rawInput: unknown) {
             FROM "KbChunk" c
             JOIN "KbSource" s ON s."id" = c."sourceId"
            WHERE c."isActive" = true AND s."deletedAt" IS NULL AND c."embedding" IS NOT NULL
+             ${sourceFilter}
            ORDER BY c."embedding" <=> ${`[${vector.join(",")}]`}::vector
            LIMIT ${LEG_LIMIT}
         `)
@@ -78,6 +86,7 @@ export async function search(db: PrismaClient, rawInput: unknown) {
         FROM "KbChunk" c
         JOIN "KbSource" s ON s."id" = c."sourceId"
        WHERE c."isActive" = true AND s."deletedAt" IS NULL
+         ${sourceFilter}
          AND c."textSearch" @@ plainto_tsquery('norwegian', ${input.query})
        ORDER BY ts_rank(c."textSearch", plainto_tsquery('norwegian', ${input.query})) DESC
        LIMIT ${LEG_LIMIT}

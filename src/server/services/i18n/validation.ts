@@ -30,8 +30,15 @@ export interface TranslationCheck {
 
 /** Numbers, including decimals written the Norwegian way (0,2). */
 const NUMBER_PATTERN = /\d+(?:[.,]\d+)?/g;
-/** Legal references: "§ 7", "§ 13 nr. 3", "§ 7-2". */
-const SECTION_PATTERN = /§\s*[\d\p{L}.\-\s]*\d/gu;
+/**
+ * Legal references: "§ 7", "§ 7-2", "§ 13.3".
+ *
+ * The section symbol and its number are the address, and that is what must survive verbatim. The
+ * connective word around it ("no.", "item", "paragraph") is ordinary prose and has to be allowed
+ * to translate — pinning it would force English words into the middle of every Spanish sentence.
+ * The numbers in it are still checked, by NUMBER_DRIFT.
+ */
+const SECTION_PATTERN = /§\s*\d+(?:[.\-]\d+)*/gu;
 /** ICU placeholders in UI messages: {count}, {minutes}. */
 const PLACEHOLDER_PATTERN = /\{[a-zA-Z][a-zA-Z0-9]*\}/g;
 /** Template slots in question text. */
@@ -188,6 +195,16 @@ export function checkTranslation(input: {
   }
 
   // 6. Did anything actually get translated? A model that echoes its input is a silent failure.
+  // Except when there is nothing TO translate. "{count} min" is correctly identical in Spanish,
+  // and flagging it taught nobody anything — so the check only applies once the source carries
+  // enough letters, outside its placeholders, to have a translation at all.
+  const translatable = sourceTexts
+    .join(" ")
+    .replace(PLACEHOLDER_PATTERN, " ")
+    .replace(SLOT_PATTERN, " ")
+    .replace(/[^\p{L}]+/gu, "");
+  const worthChecking = translatable.length >= 4;
+
   const untouched =
     sourceTexts.length > 0 &&
     sourceTexts.join(" ") === translatedTexts.join(" ");
@@ -195,7 +212,7 @@ export function checkTranslation(input: {
   const wrongScript =
     scriptCheck !== undefined &&
     !translatedTexts.some((text) => scriptCheck.test(text));
-  if (untouched || wrongScript) {
+  if (worthChecking && (untouched || wrongScript)) {
     issues.push({
       code: "UNTRANSLATED",
       blocking: true,

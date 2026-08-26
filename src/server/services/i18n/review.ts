@@ -87,7 +87,7 @@ export async function reviewQueue(
     },
   });
 
-  return Promise.all(
+  const items = await Promise.all(
     rows.map(async (row) => ({
       id: row.id,
       entity: row.entity,
@@ -101,6 +101,85 @@ export async function reviewQueue(
       label: labelOf(row.value as unknown as UnitPayload, row.entityId),
     })),
   );
+
+  // A translation whose source has since been deleted cannot be judged — there is nothing to
+  // compare it against. `pruneOrphans` clears these out on the next sync; hiding them here means
+  // a reviewer never meets an empty comparison panel in the meantime.
+  return items.filter((item) => item.source !== null);
+}
+
+export const bulkApproveInputSchema = z
+  .object({
+    locale: z.string().min(2),
+    entity: z.string().optional(),
+    /** Approving something a check flagged is exactly what must stay a deliberate, single act. */
+    includeFlagged: z.literal(false).default(false),
+  })
+  .strict();
+
+/**
+ * Approve every clean machine translation at once.
+ *
+ * Necessary rather than convenient: a language has 534 UI strings, and approving those one at a
+ * time is not a workflow anybody completes. It is still a human act, recorded as one — a reviewer
+ * saying "the automated checks are good enough for the boilerplate".
+ *
+ * Deliberately refuses to touch anything flagged. A `NUMBER_DRIFT` or `ANSWER_PERMUTED` finding is
+ * the whole reason the checks exist, and sweeping it up in a bulk action would waste them.
+ */
+export async function bulkApproveTranslations(
+  db: PrismaClient,
+  actor: SessionUser,
+  rawInput: unknown,
+): Promise<{ approved: number; skipped: number }> {
+  const input = bulkApproveInputSchema.parse(rawInput);
+
+  const where = {
+    locale: input.locale,
+    status: "MACHINE" as const,
+    entity: input.entity
+      ? (input.entity as TranslatableEntity)
+      : ({ not: "ITEM_VARIANT" } as const),
+    qaFlags: { isEmpty: true },
+  };
+
+  const targets = await db.translation.findMany({
+    where,
+    select: { id: true, entity: true, entityId: true },
+  });
+  const skipped = await db.translation.count({
+    where: {
+      locale: input.locale,
+      status: { in: ["MACHINE", "NEEDS_REVIEW"] },
+      entity: { not: "ITEM_VARIANT" },
+      NOT: { qaFlags: { isEmpty: true } },
+    },
+  });
+
+  if (targets.length === 0) return { approved: 0, skipped };
+
+  const result = await db.translation.updateMany({
+    where: { id: { in: targets.map((row) => row.id) } },
+    data: { status: "APPROVED", reviewedById: actor.id, reviewedAt: new Date() },
+  });
+
+  // Push approved questions out to the variants students are actually served.
+  const masterIds = targets
+    .filter((row) => row.entity === "MASTER_ITEM")
+    .map((row) => row.entityId);
+  if (masterIds.length > 0) await deriveVariantTranslations(db, input.locale, masterIds);
+  if (targets.some((row) => row.entity === "UI_MESSAGE")) {
+    await invalidateMessages(input.locale);
+  }
+
+  await auditLog({
+    actorId: actor.id,
+    action: AUDIT.translationApproved,
+    entityType: "Language",
+    entityId: input.locale,
+    meta: { bulk: true, approved: result.count, skippedBecauseFlagged: skipped },
+  });
+  return { approved: result.count, skipped };
 }
 
 function labelOf(value: UnitPayload, fallback: string): string {

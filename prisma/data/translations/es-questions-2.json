@@ -1,0 +1,400 @@
+{
+  "MASTER_ITEM": {
+    "cmt8fvojt004ckk81ell3zbyu": {
+      "stem": "¿Qué tipo de indicación prevalece sobre las dadas por los semáforos, las señales de tráfico o las marcas viales?",
+      "options": [
+        { "key": "a", "text": "Las dadas por la policía, Statens vegvesen, las autoridades aduaneras o la policía militar" },
+        { "key": "b", "text": "Las reglas generales de circulación sobre prioridad y colocación del vehículo" },
+        { "key": "c", "text": "Las dadas por los conductores de autobús público al salir de una parada" }
+      ],
+      "explanation": "Según trafikkreglene § 3 nº 2, las indicaciones dadas por la policía, Statens vegvesen, aduanas o policía militar prevalecen sobre las dadas de otro modo (como los semáforos o las señales). Ni las reglas generales ni los conductores de autobús prevalecen sobre los semáforos o las señales."
+    },
+    "cmt8gzgca0003kk8r4z78ky0o": {
+      "stem": "¿Cómo debe mostrar con claridad y a tiempo a los demás usuarios de la vía un conductor que tiene obligación de ceder el paso?",
+      "options": [
+        { "key": "a", "text": "Reduciendo la velocidad o deteniéndose" },
+        { "key": "b", "text": "Haciendo dos ráfagas con las luces" },
+        { "key": "c", "text": "Tocando brevemente el claxon" }
+      ],
+      "explanation": "Según trafikkreglene § 7 nº 1, el conductor con obligación de ceder el paso debe mostrarlo con claridad reduciendo la velocidad o deteniéndose a tiempo. Las demás opciones no son formas legales de indicarlo."
+    },
+    "cmt8gzgcu0007kk8rk83uxodm": {
+      "stem": "Conduces un coche y vas a girar a la izquierda en un cruce. ¿A qué vehículos que vienen de frente o cruzan debes ceder el paso por ese giro?",
+      "options": [
+        { "key": "a", "text": "A los vehículos que quedarán a tu derecha" },
+        { "key": "b", "text": "Solo a los vehículos que vienen directamente por detrás" },
+        { "key": "c", "text": "Solo a los vehículos que vienen por tu izquierda" }
+      ],
+      "explanation": "Según trafikkreglene § 7 nº 2, quien quiere girar a la izquierda tiene obligación de ceder el paso a los vehículos que quedarán a su derecha (como el tráfico de frente que sigue recto o gira a la derecha hacia la misma vía). Las opciones b y c no recogen esta regla."
+    },
+    "cmt8gzgdv000fkk8r8rieqioh": {
+      "stem": "Dos coches se cruzan en una vía estrecha donde un tramo está obstruido en tu lado. ¿Quién tiene la obligación de ceder el paso?",
+      "options": [
+        { "key": "a", "text": "Tú, porque el obstáculo está en tu lado." },
+        { "key": "b", "text": "El coche que viene de frente, porque se cruza contigo." },
+        { "key": "c", "text": "El coche que llegue el último al tramo estrecho, con obstáculo o sin él." }
+      ],
+      "explanation": "Según trafikkreglene § 7 nº 6, si una parte de la vía está obstruida, la obligación de ceder el paso recae en el conductor que tiene el obstáculo en su lado."
+    },
+    "cmt8gzgec000hkk8roh71wo7i": {
+      "stem": "Te aproximas a un paso de peatones sin regular donde un peatón está justo en el borde, a punto de salir al paso. ¿Cuál es tu obligación?",
+      "options": [
+        { "key": "a", "text": "Debes ceder el paso al peatón." },
+        { "key": "b", "text": "Solo cedes el paso si el peatón ya ha rebasado la línea central." },
+        { "key": "c", "text": "Tienes prioridad porque conduces un vehículo de motor." }
+      ],
+      "explanation": "Según trafikkreglene § 9 nº 2, en los pasos de peatones no regulados por la policía ni por semáforos, los conductores tienen obligación de ceder el paso a los peatones que están en el paso o se disponen a salir a él."
+    },
+    "cmt8gzyw40007kk6ch1ji3xdz": {
+      "stem": "Circulas por una carretera oscura con las luces de carretera encendidas. ¿Cuándo debes evitar usarlas para no deslumbrar a otros?",
+      "options": [
+        { "key": "a", "text": "Al cruzarte con otro usuario de la vía, un tren, un tranvía o una embarcación que circula junto a la vía." },
+        { "key": "b", "text": "Solo al cruzarte con otros coches en autopista." },
+        { "key": "c", "text": "Siempre que circules a más de 50 km/h." }
+      ],
+      "explanation": "Según trafikkreglene § 15 apartado 2, las luces de carretera no deben usarse de modo que deslumbren a otro usuario de la vía. La misma regla se aplica al cruzarse con un tren, un tranvía o una embarcación que circula junto a la vía."
+    },
+    "cmt8gzywf0009kk6cu26zit5x": {
+      "stem": "¿Cuándo deben usarse las luces de cruce?",
+      "options": [
+        { "key": "a", "text": "Siempre que las luces de carretera no sean necesarias o no estén permitidas." },
+        { "key": "b", "text": "Solo al circular con niebla densa." },
+        { "key": "c", "text": "En todo momento, en lugar de las luces de circulación homologadas." }
+      ],
+      "explanation": "Según trafikkreglene § 15 apartado 3, las luces de cruce deben usarse cuando las de carretera no son necesarias o no está permitido usarlas."
+    },
+    "cmt8gzywo000bkk6cqa8xihlj": {
+      "stem": "Detienes el coche en una vía donde las condiciones de visibilidad obligan a hacer visible el vehículo. ¿Qué luces deben estar encendidas y cuáles están prohibidas?",
+      "options": [
+        { "key": "a", "text": "Las de posición deben estar encendidas; las de carretera y las de cruce no deben estarlo." },
+        { "key": "b", "text": "Las de carretera deben estar encendidas; las de posición apagadas." },
+        { "key": "c", "text": "Las de cruce deben estar encendidas; las de posición son opcionales." }
+      ],
+      "explanation": "Según trafikkreglene § 15 apartado 4, las luces de posición deben estar encendidas durante la parada o el estacionamiento en una vía cuando la visibilidad lo exige, y en esas situaciones no deben encenderse las luces de carretera ni las de cruce."
+    },
+    "cmt8gzyx4000dkk6cprbo67cp": {
+      "stem": "¿Puedes circular con un turismo normal con las luces antiniebla delanteras encendidas junto con las de cruce en condiciones normales?",
+      "options": [
+        { "key": "a", "text": "Sí, siempre que la visibilidad esté algo reducida." },
+        { "key": "b", "text": "No, las luces de curva o antiniebla no pueden usarse junto con las de cruce." },
+        { "key": "c", "text": "Sí, mientras sea de día." }
+      ],
+      "explanation": "Según trafikkreglene § 15 apartado 5, las luces de curva o antiniebla no pueden usarse junto con las de cruce. (Existe una excepción para las motocicletas de día, pero no para los turismos normales)."
+    },
+    "cmt8gzyxl000fkk6cnypk1nkn": {
+      "stem": "¿Cuál es la restricción legal sobre el uso de las luces auxiliares permitidas en un vehículo?",
+      "options": [
+        { "key": "a", "text": "No deben usarse para ningún fin distinto de aquel para el que están previstas." },
+        { "key": "b", "text": "Pueden usarse libremente siempre que fallen las luces principales." },
+        { "key": "c", "text": "Pueden usarse en sustitución de las luces de posición." }
+      ],
+      "explanation": "Según trafikkreglene § 15 apartado 5, las luces auxiliares permitidas no deben usarse para ningún fin distinto de aquel para el que están determinadas."
+    },
+    "cmt8gzyy2000hkk6cv31l2c0v": {
+      "stem": "Conduces una motocicleta de día. ¿Puedes llevar las luces antiniebla encendidas junto con las de cruce?",
+      "options": [
+        { "key": "a", "text": "Sí, las motocicletas pueden llevar las antiniebla encendidas junto con las de cruce al circular de día." },
+        { "key": "b", "text": "No, está terminantemente prohibido para todos los vehículos de motor en cualquier condición." },
+        { "key": "c", "text": "Sí, a cualquier hora del día o de la noche." }
+      ],
+      "explanation": "Según trafikkreglene § 15 apartado 5, las luces de curva o antiniebla no pueden usarse junto con las de cruce, pero las motocicletas sí pueden llevar las antiniebla encendidas junto con las de cruce al circular de día."
+    },
+    "cmt8h09p40003kkleedzaa0af": {
+      "stem": "¿Por qué lado debe realizarse normalmente el adelantamiento?",
+      "options": [
+        { "key": "a", "text": "Por la izquierda" },
+        { "key": "b", "text": "Por la derecha" },
+        { "key": "c", "text": "Por cualquiera de los dos según el estado del tráfico" }
+      ],
+      "explanation": "Según trafikkreglene § 12 número 1, el adelantamiento debe hacerse por la izquierda, salvo excepciones concretas. Por tanto, las opciones b y c son incorrectas."
+    },
+    "cmt8h09pi0005kklewa13520p": {
+      "stem": "Cuando el vehículo que va delante gira a la izquierda o se prepara claramente para hacerlo, ¿por dónde debes rebasarlo?",
+      "options": [
+        { "key": "a", "text": "Por la izquierda" },
+        { "key": "b", "text": "Por la derecha" },
+        { "key": "c", "text": "Por el arcén" }
+      ],
+      "explanation": "Según trafikkreglene § 12 número 1 letra a, cuando el vehículo que va delante gira a la izquierda o se prepara claramente para hacerlo, el adelantamiento debe realizarse por la derecha. Rebasarlo por la izquierda o por el arcén es incorrecto en esa situación."
+    },
+    "cmt8h09pr0007kkle6mzg18d0": {
+      "stem": "¿Qué debes comprobar antes de iniciar una maniobra de adelantamiento según las reglas?",
+      "options": [
+        { "key": "a", "text": "Que la vía está libre de obstáculos en una distancia suficientemente larga por delante" },
+        { "key": "b", "text": "Que el límite de velocidad te permite superar en 20 km/h al vehículo de delante" },
+        { "key": "c", "text": "Que el vehículo que va detrás ha puesto el intermitente" }
+      ],
+      "explanation": "Según trafikkreglene § 12 número 2 letra a, debes asegurarte de que la vía está libre de obstáculos en una distancia suficientemente larga por delante. Las opciones b y c son incorrectas porque las reglas no exigen superar por un margen concreto ni esperar a que el vehículo de detrás señalice."
+    },
+    "cmt8h09q10009kklecxhr3klq": {
+      "stem": "¿Cuál es la obligación del conductor al que se adelanta por la izquierda?",
+      "options": [
+        { "key": "a", "text": "Mantenerse lo más a la derecha posible y no aumentar la velocidad" },
+        { "key": "b", "text": "Frenar de inmediato para que el vehículo que adelanta pase rápido" },
+        { "key": "c", "text": "Señalizar con el intermitente izquierdo para guiar al vehículo que adelanta" }
+      ],
+      "explanation": "Según trafikkreglene § 12 número 4, el conductor que va delante debe mantenerse lo más a la derecha posible y no aumentar la velocidad. Frenar de inmediato o señalizar a la izquierda son actuaciones incorrectas."
+    },
+    "cmt8h09qb000bkklesbex6rdw": {
+      "stem": "¿Dónde está prohibido el adelantamiento en relación con los cruces?",
+      "options": [
+        { "key": "a", "text": "Justo antes de un cruce o dentro de él" },
+        { "key": "b", "text": "Solo dentro del propio cruce, nunca antes" },
+        { "key": "c", "text": "Solo donde hay semáforos" }
+      ],
+      "explanation": "Según trafikkreglene § 12 número 5, el adelantamiento está prohibido justo antes de un cruce o dentro de él, salvo excepciones concretas. Las opciones b y c son demasiado restrictivas y contradicen la regla general."
+    },
+    "cmt8h09qu000dkklell51yj2e": {
+      "stem": "¿Qué excepción permite adelantar justo antes de un cruce o dentro de él?",
+      "options": [
+        { "key": "a", "text": "Cuando el tráfico de la vía que cruza está obligado a ceder el paso mediante señales oficiales" },
+        { "key": "b", "text": "Siempre que conduzcas un vehículo comercial o un autobús" },
+        { "key": "c", "text": "Si el límite de velocidad de la vía es de 30 km/h o inferior" }
+      ],
+      "explanation": "Según trafikkreglene § 12 número 5 letra d, se permite adelantar en los cruces cuando el tráfico de la vía que cruza está obligado a ceder el paso mediante señales oficiales. Las opciones b y c no figuran como excepciones."
+    },
+    "cmt8h09rd000fkkle1oeyucuw": {
+      "stem": "¿Qué regla se aplica al adelantamiento donde la visibilidad está limitada por un cambio de rasante o una curva?",
+      "options": [
+        { "key": "a", "text": "El adelantamiento está prohibido, salvo en carriles donde no se permite el tráfico en sentido contrario" },
+        { "key": "b", "text": "El adelantamiento está totalmente permitido si tocas el claxon antes de pasar" },
+        { "key": "c", "text": "El adelantamiento está permitido mientras no superes el límite de velocidad" }
+      ],
+      "explanation": "Según trafikkreglene § 12 número 5, el adelantamiento está prohibido donde la visibilidad está limitada por un cambio de rasante, una curva u otra causa, con la excepción del adelantamiento en carriles donde no se permite el tráfico en sentido contrario. Las opciones b y c son incorrectas."
+    },
+    "cmt8h09ru000hkkleil9z426l": {
+      "stem": "¿Qué restricción se aplica al aproximarse a un paso de peatones?",
+      "options": [
+        { "key": "a", "text": "No debes adelantar a un vehículo o tranvía que oculte, aunque sea en parte, la visión del paso" },
+        { "key": "b", "text": "Debes detener por completo el vehículo 10 metros antes del paso" },
+        { "key": "c", "text": "Solo puedes adelantar si no hay peatones esperando en la acera" }
+      ],
+      "explanation": "Según trafikkreglene § 12 número 6, quien se aproxima a un paso de peatones no debe adelantar a un vehículo o tranvía que oculte, aunque sea en parte, la visión del paso. Las opciones b y c introducen requisitos que no figuran en esta regla."
+    },
+    "cmt8h0l5r0003kk3sr6tdb7cd": {
+      "stem": "¿Qué regla general de prioridad se aplica a los vehículos que vienen por la derecha?",
+      "options": [
+        { "key": "a", "text": "Los conductores deben ceder el paso a los vehículos que vienen por la derecha." },
+        { "key": "b", "text": "Los conductores que vienen por la derecha siempre deben ceder el paso al tráfico de frente." },
+        { "key": "c", "text": "Los vehículos que vienen por la derecha solo tienen prioridad si señalizan." }
+      ],
+      "explanation": "Según trafikkreglene § 7 nº 2, los conductores deben ceder el paso a los vehículos que vienen por su derecha. Por tanto, la opción a es correcta y las demás son incorrectas."
+    },
+    "cmt8h0l690007kk3smcluz163": {
+      "stem": "Cuando vas a girar a la derecha en una calzada con dos o más carriles en tu sentido, ¿qué carril debes elegir con tiempo?",
+      "options": [
+        { "key": "a", "text": "El carril más a la derecha." },
+        { "key": "b", "text": "El carril más a la izquierda." },
+        { "key": "c", "text": "Cualquier carril que esté libre de tráfico." }
+      ],
+      "explanation": "Según trafikkreglene § 6 nº 1, al girar a la derecha en una calzada con dos o más carriles en el sentido de la marcha, el conductor debe incorporarse con tiempo al carril más a la derecha. Las opciones b y c incumplen esta regla de colocación."
+    },
+    "cmt8h0l6i0009kk3sj4pychbt": {
+      "stem": "¿Qué regla se aplica al adelantamiento inmediatamente antes de un cruce o dentro de él?",
+      "options": [
+        { "key": "a", "text": "El adelantamiento está terminantemente prohibido en cualquier circunstancia." },
+        { "key": "b", "text": "El adelantamiento está prohibido, con excepciones concretas, como en vías con dos o más carriles en el sentido de la marcha." },
+        { "key": "c", "text": "El adelantamiento está siempre permitido si no se ve ningún vehículo de frente." }
+      ],
+      "explanation": "Según trafikkreglene § 12 nº 5, el adelantamiento está prohibido inmediatamente antes de un cruce o dentro de él, pero existen excepciones (por ejemplo, en una calzada con dos o más carriles en el sentido de la marcha). La opción a es demasiado absoluta y la opción c ignora la prohibición."
+    },
+    "cmt8h0l6r000bkk3sej4xgzmb": {
+      "stem": "Cuando te aproximas a un cruce o entras en él, ¿cómo debes conducir respecto al tráfico de la vía que cruza?",
+      "options": [
+        { "key": "a", "text": "Debes conducir de modo que no provoques una detención que estorbe o moleste innecesariamente a los usuarios de la vía que cruza." },
+        { "key": "b", "text": "Debes detenerte por completo antes de entrar en cualquier cruce." },
+        { "key": "c", "text": "Puedes desentenderte del tráfico de la vía que cruza si has entrado primero." }
+      ],
+      "explanation": "Según trafikkreglene § 5 nº 4, quien se aproxima a un cruce o entra en él debe conducir de modo que una detención no estorbe ni moleste innecesariamente a los usuarios de la vía que cruza. Las opciones b y c no son exigencias legales."
+    },
+    "cmt8h0l7a000dkk3st09dxygm": {
+      "stem": "¿Qué obligación especial de ceder el paso tiene quien va a girar a la izquierda y tiene un vehículo de frente a su derecha?",
+      "options": [
+        { "key": "a", "text": "Quien gira a la izquierda debe ceder el paso al vehículo que queda a su derecha." },
+        { "key": "b", "text": "El vehículo de la derecha debe ceder el paso por venir de frente." },
+        { "key": "c", "text": "Ninguno de los dos tiene obligación de ceder el paso salvo que lo indiquen las señales." }
+      ],
+      "explanation": "Según trafikkreglene § 7 nº 2, quien quiere girar a la izquierda debe ceder el paso a los vehículos que quedarán a su derecha. La opción a recoge correctamente esta regla."
+    },
+    "cmt8h0l7t000fkk3solezb6bp": {
+      "stem": "¿Qué obligación concreta tiene un conductor al girar atravesando una acera?",
+      "options": [
+        { "key": "a", "text": "Debe ceder el paso a los peatones, ciclistas y conductores de pequeños vehículos eléctricos que circulan por la acera." },
+        { "key": "b", "text": "Tiene prioridad sobre quienes usan la acera si pone el intermitente." },
+        { "key": "c", "text": "Solo debe ceder el paso a los peatones, no a los ciclistas." }
+      ],
+      "explanation": "Según trafikkreglene § 7 nº 3, quien va a girar atravesando una acera tiene obligación de ceder el paso a los peatones, ciclistas y conductores de pequeños vehículos eléctricos que circulan por ella. Por tanto, la opción a es correcta."
+    },
+    "cmt8h0l8d000hkk3s34b59bp6": {
+      "stem": "¿Qué regla se aplica en cuanto a visibilidad y seguridad al dar marcha atrás o cambiar de sentido?",
+      "options": [
+        { "key": "a", "text": "Si la visibilidad no es suficiente, no debe darse marcha atrás ni cambiar de sentido salvo que otra persona vigile o el conductor se asegure de que no puede producirse peligro ni daño." },
+        { "key": "b", "text": "Dar marcha atrás siempre está permitido mientras se usen las luces de emergencia." },
+        { "key": "c", "text": "Puedes dar marcha atrás sin ayuda si circulas muy despacio." }
+      ],
+      "explanation": "Según trafikkreglene § 11 nº 1, si la visibilidad no es suficiente, no debe darse marcha atrás ni cambiar de sentido salvo que otra persona vigile o el conductor haya comprobado por inspección directa que no puede surgir peligro ni daño. La opción a refleja exactamente esta regla."
+    },
+    "cmt8h0voi0003kkl7pzh00ox5": {
+      "stem": "¿Cuál es la regla general sobre ceder el paso a los vehículos que se aproximan por la derecha en un cruce?",
+      "options": [
+        { "key": "a", "text": "Los conductores deben ceder el paso a los vehículos que vienen por la derecha." },
+        { "key": "b", "text": "Los conductores deben ceder el paso a los vehículos que vienen por la izquierda." },
+        { "key": "c", "text": "Los conductores que vienen por la derecha siempre deben ceder el paso." }
+      ],
+      "explanation": "Según trafikkreglene § 7 nº 2, los conductores tienen obligación de ceder el paso a los vehículos que vienen por la derecha. Por tanto, la opción a es correcta, mientras que las opciones b y c indican sentidos equivocados."
+    },
+    "cmt8h0vp30007kkl7fyrxm1zm": {
+      "stem": "Te aproximas a un cruce y vas a girar a la izquierda. ¿A qué vehículos debes ceder el paso en relación con tu lado derecho?",
+      "options": [
+        { "key": "a", "text": "A los vehículos que tendrán otro vehículo a su derecha." },
+        { "key": "b", "text": "A los vehículos que te tendrán a ti a su derecha." },
+        { "key": "c", "text": "A los vehículos que se aproximan por tu izquierda." }
+      ],
+      "explanation": "Según trafikkreglene § 7 nº 2, quien quiere girar a la izquierda debe ceder el paso cuando vaya a tener vehículos a su derecha. La opción a refleja correctamente ese texto, mientras que la b y la c describen posiciones geométricas incorrectas."
+    },
+    "cmt8h0vpc0009kkl7pmq7f7ts": {
+      "stem": "¿Qué se exige respecto al tráfico al que debes ceder el paso?",
+      "options": [
+        { "key": "a", "text": "No debe ser estorbado ni molestado." },
+        { "key": "b", "text": "Debe detenerse por completo antes de que tú continúes." },
+        { "key": "c", "text": "Debe cederte el paso a ti si señalizas primero." }
+      ],
+      "explanation": "Según trafikkreglene § 7 nº 1, el usuario de la vía al que hay que ceder el paso no debe ser estorbado ni molestado. La opción a es correcta, mientras que las opciones b y c introducen condiciones que no figuran en la regla."
+    },
+    "cmt8h0vpl000bkkl7fia2ydun": {
+      "stem": "Circulas por una vía y un vehículo se aproxima desde un aparcamiento situado a tu derecha para incorporarse a la calzada. ¿Quién tiene prioridad?",
+      "options": [
+        { "key": "a", "text": "El vehículo que sale del aparcamiento, porque está a tu derecha." },
+        { "key": "b", "text": "Tú tienes prioridad, porque el vehículo sale de un aparcamiento." },
+        { "key": "c", "text": "Ambos vehículos comparten la prioridad de mutuo acuerdo." }
+      ],
+      "explanation": "Según trafikkreglene § 7 nº 4, quien sale de un aparcamiento tiene obligación de ceder el paso a los demás usuarios de la vía, lo que desplaza a la regla general de la derecha. Por tanto, tú tienes prioridad y la opción b es correcta."
+    },
+    "cmt8h0vq4000dkkl7ocfddb22": {
+      "stem": "Circulas y te aproximas a un cruce donde el tráfico está regulado por semáforos. ¿Cómo afectan los semáforos a la regla general de la derecha?",
+      "options": [
+        { "key": "a", "text": "Las indicaciones de los semáforos se aplican con preferencia a las reglas de circulación." },
+        { "key": "b", "text": "La regla de la derecha se aplica siempre, haya semáforos o no." },
+        { "key": "c", "text": "Los semáforos solo se aplican si no viene ningún vehículo por la derecha." }
+      ],
+      "explanation": "Según trafikkreglene § 3 nº 1, las indicaciones dadas por los semáforos se aplican con preferencia a las reglas de circulación. La opción a es correcta; las opciones b y c anteponen erróneamente la regla general a los semáforos."
+    },
+    "cmt8h0vqp000fkkl7sqql3nem": {
+      "stem": "Al girar a la derecha para entrar en otra calzada, ¿qué regla concreta de prioridad se aplica a los peatones o ciclistas que siguen recto?",
+      "options": [
+        { "key": "a", "text": "Debes ceder el paso a los peatones y ciclistas que siguen recto por la calzada o el arcén." },
+        { "key": "b", "text": "Los peatones y ciclistas siempre deben ceder el paso a los vehículos que giran." },
+        { "key": "c", "text": "Solo cedes el paso si se aproximan por tu derecha." }
+      ],
+      "explanation": "Según trafikkreglene § 7 nº 3, quien va a girar debe ceder el paso a los peatones y ciclistas que siguen recto por la calzada o el arcén. La opción a identifica correctamente esta regla."
+    },
+    "cmt8h0vra000hkkl797zc7msz": {
+      "stem": "¿Qué obligación tienes si circulas y quieres girar hacia una propiedad o un acceso atravesando una acera?",
+      "options": [
+        { "key": "a", "text": "Ceder el paso a los peatones, ciclistas y pequeños vehículos eléctricos que circulan por la acera." },
+        { "key": "b", "text": "Tocar el claxon para que quienes usan la acera se detengan antes de que la cruces." },
+        { "key": "c", "text": "Ceder el paso solo a los vehículos que vengan por tu derecha por la acera." }
+      ],
+      "explanation": "Según trafikkreglene § 7 nº 3, quien va a girar atravesando una acera tiene obligación de ceder el paso a los peatones, ciclistas y pequeños vehículos eléctricos que circulan por ella. La opción a refleja exactamente esa obligación."
+    },
+    "cmt8h1bei0003kk8ybrbzdtc8": {
+      "stem": "En un mismo cruce, un semáforo da una indicación y una señal de tráfico da otra contradictoria. ¿Cuál prevalece?",
+      "options": [
+        { "key": "a", "text": "El semáforo" },
+        { "key": "b", "text": "La señal de tráfico" },
+        { "key": "c", "text": "Las reglas generales de circulación" }
+      ],
+      "explanation": "Según trafikkreglene § 3 apartado 1, las indicaciones dadas por un semáforo, una señal de tráfico o una marca vial prevalecen sobre las reglas generales de circulación. Además, las indicaciones de un semáforo prevalecen sobre las indicaciones de prioridad dadas por una señal. Por tanto, el semáforo prevalece sobre la señal."
+    },
+    "cmt8h1bex0005kk8ye6mmk6cr": {
+      "stem": "Circulas por una calzada de varios carriles en un sentido y ninguna señal ni marca vial indica otra cosa. ¿Qué carril debes utilizar?",
+      "options": [
+        { "key": "a", "text": "El carril derecho" },
+        { "key": "b", "text": "El carril izquierdo" },
+        { "key": "c", "text": "Cualquier carril que prefieras" }
+      ],
+      "explanation": "Según trafikkreglene § 5 apartado 1, en una calzada con dos o más carriles en el sentido de la marcha debe utilizarse el carril derecho, salvo que las reglas de circulación obliguen o permitan usar un carril situado más a la izquierda. Elegir libremente o usar por defecto el izquierdo es incorrecto."
+    },
+    "cmt8h1bfg000bkk8yxi1jub33": {
+      "stem": "Conduces un coche y quieres entrar en una autopista. ¿Cuál es el requisito mínimo legal de velocidad para los vehículos de motor en autopista?",
+      "options": [
+        { "key": "a", "text": "Deben poder circular legalmente a un mínimo de 40 km/h en terreno llano" },
+        { "key": "b", "text": "Deben poder circular legalmente a un mínimo de 60 km/h en terreno llano" },
+        { "key": "c", "text": "No existe ningún requisito de velocidad para circular por autopista" }
+      ],
+      "explanation": "Según trafikkreglene § 4 apartado 2, por autopista o autovía solo pueden circular vehículos de motor o conjuntos de vehículos que puedan circular legalmente a un mínimo de 40 km/h en terreno llano. Los ciclomotores también están prohibidos, pero el umbral general de velocidad es de 40 km/h."
+    },
+    "cmt8h1bg0000dkk8y0h7rcg9l": {
+      "stem": "Sales de una gasolinera a una vía pública. ¿Qué regla de prioridad se aplica?",
+      "options": [
+        { "key": "a", "text": "Tienes prioridad sobre el tráfico que ya circula por la vía pública" },
+        { "key": "b", "text": "Tienes obligación de ceder el paso a los demás usuarios de la vía" },
+        { "key": "c", "text": "Se aplica automáticamente la regla de prioridad de la derecha" }
+      ],
+      "explanation": "Según trafikkreglene § 7 apartado 4, quien sale de un aparcamiento, una parada de autobús, una plaza, una propiedad, una gasolinera, una zona peatonal o un lugar similar tiene obligación de ceder el paso a los demás usuarios de la vía. La regla general de la derecha no se aplica al salir de estos lugares."
+    },
+    "cmt8h1bgm000fkk8y1q7yf05b": {
+      "stem": "El conductor de un vehículo de emergencia necesita vía libre y circula con las luces azules encendidas. ¿Qué significa esa señal para los demás usuarios de la vía?",
+      "options": [
+        { "key": "a", "text": "El conductor del vehículo de emergencia avisa de que el vehículo necesita vía libre" },
+        { "key": "b", "text": "El vehículo de emergencia está realizando obras y puede apartarse de las reglas de circulación" },
+        { "key": "c", "text": "El vehículo de emergencia está simplemente aparcado o detenido en el arcén" }
+      ],
+      "explanation": "Según trafikkreglene § 14 apartado 3, el conductor de un vehículo de emergencia que necesita vía libre debe avisar con luces azules. Los vehículos de obras usan luces amarillas y los vehículos aparcados no emplean estas advertencias operativas."
+    },
+    "cmt8h1bha000hkk8ycuczrpc3": {
+      "stem": "Circulas y llegas a un tramo donde parte de la calzada está obstruida en tu lado. Debes cruzarte con un vehículo que viene de frente. ¿Quién tiene obligación de ceder el paso?",
+      "options": [
+        { "key": "a", "text": "Tú, porque el obstáculo está en tu lado" },
+        { "key": "b", "text": "El vehículo que viene de frente, haya obstáculo o no" },
+        { "key": "c", "text": "Ninguno de los dos, y ambos pueden seguir a la vez" }
+      ],
+      "explanation": "Según trafikkreglene § 7 apartado 6, si una parte de la vía está obstruida, la obligación de ceder el paso al cruzarse recae en el conductor que tiene el obstáculo en su lado. Debes reducir la velocidad o detenerte y ceder el paso."
+    },
+    "cmt8h1lju0003kksmyrk87fue": {
+      "stem": "¿Qué prevalece si las indicaciones dadas por las marcas viales contradicen las reglas generales de circulación?",
+      "options": [
+        { "key": "a", "text": "Prevalecen las marcas viales." },
+        { "key": "b", "text": "Prevalecen siempre las reglas generales de circulación." },
+        { "key": "c", "text": "El conductor elige según la seguridad." }
+      ],
+      "explanation": "Según trafikkreglene § 3 apartado 1, las indicaciones dadas por las marcas viales se aplican con preferencia a las reglas de circulación. Por tanto, las opciones b y c son incorrectas."
+    },
+    "cmt8h1lk90005kksmbhuwj2iz": {
+      "stem": "Circulas y te aproximas a un paso de peatones (gangfelt). ¿Qué dice la norma sobre detenerse encima del paso?",
+      "options": [
+        { "key": "a", "text": "Los conductores deben evitar detenerse sobre un paso de peatones." },
+        { "key": "b", "text": "Detenerse está siempre permitido si hay mucho tráfico." },
+        { "key": "c", "text": "Puedes detenerte sobre el paso hasta 3 minutos." }
+      ],
+      "explanation": "Según trafikkreglene § 9 apartado 4, los conductores deben evitar detenerse sobre un paso de peatones. Las opciones b y c son incorrectas porque la regla no prevé tales excepciones."
+    },
+    "cmt8h1lkh0007kksmnnlbm0sv": {
+      "stem": "Cuando te aproximas a un paso de peatones donde el tráfico no está regulado por la policía ni por semáforos, ¿cuál es tu obligación con los peatones?",
+      "options": [
+        { "key": "a", "text": "Tienes obligación de ceder el paso a los peatones que están en el paso o a punto de entrar en él." },
+        { "key": "b", "text": "Solo cedes el paso si el peatón ya ha cruzado la mitad de la calzada." },
+        { "key": "c", "text": "Tienes prioridad, y los peatones deben esperar a que la vía esté completamente libre." }
+      ],
+      "explanation": "Según trafikkreglene § 9 apartado 2, en los pasos de peatones no regulados por la policía ni por semáforos, los conductores deben ceder el paso a los peatones que están en el paso o a punto de entrar en él. Las opciones b y c contradicen esta regla."
+    },
+    "cmt8h1lkq0009kksm11fsw903": {
+      "stem": "¿Qué zona se define en las reglas de circulación como la parte de la vía situada fuera de la línea de borde (kantlinje)?",
+      "options": [
+        { "key": "a", "text": "El arcén (skulder)." },
+        { "key": "b", "text": "La acera (fortau)." },
+        { "key": "c", "text": "El carril (kjørefelt)." }
+      ],
+      "explanation": "Según trafikkreglene § 1 apartado 1(e), el arcén se define como la parte de la vía situada fuera de la línea de borde. Las opciones b y c se refieren a otras partes de la infraestructura viaria definidas en otro lugar."
+    },
+    "cmt8h1llx000fkksm6h7dat35": {
+      "stem": "Al caminar por una vía sin acera, vía peatonal ni arcén, ¿por qué lado de la calzada debes ir en general?",
+      "options": [
+        { "key": "a", "text": "Lo más a la izquierda posible en el sentido de la marcha." },
+        { "key": "b", "text": "Lo más a la derecha posible en el sentido de la marcha." },
+        { "key": "c", "text": "Por el lado que esté mejor iluminado." }
+      ],
+      "explanation": "Según trafikkreglene § 19 apartado 1, los peatones que utilizan la calzada deben caminar lo más a la izquierda posible en el sentido de la marcha (salvo cuando empujan una bicicleta, etc.). Las opciones b y c son incorrectas."
+    }
+  }
+}

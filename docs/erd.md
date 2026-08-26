@@ -160,6 +160,7 @@ erDiagram
   String topicId FK "nullable"
   String licenseClassId "nullable"
   Int requestedCount
+  Boolean factsVerified
   String providerId "nullable"
   String modelVersion "nullable"
   String promptVersion "nullable"
@@ -793,6 +794,11 @@ Properties as follows:
 - `topicId`:
 - `licenseClassId`:
 - `requestedCount`:
+- `factsVerified`
+  > Whether a human had confirmed the source image's context sheet BEFORE this run.
+  > Snapshotted rather than derived from the image, so confirming it afterwards cannot
+  > retroactively make these questions look as though they were built on verified ground.
+  > The review queue shows it: on a false, the reviewer is checking facts as well as wording.
 - `providerId`:
 - `modelVersion`:
 - `promptVersion`:

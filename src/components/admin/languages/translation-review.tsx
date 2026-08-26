@@ -3,8 +3,10 @@
 import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
 import {
+  bulkApproveAction,
   editTranslationAction,
   reviewTranslationAction,
+  type BulkApproveOutcome,
 } from "@/app/[locale]/(admin)/admin/languages/actions";
 import { FormAlert } from "@/components/auth/form-alert";
 import { SubmitButton } from "@/components/auth/submit-button";
@@ -75,10 +77,13 @@ export function TranslationReview({
   code,
   direction,
   rows,
+  pendingClean,
 }: {
   code: string;
   direction: "LTR" | "RTL";
   rows: ReviewRow[];
+  /** Clean machine translations waiting — what a bulk approve would clear. */
+  pendingClean: number;
 }) {
   const t = useTranslations("admin.languages");
   const tErrors = useTranslations();
@@ -92,21 +97,61 @@ export function TranslationReview({
     ActionResult | undefined,
     FormData
   >(editTranslationAction, undefined);
-  const error = [reviewState, editState].find((state) => state?.ok === false);
+  const [bulkState, bulkAction] = useActionState<
+    ActionResult<BulkApproveOutcome> | undefined,
+    FormData
+  >(bulkApproveAction, undefined);
+  const error = [reviewState, editState, bulkState].find(
+    (state) => state?.ok === false,
+  );
+
+  const banner = (
+    <>
+      {error?.ok === false ? (
+        <FormAlert>{tErrors(error.messageKey)}</FormAlert>
+      ) : null}
+      {bulkState?.ok ? (
+        <FormAlert tone="success">
+          {t("bulkApproved", {
+            approved: bulkState.data.approved,
+            skipped: bulkState.data.skipped,
+          })}
+        </FormAlert>
+      ) : null}
+      {pendingClean > 0 ? (
+        <form
+          action={bulkAction}
+          className="flex flex-wrap items-center gap-2 rounded-[var(--radius-base)] border border-border bg-muted/40 p-3"
+        >
+          <input type="hidden" name="code" value={code} />
+          <SubmitButton
+            className="h-9"
+            label={t("bulkApprove", { count: pendingClean })}
+            pendingLabel={t("saving")}
+          />
+          {/* The line that keeps a bulk action honest: it never touches a finding. */}
+          <span className="text-xs text-muted-foreground">
+            {t("bulkApproveNote")}
+          </span>
+        </form>
+      ) : null}
+    </>
+  );
 
   if (rows.length === 0) {
     return (
-      <p className="rounded-[var(--radius-base)] border border-dashed border-border p-8 text-center text-muted-foreground">
-        {t("reviewEmpty")}
-      </p>
+      <div className="space-y-4">
+        {banner}
+        <p className="rounded-[var(--radius-base)] border border-dashed border-border p-8 text-center text-muted-foreground">
+          {t("reviewEmpty")}
+        </p>
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      {error?.ok === false ? (
-        <FormAlert>{tErrors(error.messageKey)}</FormAlert>
-      ) : null}
+      {banner}
 
       {rows.map((row) => {
         const sourceOptions = (row.source?.options ?? []) as Array<{

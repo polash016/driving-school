@@ -5,7 +5,7 @@ import type {
 } from "@prisma/client";
 import { logger } from "@/lib/logger";
 import { AUDIT, auditLog } from "@/server/audit";
-import { extractAll, pendingUnits } from "./extract";
+import { extractAll, pendingUnits, pruneOrphans } from "./extract";
 import { invalidateMessages } from "./catalogue";
 import {
   BATCH_SIZE,
@@ -108,6 +108,11 @@ export async function planRun(
     glossaryVersion: language.glossaryVersion,
     only: input.only,
   });
+  // Clear out translations whose source has since been renamed or deleted. They cannot be served,
+  // cannot be reviewed, and would otherwise sit in the queue for ever.
+  const pruned = await pruneOrphans(db, locale, all);
+  if (pruned > 0) logger.info({ locale, pruned }, "removed orphaned translations");
+
   const pending = await pendingUnits(db, locale, all);
 
   const run = await db.translationRun.create({

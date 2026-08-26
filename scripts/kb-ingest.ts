@@ -58,12 +58,24 @@ function htmlToLegalText(html: string): string {
     const title = segment
       .match(/paragrafTittel[^>]*>\s*(?:<em[^>]*>)?\s*([^<]+)/)?.[1]
       ?.trim();
-    // The body is everything after the heading, up to the next section's anchor.
-    const bodyStart = segment.indexOf("</h2>");
-    const body = strip(bodyStart >= 0 ? segment.slice(bodyStart) : segment);
+    const header = `§ ${number}. ${title ?? ""}`.trim();
+
+    // The body is everything after the heading. Three bits of Lovdata markup have to come off
+    // first, or every chunk carries them into the prompts that ground a legal citation:
+    //   - the tail of the anchor we just split on (`3">`), which reads as content once tags go,
+    //   - the heading, which Lovdata repeats inside the section body, and
+    //   - "Del paragraf", its share-this-section control.
+    const afterAnchor = segment.replace(/^[^>]*>/, "");
+    const headingEnd = afterAnchor.search(/<\/h[1-6]>/i);
+    const body = strip(headingEnd >= 0 ? afterAnchor.slice(headingEnd) : afterAnchor)
+      .split("\n")
+      .filter((line) => line.trim() !== header && line.trim() !== "Del paragraf")
+      .map((line) => line.replace(/\s*Del paragraf\s*$/, "").trim())
+      .filter(Boolean)
+      .join("\n");
     if (!number || body.length < 20) continue;
 
-    sections.push(`§ ${number}. ${title ?? ""}`.trim() + "\n" + body);
+    sections.push(header + "\n" + body);
   }
 
   return sections.join("\n\n");

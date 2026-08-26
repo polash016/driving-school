@@ -5,6 +5,8 @@ import { Link } from "@/i18n/navigation";
 import { pickBilingualText } from "@/lib/i18n-content";
 import { requireUser } from "@/server/auth/require-user";
 import { db } from "@/server/db";
+import { ContextSheetPanel } from "@/components/admin/images/context-sheet";
+import { contextSheetSchema } from "@/server/contracts/image-pipeline";
 import type { AppLocale } from "../../../../../../../config/school.config";
 
 /** One uploaded image, and what has been asked about it. */
@@ -17,7 +19,7 @@ export default async function ImageDetailPage({
   setRequestLocale(locale);
   await requireUser("INSTRUCTOR");
 
-  const [t, image] = await Promise.all([
+  const [t, image, signRows] = await Promise.all([
     getTranslations("admin.images"),
     db.imageAsset.findFirst({
       where: { id, deletedAt: null },
@@ -28,6 +30,8 @@ export default async function ImageDetailPage({
         height: true,
         createdAt: true,
         exifStripped: true,
+        aiContextSheet: true,
+        contextVerifiedAt: true,
         uploadedBy: {
           select: {
             email: true,
@@ -43,9 +47,21 @@ export default async function ImageDetailPage({
         },
       },
     }),
+    db.sign.findMany({
+      where: { isActive: true },
+      select: { code: true, name: true },
+      orderBy: { code: "asc" },
+    }),
   ]);
 
   if (!image) notFound();
+
+  // A malformed stored sheet must not take the page down — it is redrawn by re-extracting.
+  const parsed = contextSheetSchema.safeParse(image.aiContextSheet);
+  const signOptions = signRows.map((sign) => ({
+    code: sign.code,
+    name: (sign.name as { en?: string }).en ?? sign.code,
+  }));
 
   const profile = image.uploadedBy?.profile;
   const uploaderName = profile
@@ -80,6 +96,14 @@ export default async function ImageDetailPage({
           />
         </CardContent>
       </Card>
+
+      <ContextSheetPanel
+        imageAssetId={image.id}
+        imageUrl={image.url}
+        sheet={parsed.success ? parsed.data : null}
+        verified={Boolean(image.contextVerifiedAt)}
+        signOptions={signOptions}
+      />
 
       <section className="space-y-2">
         <h2 className="text-sm font-medium text-foreground">

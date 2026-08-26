@@ -1,0 +1,42 @@
+{
+  "TOPIC": {
+    "accident-duties": { "name": "الواجبات عند وقوع حادث" },
+    "alcohol-drugs-health": { "name": "الكحول والمخدرات والصحة" },
+    "documents-insurance": { "name": "الوثائق والتأمين" },
+    "emergency-public-transport": { "name": "مركبات الطوارئ والحافلات" },
+    "information-signs": { "name": "لافتات المعلومات" },
+    "interaction-communication": { "name": "التعامل والتواصل في الطريق" },
+    "lane-choice": { "name": "اختيار المسار والتموضع" },
+    "laws-rules": { "name": "القوانين واللوائح" },
+    "lights-visibility": { "name": "الإضاءة والرؤية" },
+    "loading-towing": { "name": "التحميل والقطر" },
+    "overtaking": { "name": "التجاوز" },
+    "penalties": { "name": "العقوبات والجزاءات" },
+    "perception-reaction": { "name": "الإدراك ورد الفعل" },
+    "priority-yield-signs": { "name": "لافتات الأولوية وإفساح الطريق" },
+    "prohibition-mandatory-signs": { "name": "لافتات المنع والإلزام" },
+    "responsibility": { "name": "مسؤولية السائق ومالك المركبة" },
+    "right-hand-rule": { "name": "قاعدة الأولوية لليمين" },
+    "right-of-way": { "name": "أحقية المرور" },
+    "road-markings": { "name": "علامات الطريق الأرضية" },
+    "road-traffic-act": { "name": "قانون المرور" },
+    "roundabouts": { "name": "الدوارات" },
+    "safety-inspection": { "name": "الفحص الفني للسلامة" },
+    "signs-markings": { "name": "اللافتات وعلامات الطريق" },
+    "speed-limits": { "name": "حدود السرعة" },
+    "speed-positioning": { "name": "السرعة والتموضع على الطريق" },
+    "stopping-distance": { "name": "مسافة الكبح والتوقف" },
+    "the-vehicle": { "name": "المركبة" },
+    "traffic-participants": { "name": "السائقون وسائر مستخدمي الطريق" },
+    "traffic-rules": { "name": "قواعد المرور" },
+    "tyres-brakes": { "name": "الإطارات والفرامل" },
+    "vulnerable-road-users": { "name": "مستخدمو الطريق الأكثر عرضة للخطر" },
+    "warning-signs": { "name": "لافتات التحذير من الخطر" }
+  },
+  "LICENSE_CLASS": {
+    "B": { "name": "سيارة ركوب (الفئة B)" }
+  },
+  "KB_SOURCE": {
+    "trafikkreglene": { "name": "Trafikkreglene (قواعد المرور النرويجية)" }
+  }
+}

@@ -12,6 +12,12 @@ export const kbSearchInputSchema = z
   .object({
     query: z.string().min(2).max(500),
     topicSlug: z.string().optional(),
+    /**
+     * Restrict retrieval to particular regulations. A sign question grounded in the general
+     * traffic rules instead of skiltforskriften cites something that does not govern the sign,
+     * so the caller that knows which regulation applies gets to say so.
+     */
+    sourceCodes: z.array(z.string().min(1)).min(1).max(8).optional(),
     limit: z.int().min(1).max(20).default(8),
   })
   .strict();

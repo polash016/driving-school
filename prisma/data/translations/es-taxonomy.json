@@ -1,0 +1,42 @@
+{
+  "TOPIC": {
+    "accident-duties": { "name": "Obligaciones en caso de accidente" },
+    "alcohol-drugs-health": { "name": "Alcohol, drogas y salud" },
+    "documents-insurance": { "name": "Documentación y seguro" },
+    "emergency-public-transport": { "name": "Vehículos de emergencia y autobuses" },
+    "information-signs": { "name": "Señales de información" },
+    "interaction-communication": { "name": "Convivencia y comunicación" },
+    "lane-choice": { "name": "Elección de carril y colocación" },
+    "laws-rules": { "name": "Leyes y reglamentos" },
+    "lights-visibility": { "name": "Alumbrado y visibilidad" },
+    "loading-towing": { "name": "Carga y remolque" },
+    "overtaking": { "name": "Adelantamiento" },
+    "penalties": { "name": "Sanciones y penalizaciones" },
+    "perception-reaction": { "name": "Percepción y reacción" },
+    "priority-yield-signs": { "name": "Señales de prioridad y de ceda el paso" },
+    "prohibition-mandatory-signs": { "name": "Señales de prohibición y de obligación" },
+    "responsibility": { "name": "Responsabilidad del conductor y del titular" },
+    "right-hand-rule": { "name": "La regla de la derecha" },
+    "right-of-way": { "name": "Prioridad de paso" },
+    "road-markings": { "name": "Marcas viales" },
+    "road-traffic-act": { "name": "La Ley de Tráfico" },
+    "roundabouts": { "name": "Glorietas" },
+    "safety-inspection": { "name": "Inspección de seguridad" },
+    "signs-markings": { "name": "Señales y marcas viales" },
+    "speed-limits": { "name": "Límites de velocidad" },
+    "speed-positioning": { "name": "Velocidad y colocación en la calzada" },
+    "stopping-distance": { "name": "Distancia de frenado y de detención" },
+    "the-vehicle": { "name": "El vehículo" },
+    "traffic-participants": { "name": "Conductores y otros usuarios de la vía" },
+    "traffic-rules": { "name": "El reglamento de circulación" },
+    "tyres-brakes": { "name": "Neumáticos y frenos" },
+    "vulnerable-road-users": { "name": "Usuarios vulnerables de la vía" },
+    "warning-signs": { "name": "Señales de advertencia de peligro" }
+  },
+  "LICENSE_CLASS": {
+    "B": { "name": "Turismo (clase B)" }
+  },
+  "KB_SOURCE": {
+    "trafikkreglene": { "name": "Trafikkreglene (el reglamento noruego de circulación)" }
+  }
+}

@@ -266,3 +266,79 @@ nothing disabled if the process dies. Three consecutive full e2e runs, 28 passed
 ### Totals
 
 **330 unit/integration**, **28 e2e**, `tsc` and `eslint` clean.
+
+---
+
+## Phase 1d — bulk approve, review fixes, and hand-authored translations (2026-08-25)
+
+### Two real bugs in the review screen
+
+Both found by probing the live queue rather than by reading the code.
+
+**Derived variant rows were in the queue.** `ITEM_VARIANT` translations are copies of their master,
+made for free so students can be served — never review units. A reviewer saw every question twice,
+and approving the master silently rewrote the copy while they were looking at it. The queue now
+excludes them.
+
+**Orphaned translations sat there forever.** `home.practice` was renamed to `home.mockExam` when
+the start tiles were relabelled; its Spanish translation stayed behind, invisible to coverage
+(which counts current units), unreviewable (no source to compare against), and permanently stuck.
+`pruneOrphans` now clears these on every sync — skipping `ITEM_VARIANT`, which never appears in the
+extractor's output and would otherwise be deleted wholesale — and the queue hides any that have not
+been swept yet.
+
+### Bulk approve, and what it deliberately will not touch
+
+A language has 248 student-facing UI strings. Approving those one at a time is not a workflow
+anybody finishes, so the review screen offers **"Approve all N unflagged"**. It is still a human
+act, audited as one.
+
+It refuses anything a check flagged. A `NUMBER_DRIFT` or `ANSWER_PERMUTED` finding is the entire
+reason the checks exist; sweeping it into a bulk action would waste it. The button says so.
+
+**Auto-approve** is the existing per-language switch, relabelled to what it actually is. With it on,
+the review queue now defaults to flagged items only — the reviewer has already said the automated
+checks are enough for clean output, so showing them everything else is noise.
+
+### Three calibration errors in the checks, all found against real content
+
+| What fired | Why it was wrong | Fix |
+|---|---|---|
+| `UNTRANSLATED` on `history.minutes` | "{count} min" is *correctly* identical in Spanish | The echo check only runs once the source has ≥ 4 letters outside its placeholders |
+| `CITATION_DRIFT` would fire on any translated sentence | The § pattern swallowed trailing English words, so "§ 15 paragraph 2" pinned "paragraph" into every Spanish sentence | The pattern now captures `§ <number>` only — the address. The numbers around it are still checked by `NUMBER_DRIFT` |
+| Coverage could never reach 100% | All 430 `admin.*` keys were in the denominator, though admin chrome stays en/nb by design | Staff-only namespaces are excluded from extraction — 678 UI keys became 248 student-facing ones |
+
+That last one was not a cosmetic problem: with admin keys counted, no language could ever pass the
+gate a school needs to switch it on, and two thirds of every translation budget would have gone on
+screens nobody in that language will open.
+
+### Translations loaded by hand
+
+`pnpm i18n:import <code> <file.json> [--approve]` loads translations written outside the AI
+gateway. Every row faces the **same structural gate** the model's output does — numbers, §
+references, option keys, ICU placeholders — because a human drops a placeholder exactly as easily
+as a model does, and the consequence in front of a student is identical. Provenance is recorded
+honestly: `providerLabel: "import"`, no model version.
+
+| | Spanish | Arabic |
+|---|---|---|
+| UI strings | 248 ✓ | 248 ✓ |
+| Topics, licence class, source name | 34 ✓ | 34 ✓ |
+| Theory questions | 130 ✓ | — |
+| Served variants (derived, 0 tokens) | 130 ✓ | — |
+| **Approved total** | **542** | **282** |
+| Still to do | 574 sign questions + 287 signs | 704 questions + 287 signs |
+
+Every one of those 824 rows passed the structural gate on import — no held items, no drift.
+
+```
+$ curl -s localhost:3000/es | grep "¿Listo para el examen teórico?"     → present
+$ curl -s localhost:3000/ar | grep "هل أنت مستعد لاختبار النظري؟"        → present
+```
+
+Both interfaces render entirely in their own language. Neither is student-visible yet: the coverage
+gate holds until the questions are finished, which is the gate working as designed.
+
+### Totals
+
+**359 unit/integration**, **31 e2e**, `tsc` and `eslint` clean.

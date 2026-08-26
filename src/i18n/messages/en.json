@@ -395,7 +395,9 @@
       },
       "approvals": "{count} of {required} approvals",
       "recordedNeedsSecond": "Your approval is recorded. This question needs {required} reviewers before it goes live.",
-      "subtitleOneSet": "Reviewing one generated set. Approve, edit or reject — all from the keyboard."
+      "subtitleOneSet": "Reviewing one generated set. Approve, edit or reject — all from the keyboard.",
+      "factsUnverified": "These questions were generated from a picture nobody confirmed. Check that what the question says is in the picture actually is — not just that it reads well.",
+      "imageAlt": "The picture this question is about"
     },
     "sets": {
       "title": "Question sets",
@@ -628,7 +630,14 @@
       },
       "inEveryLanguage": "This question in every language",
       "field": "Field",
-      "stemRow": "Question"
+      "stemRow": "Question",
+      "bulkApprove": "Approve all {count} unflagged",
+      "bulkApproveNote": "Anything a check flagged is left alone — those need a person.",
+      "bulkApproved": "{approved} approved. {skipped} left for you because a check flagged them.",
+      "autoApprove": "Auto-approve",
+      "autoApproveOn": "On — clean translations go live as soon as they are written",
+      "autoApproveOff": "Off — a person approves each one before students see it",
+      "autoApproveNote": "Either way, anything a check flags waits for a person."
     },
     "images": {
       "title": "Images",
@@ -649,7 +658,29 @@
       "deleted": "Image deleted.",
       "dimensions": "{width}×{height}",
       "uploadedBy": "Uploaded by {name}",
-      "limits": "JPEG, PNG or WebP. Up to {maxMb} MB each, {maxBatch} at a time."
+      "limits": "JPEG, PNG or WebP. Up to {maxMb} MB each, {maxBatch} at a time.",
+      "contextSheet": "What the AI read in this picture",
+      "noSheet": "This picture has not been read yet.",
+      "extract": "Read the picture",
+      "extracting": "Reading…",
+      "signsFound": "Signs identified",
+      "noSignsFound": "No traffic signs were identified.",
+      "removeSign": "Remove this sign",
+      "addSign": "Add a sign from the registry…",
+      "situation": "What is happening in the picture",
+      "needsAttention": "Worth a look — the readings disagreed here:",
+      "confirmSheet": "Confirm these facts",
+      "sheetConfirmed": "Facts confirmed by a person.",
+      "generate": "Generate questions",
+      "generating": "Generating…",
+      "count": "How many",
+      "generateUnconfirmedHint": "You can generate without confirming. The questions are then marked as built on unchecked facts, and whoever reviews them is checking the facts too.",
+      "generated": "{count} question(s) drafted and sent to review.",
+      "answerDisputed": "{count} were refused because the answer key could not be independently reproduced.",
+      "toReview": "Go to review queue",
+      "errors": {
+        "noContextSheet": "Read the picture before generating questions from it."
+      }
     },
     "signs": {
       "title": "Sign registry",

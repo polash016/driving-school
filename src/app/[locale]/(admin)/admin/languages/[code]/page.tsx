@@ -37,14 +37,19 @@ export default async function LanguageReviewPage({
       nativeName: true,
       direction: true,
       isBuiltIn: true,
+      requiresApproval: true,
     },
   });
   if (!language || language.isBuiltIn) notFound();
 
+  // With auto-approve on, the reviewer has already said the checks are enough for clean output —
+  // so the queue defaults to the findings that still need a person, not to everything.
+  const flaggedOnly = query.flagged === "1" || (!language.requiresApproval && query.flagged !== "0");
+
   const [t, coverage, queue] = await Promise.all([
     getTranslations("admin.languages"),
     languageCoverage(db, code),
-    reviewQueue(db, code, { limit: 30, onlyFlagged: query.flagged === "1" }),
+    reviewQueue(db, code, { limit: 30, onlyFlagged: flaggedOnly }),
   ]);
 
   const rows: ReviewRow[] = queue.map((item) => ({
@@ -101,7 +106,7 @@ export default async function LanguageReviewPage({
           </ul>
           <p className="flex gap-3 pt-1 text-sm">
             <Link
-              href={`/admin/languages/${code}`}
+              href={`/admin/languages/${code}?flagged=0`}
               className="text-primary underline-offset-4 hover:underline"
             >
               {t("filterAll")}
@@ -120,6 +125,10 @@ export default async function LanguageReviewPage({
         code={code}
         direction={language.direction === "RTL" ? "RTL" : "LTR"}
         rows={rows}
+        pendingClean={coverage.byEntity.reduce(
+          (sum, entry) => sum + (entry.translated - entry.approved - entry.flagged),
+          0,
+        )}
       />
     </div>
   );

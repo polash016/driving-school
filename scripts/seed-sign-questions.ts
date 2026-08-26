@@ -23,7 +23,7 @@
 import { PrismaClient, type SignClass } from "@prisma/client";
 import { createRng, shuffle } from "../src/server/services/quiz/rng";
 import { checkItemQuality } from "../src/server/services/question-bank/validation";
-import { publishItem } from "../src/server/services/question-bank/publish";
+import { publishItem, unpublishItem } from "../src/server/services/question-bank/publish";
 import { redis } from "../src/server/redis";
 
 (process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(
@@ -49,16 +49,24 @@ const TOPIC_FOR_CLASS: Record<SignClass, string> = {
  * gate requires a citation, and for a sign this is genuinely the rule the answer comes from.
  */
 const CITATION_SOURCE = "skiltforskriften";
+/**
+ * The section of skiltforskriften that defines each sign group.
+ *
+ * These are read off the ingested regulation, NOT guessed. An earlier version of this file guessed
+ * them and had eight of the nine wrong — a citation that looks precise and points at the wrong rule
+ * is worse than none, because nobody re-checks it. Verify against the knowledge base after any
+ * re-ingest: `SELECT ref, left(text, 60) FROM "KbChunk" ... ORDER BY ref`.
+ */
 const SECTION_FOR_CLASS: Record<SignClass, string> = {
-  FARE: "§ 5",
-  VIKEPLIKT_OG_FORKJORS: "§ 6",
-  FORBUD: "§ 7",
-  PABUD: "§ 8",
-  OPPLYSNING: "§ 9",
-  SERVICE: "§ 10",
-  VEGVISNING: "§ 11",
-  UNDERSKILT: "§ 13",
-  MARKERING: "§ 15",
+  FARE: "§ 3", // Fareskilt
+  VIKEPLIKT_OG_FORKJORS: "§ 5", // Vikeplikt- og forkjørsskilt
+  FORBUD: "§ 7", // Forbudsskilt
+  PABUD: "§ 9", // Påbudsskilt
+  OPPLYSNING: "§ 11", // Opplysningsskilt
+  SERVICE: "§ 13", // Serviceskilt
+  VEGVISNING: "§ 15", // Vegvisningsskilt
+  UNDERSKILT: "§ 17", // Underskilt
+  MARKERING: "§ 19", // Markeringsskilt m.m.
 };
 
 const OPTION_KEYS = ["a", "b", "c", "d"] as const;
@@ -147,9 +155,71 @@ function buildContent(
   };
 }
 
+/**
+ * Retire sign questions whose citation no longer matches the current section map, and let the
+ * normal generation pass below create corrected replacements.
+ *
+ * Retire-and-replace rather than an edit, because an approved question is frozen (spec-04b) and a
+ * student who already sat one must keep seeing the exact question they answered. The old item
+ * keeps its rows and its attempt links; its variants are deactivated so nobody is served it again.
+ *
+ * This exists because the first version of this script GUESSED the section numbers and had eight
+ * of nine wrong. A citation that looks precise and points at the wrong rule is worse than none.
+ */
+async function retireMiscited(dryRun: boolean): Promise<number> {
+  const items = await db.masterItem.findMany({
+    where: { type: "SIGN", status: "APPROVED", deletedAt: null },
+    select: {
+      id: true,
+      legalCitations: true,
+      sourceImage: { select: { url: true } },
+    },
+  });
+
+  const signByPath = new Map(
+    (await db.sign.findMany({ select: { svgPath: true, signClass: true } })).map((sign) => [
+      sign.svgPath,
+      sign.signClass,
+    ]),
+  );
+
+  const stale = items.filter((item) => {
+    const signClass = signByPath.get(item.sourceImage?.url ?? "");
+    if (!signClass) return false;
+    const cites = (item.legalCitations ?? []) as { sourceCode?: string; ref?: string }[];
+    return !cites.some(
+      (cite) =>
+        cite.sourceCode === CITATION_SOURCE && cite.ref === SECTION_FOR_CLASS[signClass],
+    );
+  });
+
+  if (stale.length === 0) return 0;
+  console.log(`${stale.length} sign question(s) cite the wrong section and will be retired.`);
+  if (dryRun) return stale.length;
+
+  for (const item of stale) {
+    await db.$transaction(async (tx) => {
+      // Deactivate first: from this moment no assembly can draw the wrongly-cited question.
+      await unpublishItem(tx, item.id);
+      await tx.masterItem.update({
+        where: { id: item.id },
+        data: {
+          status: "RETIRED",
+          reviewReason: "CITATION_MISMATCH",
+          reviewNote: "retired: cited section corrected against skiltforskriften",
+          reviewedAt: new Date(),
+        },
+        select: { id: true },
+      });
+    });
+  }
+  return stale.length;
+}
+
 async function main(): Promise<void> {
   const dryRun = flag("dry-run");
   const seed = stringOption("seed", "sign-questions-v1");
+  const retired = await retireMiscited(dryRun);
 
   const signs = (await db.sign.findMany({
     where: { isActive: true },
@@ -327,7 +397,10 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `${dryRun ? "[dry run] " : ""}Sign questions: ${created} created, ${skipped} skipped, ${rejected} rejected by the quality gate.`,
+    `${dryRun ? "[dry run] " : ""}Sign questions: ${created} created, ${skipped} skipped, ` +
+      `${rejected} rejected by the quality gate` +
+      (retired > 0 ? `, ${retired} retired for a wrong citation` : "") +
+      ".",
   );
   if (tooSmall.size > 0) {
     console.log(

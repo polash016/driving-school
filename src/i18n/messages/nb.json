@@ -395,7 +395,9 @@
       },
       "approvals": "{count} av {required} godkjenninger",
       "recordedNeedsSecond": "Godkjenningen din er registrert. Spørsmålet trenger {required} vurderere før det tas i bruk.",
-      "subtitleOneSet": "Vurderer ett generert sett. Godkjenn, rediger eller avvis — alt fra tastaturet."
+      "subtitleOneSet": "Vurderer ett generert sett. Godkjenn, rediger eller avvis — alt fra tastaturet.",
+      "factsUnverified": "Disse spørsmålene er laget fra et bilde ingen har bekreftet. Kontroller at det spørsmålet sier finnes i bildet, faktisk gjør det — ikke bare at det er godt formulert.",
+      "imageAlt": "Bildet spørsmålet handler om"
     },
     "sets": {
       "title": "Spørsmålssett",
@@ -628,7 +630,14 @@
       },
       "inEveryLanguage": "Dette spørsmålet på alle språk",
       "field": "Felt",
-      "stemRow": "Spørsmål"
+      "stemRow": "Spørsmål",
+      "bulkApprove": "Godkjenn alle {count} umerkede",
+      "bulkApproveNote": "Alt som en kontroll har merket, blir stående — det trenger et menneske.",
+      "bulkApproved": "{approved} godkjent. {skipped} står igjen fordi en kontroll merket dem.",
+      "autoApprove": "Automatisk godkjenning",
+      "autoApproveOn": "På — rene oversettelser publiseres med en gang",
+      "autoApproveOff": "Av — en person godkjenner hver enkelt før elevene ser den",
+      "autoApproveNote": "Uansett venter alt en kontroll merker på et menneske."
     },
     "images": {
       "title": "Bilder",
@@ -649,7 +658,29 @@
       "deleted": "Bildet er slettet.",
       "dimensions": "{width}×{height}",
       "uploadedBy": "Lastet opp av {name}",
-      "limits": "JPEG, PNG eller WebP. Inntil {maxMb} MB hver, {maxBatch} om gangen."
+      "limits": "JPEG, PNG eller WebP. Inntil {maxMb} MB hver, {maxBatch} om gangen.",
+      "contextSheet": "Det AI-en leste i dette bildet",
+      "noSheet": "Dette bildet er ikke lest ennå.",
+      "extract": "Les bildet",
+      "extracting": "Leser …",
+      "signsFound": "Skilt som er funnet",
+      "noSignsFound": "Ingen trafikkskilt ble funnet.",
+      "removeSign": "Fjern dette skiltet",
+      "addSign": "Legg til et skilt fra registeret …",
+      "situation": "Hva som skjer i bildet",
+      "needsAttention": "Verdt et blikk — lesningene var uenige her:",
+      "confirmSheet": "Bekreft disse opplysningene",
+      "sheetConfirmed": "Opplysningene er bekreftet av en person.",
+      "generate": "Lag spørsmål",
+      "generating": "Lager …",
+      "count": "Hvor mange",
+      "generateUnconfirmedHint": "Du kan lage spørsmål uten å bekrefte. Spørsmålene blir da merket som bygget på ukontrollerte opplysninger, og den som kontrollerer dem, kontrollerer også opplysningene.",
+      "generated": "{count} spørsmål er laget og sendt til kontroll.",
+      "answerDisputed": "{count} ble avvist fordi fasiten ikke kunne bekreftes uavhengig.",
+      "toReview": "Gå til kontrollkøen",
+      "errors": {
+        "noContextSheet": "Les bildet før du lager spørsmål fra det."
+      }
     },
     "signs": {
       "title": "Skiltregister",

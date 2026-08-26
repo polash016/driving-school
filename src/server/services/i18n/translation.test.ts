@@ -127,6 +127,29 @@ describe("the deterministic translation gate", () => {
     expect(blockingCodes(result)).toContain("PLACEHOLDER_LOST");
   });
 
+  it("does not cry untranslated over a string with nothing to translate", () => {
+    // "{count} min" is correctly identical in Spanish. A check that flags correct work is worse
+    // than no check, because reviewers learn to ignore it.
+    const result = checkTranslation({
+      entity: "UI_MESSAGE",
+      locale: "es",
+      source: { text: "{count} min" },
+      translated: { text: "{count} min" },
+    });
+    expect(result.passed).toBe(true);
+    expect(blockingCodes(result)).not.toContain("UNTRANSLATED");
+  });
+
+  it("still catches a real echo, where there was plenty to translate", () => {
+    const result = checkTranslation({
+      entity: "UI_MESSAGE",
+      locale: "es",
+      source: { text: "Your driving school will send you an invitation." },
+      translated: { text: "Your driving school will send you an invitation." },
+    });
+    expect(blockingCodes(result)).toContain("UNTRANSLATED");
+  });
+
   it("accepts a placeholder that moved within the sentence", () => {
     const result = checkTranslation({
       entity: "UI_MESSAGE",

@@ -422,6 +422,11 @@ model MasterItem {
   // Admin search: GENERATED tsvector over the en+nb stems, created in raw SQL because Prisma
   // cannot express generated columns. CAUTION: `prisma migrate dev` proposes dropping it in every
   // new migration — strip that statement; prisma/migrations.test.ts fails the build if it lands.
+  // HOW to strip it safely: `migrate dev --create-only` → edit the SQL → `migrate deploy`. Editing
+  // a migration that has ALREADY been applied changes its file checksum, and every later
+  // `migrate dev` then demands a full database reset. Recovering from that means repairing
+  // `_prisma_migrations.checksum` by hand (sha256 of the file) for every row of that migration,
+  // including any rolled-back attempt — Prisma compares against those too.
   searchText       Unsupported("tsvector")?
   createdAt        DateTime                     @default(now())
   updatedAt        DateTime                     @updatedAt
@@ -491,6 +496,11 @@ model GenerationBatch {
   topicId        String? // THEORY batches
   licenseClassId String?
   requestedCount Int         @default(5)
+  /// Whether a human had confirmed the source image's context sheet BEFORE this run.
+  /// Snapshotted rather than derived from the image, so confirming it afterwards cannot
+  /// retroactively make these questions look as though they were built on verified ground.
+  /// The review queue shows it: on a false, the reviewer is checking facts as well as wording.
+  factsVerified  Boolean     @default(false)
   providerId     String? // spec-05 AiProvider — plain column until that table exists
   modelVersion   String?
   promptVersion  String?

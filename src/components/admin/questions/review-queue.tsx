@@ -40,6 +40,17 @@ export interface ReviewItem {
   correctOptionKey: string;
   explanation: string;
   citations: { sourceCode: string; ref: string }[];
+  /**
+   * The picture the question is about. A reviewer cannot judge an image question without seeing
+   * it — approving one blind is not review, it is a rubber stamp.
+   */
+  imageUrl: string | null;
+  /**
+   * False when the question was generated from a picture whose facts nobody confirmed. The
+   * reviewer is then checking WHAT IS IN THE PICTURE as well as how the question is worded, and
+   * has to be told so.
+   */
+  factsVerified: boolean;
 }
 
 export function ReviewQueue({ items }: { items: ReviewItem[] }) {
@@ -145,8 +156,19 @@ export function ReviewQueue({ items }: { items: ReviewItem[] }) {
               required: current.approvalsRequired,
             })}
           </p>
+          {current.imageUrl && !current.factsVerified ? (
+            <p
+              role="status"
+              className="rounded-[var(--radius-control)] bg-amber-500/10 px-3 py-2 text-sm text-foreground"
+            >
+              {t("factsUnverified")}
+            </p>
+          ) : null}
+
           <QuestionCard
             stem={current.stem}
+            imageUrl={current.imageUrl}
+            imageAlt={t("imageAlt")}
             options={current.options}
             reveal={{
               correctOptionKey: current.correctOptionKey,

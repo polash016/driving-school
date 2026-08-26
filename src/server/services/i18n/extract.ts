@@ -76,12 +76,22 @@ function unit(
   };
 }
 
-/** Every UI message key. The denominator most of the coverage number comes from. */
+/**
+ * Namespaces a student never sees.
+ *
+ * Admin and instructor screens stay English/Norwegian by design — the staff running a Norwegian
+ * driving school read those, not the students. Leaving them in the denominator would mean no
+ * language could ever reach the coverage a school needs to switch it on, and would spend two
+ * thirds of every translation budget on screens nobody in that language will open.
+ */
+const STAFF_ONLY_NAMESPACES = ["admin"];
+
+/** Every student-facing UI message key. */
 export function extractMessages(glossaryVersion: number): TranslationUnit[] {
   const flat = flattenMessages(BASE_MESSAGES as Messages);
-  return Object.entries(flat).map(([key, text]) =>
-    unit("UI_MESSAGE", key, { text }, undefined, key, glossaryVersion),
-  );
+  return Object.entries(flat)
+    .filter(([key]) => !STAFF_ONLY_NAMESPACES.includes(key.split(".")[0]))
+    .map(([key, text]) => unit("UI_MESSAGE", key, { text }, undefined, key, glossaryVersion));
 }
 
 /**
@@ -279,4 +289,35 @@ export async function pendingUnits(
     if (current.status === "REJECTED") return true;
     return current.sourceHash !== candidate.sourceHash;
   });
+}
+
+/**
+ * Delete translations whose source no longer exists.
+ *
+ * Renaming a message key or removing a question leaves its translations behind: invisible to
+ * coverage (which counts current units), unreviewable (there is nothing to compare against), and
+ * permanently stuck in the queue. `home.practice` was exactly this — renamed when the start tiles
+ * were relabelled, with its Spanish translation still sitting there.
+ *
+ * ITEM_VARIANT is skipped deliberately: those are derived from masters and never appear in the
+ * extractor's output, so treating absence as orphanhood would delete every one of them.
+ */
+export async function pruneOrphans(
+  db: PrismaClient,
+  locale: string,
+  currentUnits: Array<{ entity: TranslatableEntity; entityId: string }>,
+): Promise<number> {
+  const live = new Set(currentUnits.map((unit) => `${unit.entity}:${unit.entityId}`));
+  const existing = await db.translation.findMany({
+    where: { locale, entity: { not: "ITEM_VARIANT" } },
+    select: { id: true, entity: true, entityId: true },
+  });
+
+  const orphans = existing
+    .filter((row) => !live.has(`${row.entity}:${row.entityId}`))
+    .map((row) => row.id);
+  if (orphans.length === 0) return 0;
+
+  const result = await db.translation.deleteMany({ where: { id: { in: orphans } } });
+  return result.count;
 }

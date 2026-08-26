@@ -116,13 +116,23 @@ d("adding a language", () => {
 d("the coverage gate", () => {
   it("reports how much a student would actually read in their language", async () => {
     const coverage = await languageCoverage(db, CODE);
-    expect(coverage.total).toBeGreaterThan(500); // UI keys alone are 534
     expect(coverage.ready).toBe(0);
     expect(coverage.percent).toBe(0);
     expect(coverage.complete).toBe(false);
-    expect(
-      coverage.byEntity.some((entry) => entry.entity === "UI_MESSAGE"),
-    ).toBe(true);
+    expect(coverage.byEntity.some((entry) => entry.entity === "UI_MESSAGE")).toBe(true);
+  });
+
+  it("counts only what a student can actually see", async () => {
+    // Admin and instructor screens stay English/Norwegian by design. Leaving them in the
+    // denominator would mean no language could ever reach the coverage a school needs to switch
+    // it on, and would spend most of a translation budget on screens nobody in that language
+    // will ever open.
+    const { extractMessages } = await import("./extract");
+    const keys = extractMessages(1).map((unit) => unit.entityId);
+    expect(keys.length).toBeGreaterThan(200);
+    expect(keys.some((key) => key.startsWith("admin."))).toBe(false);
+    expect(keys).toContain("quiz.answerLocked");
+    expect(keys).toContain("home.title");
   });
 
   it("refuses to show an unfinished language to students", async () => {

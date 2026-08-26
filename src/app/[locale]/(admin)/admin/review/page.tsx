@@ -46,6 +46,9 @@ export default async function ReviewPage({
         version: true,
         createdBy: true,
         topic: { select: { name: true } },
+        // Served by MasterItem_sourceImageId_idx via the relation.
+        sourceImage: { select: { url: true } },
+        batch: { select: { factsVerified: true } },
         _count: { select: { approvals: true } },
       },
       orderBy: { createdAt: "asc" },
@@ -86,6 +89,10 @@ export default async function ReviewPage({
         sourceCode: string;
         ref: string;
       }[],
+      imageUrl: row.sourceImage?.url ?? null,
+      // A question with no batch was written by a person, so there are no machine-read facts to
+      // doubt; only a batch that generated from an unconfirmed picture is flagged.
+      factsVerified: row.batch ? row.batch.factsVerified : true,
     };
   });
 

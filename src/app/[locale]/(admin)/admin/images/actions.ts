@@ -8,6 +8,9 @@ import { AUDIT, auditLog } from "@/server/audit";
 import { db } from "@/server/db";
 import { storage } from "@/server/storage";
 import { uploadImage } from "@/server/services/images/upload";
+import { extractContextSheet } from "@/server/services/pipeline/vision";
+import { generateImageQuestions } from "@/server/services/generation/image";
+import { contextSheetSchema } from "@/server/contracts/image-pipeline";
 import { schoolConfig } from "../../../../../../config/school.config";
 import { ValidationError } from "@/lib/errors";
 
@@ -115,6 +118,98 @@ export async function deleteImageAction(
     });
     revalidatePath("/admin/images");
     return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+/**
+ * Read the picture into a context sheet (spec-06, mode 2).
+ *
+ * Runs inline rather than on a queue: this stack has none, and the work is one admin waiting on
+ * their own action. Progress lives on `ImageAsset.status`, which is what its status index is for.
+ */
+export async function extractContextSheetAction(
+  _prev: ActionResult<{ settled: boolean; unresolved: string[] }> | undefined,
+  formData: FormData,
+): Promise<ActionResult<{ settled: boolean; unresolved: string[] }>> {
+  const user = await requireUser("INSTRUCTOR");
+  const id = String(formData.get("imageAssetId") ?? "");
+  try {
+    const { settled, unresolved } = await extractContextSheet(db, storage(), id);
+    await auditLog({
+      actorId: user.id,
+      action: AUDIT.imagesUploaded,
+      entityType: "ImageAsset",
+      entityId: id,
+      meta: { step: "context-sheet", settled, unresolved: unresolved.length },
+    });
+    revalidatePath("/admin/images");
+    return { ok: true, data: { settled, unresolved } };
+  } catch (error) {
+    await db.imageAsset
+      .update({ where: { id }, data: { status: "FAILED" }, select: { id: true } })
+      .catch(() => undefined);
+    return toActionError(error);
+  }
+}
+
+/**
+ * Store the admin's corrections and mark the picture's facts confirmed.
+ *
+ * Confirming is what turns a perception step into ground truth for every question drawn from this
+ * image afterwards. It is optional by deliberate decision — `generateFromImageAction` will run
+ * without it — but the batch records which way it went.
+ */
+export async function confirmContextSheetAction(
+  _prev: ActionResult | undefined,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await requireUser("INSTRUCTOR");
+  try {
+    const id = String(formData.get("imageAssetId") ?? "");
+    const sheet = contextSheetSchema.parse(JSON.parse(String(formData.get("sheet") ?? "{}")));
+    await db.imageAsset.update({
+      where: { id },
+      data: { aiContextSheet: sheet, contextVerifiedAt: new Date(), status: "READY" },
+      select: { id: true },
+    });
+    await auditLog({
+      actorId: user.id,
+      action: AUDIT.imagesUploaded,
+      entityType: "ImageAsset",
+      entityId: id,
+      meta: { step: "context-sheet-confirmed", signs: sheet.signs.length },
+    });
+    revalidatePath("/admin/images");
+    return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+/** Draft questions from the picture. Works confirmed or not; the batch records which. */
+export async function generateFromImageAction(
+  _prev: ActionResult<{ batchId: string; accepted: number; answerDisputed: number; factsVerified: boolean }> | undefined,
+  formData: FormData,
+): Promise<ActionResult<{ batchId: string; accepted: number; answerDisputed: number; factsVerified: boolean }>> {
+  const user = await requireUser("INSTRUCTOR");
+  try {
+    const outcome = await generateImageQuestions(db, user, {
+      imageAssetId: String(formData.get("imageAssetId") ?? ""),
+      count: Math.min(10, Math.max(1, Number(formData.get("count") ?? 5))),
+    });
+    revalidatePath("/admin/images");
+    revalidatePath("/admin/review");
+    return {
+      ok: true,
+      data: {
+        batchId: outcome.batchId,
+        accepted: outcome.accepted,
+        answerDisputed: outcome.answerDisputed,
+        factsVerified: outcome.factsVerified,
+      },
+    };
   } catch (error) {
     return toActionError(error);
   }
