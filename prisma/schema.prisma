@@ -122,6 +122,13 @@ enum AttemptMode {
   EXAM
   TOPIC
   SIGN
+  TASK_SET // one numbered task set: a full mock exam drawn from its own slice (spec-16)
+}
+
+enum TaskSetStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
 }
 
 enum AttemptStatus {
@@ -207,6 +214,8 @@ model User {
   startedTranslationRuns TranslationRun[]     @relation("TranslationRunStarter")
   itemApprovals          ItemApproval[]       @relation("ItemApprover")
   aiProviders            AiProvider[]         @relation("AiProviderCreator")
+  taskSetProgress        TaskSetProgress[]
+  taskSetBuilds          TaskSetBuild[]       @relation("TaskSetBuildRequester")
 
   // Admin user lists filtered by role/active (spec-11)
   @@index([role, isActive])
@@ -332,6 +341,7 @@ model LicenseClass {
   masterItems MasterItem[]
   blueprints  ExamBlueprint[]
   attempts    ExamAttempt[]
+  taskSets    TaskSet[]
 }
 
 model Topic {
@@ -359,21 +369,21 @@ model Topic {
 }
 
 model Sign {
-  id        String    @id @default(cuid())
-  code      String    @unique // skiltforskriften code, e.g. "302.1"
-  signClass SignClass
-  svgPath   String // official SVG asset path
-  name      Json // bilingual { en, nb }
-  meaning   Json // bilingual { en, nb }
-  isActive  Boolean   @default(true)
+  id          String    @id @default(cuid())
+  code        String    @unique // skiltforskriften code, e.g. "302.1"
+  signClass   SignClass
+  svgPath     String // official SVG asset path
+  name        Json // bilingual { en, nb }
+  meaning     Json // bilingual { en, nb }
+  isActive    Boolean   @default(true)
   /// True while this row still carries extracted/AI-drafted content rather than the official
   /// Statens vegvesen asset and a human-checked skiltforskriften code. Students are never shown
   /// the flag; it exists so /admin/signs can list exactly what still needs a person to look at it.
-  provisional Boolean @default(false)
+  provisional Boolean   @default(false)
   /// Where this row came from, in words — the book and page, or the asset pack version.
   sourceNote  String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   detections ImageDetection[]
 
@@ -442,6 +452,7 @@ model MasterItem {
   createdByUser User?                 @relation("ItemCreator", fields: [createdById], references: [id])
   reviewedBy    User?                 @relation("ItemReviewer", fields: [reviewedById], references: [id])
   variants      ItemVariant[]
+  taskSetMember TaskSetMember? // the ONE slice this question belongs to (spec-16)
   citations     MasterItemCitation[]
   mistakeCards  MistakeCard[]
   rejections    GenerationRejection[]
@@ -699,6 +710,9 @@ model ExamAttempt {
   /// What the student chose: timer on/off, question count, categories. Kept so a disputed result
   /// can be explained without reconstructing it from the questions.
   setupSnapshot         Json?
+  /// The task set this attempt sits, when it is one (spec-16). Null for practice, topic drills,
+  /// sign tests and legacy mock exams.
+  taskSetId             String?
   focusLossCount        Int           @default(0) // exam-mode chrome events (spec-08, policy spec-12)
   anomalyFlagged        Boolean       @default(false) // impossible answer speed etc. (spec-12)
   createdAt             DateTime      @default(now())
@@ -707,6 +721,7 @@ model ExamAttempt {
   user         User                  @relation(fields: [userId], references: [id])
   licenseClass LicenseClass?         @relation(fields: [licenseClassId], references: [id])
   blueprint    ExamBlueprint?        @relation(fields: [blueprintId], references: [id])
+  taskSet      TaskSet?              @relation(fields: [taskSetId], references: [id])
   questions    ExamAttemptQuestion[]
   completions  HomeworkCompletion[]
 
@@ -716,6 +731,8 @@ model ExamAttempt {
   @@index([userId, startedAt(sort: Desc)])
   // Expiry sweeper: auto-submit overdue attempts
   @@index([status, expiresAt])
+  // "this user's attempts at this set" — the start sheet's history list (spec-16)
+  @@index([taskSetId, userId])
 }
 
 model ExamAttemptQuestion {
@@ -742,6 +759,106 @@ model ExamAttemptQuestion {
   @@unique([attemptId, variantId])
   // Exposure stats + seen-window fallback queries
   @@index([variantId])
+}
+
+// ──────────────────────────────────────────────────── Task sets (spec-16) ──
+
+/// One numbered task set: a SLICE of the approved bank.
+///
+/// A sitting draws `paperSize` questions from `poolSize` members, so the paper differs per student
+/// and per attempt while the set itself stays a stable, nameable chunk of material. That is what
+/// makes "passed #7" mean something without making #7 memorisable.
+model TaskSet {
+  id             String        @id @default(cuid())
+  number         Int // student-facing #N
+  licenseClassId String
+  status         TaskSetStatus @default(DRAFT)
+  poolSize       Int
+  /// Snapshots of LicenseClass config, frozen at publish. Changing class config later must not
+  /// retroactively alter a set a student has already passed.
+  paperSize      Int
+  passMark       Int
+  timeLimitSec   Int
+  /// { topicCounts, typeCounts, avgDifficulty, warnings[] } — what an admin reviews before publishing.
+  composition    Json
+  buildId        String?
+  publishedAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  licenseClass LicenseClass      @relation(fields: [licenseClassId], references: [id])
+  build        TaskSetBuild?     @relation(fields: [buildId], references: [id])
+  members      TaskSetMember[]
+  progress     TaskSetProgress[]
+  attempts     ExamAttempt[]
+
+  @@unique([licenseClassId, number])
+  // The grid: published sets of one class, in order
+  @@index([licenseClassId, status, number])
+}
+
+/// A question's membership of exactly one slice.
+///
+/// `masterItemId` is the PRIMARY KEY, so the database itself guarantees full coverage: no question
+/// can sit in two sets, and counting members against approved items proves none is orphaned. That
+/// single constraint is what lets the product claim "finish every set and you have met the whole
+/// bank" without a background job to verify it.
+model TaskSetMember {
+  masterItemId String   @id
+  taskSetId    String
+  createdAt    DateTime @default(now())
+
+  masterItem MasterItem @relation(fields: [masterItemId], references: [id], onDelete: Cascade)
+  taskSet    TaskSet    @relation(fields: [taskSetId], references: [id], onDelete: Cascade)
+
+  // Assembly: candidates of one slice
+  @@index([taskSetId])
+}
+
+/// One partitioning run. Sets stay DRAFT until an admin publishes the build, so nothing reaches a
+/// student without a person having seen its composition.
+model TaskSetBuild {
+  id            String      @id @default(cuid())
+  status        BatchStatus @default(PENDING)
+  providerId    String?
+  modelVersion  String?
+  promptVersion String?
+  stats         Json
+  warnings      Json
+  requestedById String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  requestedBy User?     @relation("TaskSetBuildRequester", fields: [requestedById], references: [id])
+  taskSets    TaskSet[]
+
+  @@index([status, createdAt(sort: Desc)])
+}
+
+/// Denormalized per-user standing on one task set.
+///
+/// The grid needs pass state, best score and attempt count for ~32 sets in a single render;
+/// derived, that is a groupBy plus a correlated best-score lookup per set. Written inside the
+/// grading transaction, so it cannot drift from the attempts it summarises.
+model TaskSetProgress {
+  userId        String
+  taskSetId     String
+  attempts      Int       @default(0)
+  bestCorrect   Int?
+  bestOutOf     Int?
+  /// Set once, NEVER cleared. A student who passes a set and then fails a retry keeps the pass —
+  /// the retry is practice, and taking it away would punish them for practising.
+  passedAt      DateTime?
+  lastAttemptId String?
+  lastAttemptAt DateTime?
+  updatedAt     DateTime  @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskSet TaskSet @relation(fields: [taskSetId], references: [id], onDelete: Cascade)
+
+  @@id([userId, taskSetId])
+  // The grid: every set's standing for one user, one indexed read
+  @@index([userId])
 }
 
 // ─────────────────────────────────────────────── Progress & study (spec-09) ──
