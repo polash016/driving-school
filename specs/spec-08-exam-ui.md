@@ -25,3 +25,25 @@ All screens in this spec are **mobile-first at 390px design target** (see Spec 0
 - [ ] Question→question transition <100ms perceived (prefetch verified: next payload requested during current question).
 - [ ] Mid-exam locale switch preserves answers, flags, timer.
 - [ ] Lighthouse: Performance ≥90 mobile, A11y ≥95 on exam route. No layout shift on answer reveal (CLS ≈ 0).
+
+---
+
+## Amendment 2026-09-03 — the tile block is superseded by spec-16
+
+The "Quick-start tiles (Image / Theory / Sign) with Practice⇄Exam toggle" bullet in **In scope**
+above is **withdrawn**. The student panel now has three entry points, specified in
+[spec-16](spec-16-task-sets.md):
+
+- **Task set** — a numbered full mock exam drawn from its own slice of the bank. This is the
+  primary path and replaces the Mock Exam tile.
+- **Practice** — the configurable path (`/quiz/new`: length, timer, categories).
+- **Sign test** — unchanged, one tap into a sign run.
+
+The **Theory Test** and **Image Quiz** tiles are removed. The official teoriprøven mixes text,
+image and sign questions in one paper, so splitting them into separate student-facing modules
+exposed an authoring distinction the exam does not make.
+
+`startQuizInput.itemType` **remains** — the Sign test still uses it, and it is still one engine
+with one parameter. Nothing in the exam screen, practice reveal, review grid, result screen,
+anti-cheat chrome or a11y requirements of this spec changes; a `TASK_SET` attempt renders through
+the same runner as `EXAM`.

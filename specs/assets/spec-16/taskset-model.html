@@ -1,0 +1,118 @@
+<style>
+  .ts-diagram { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.55; }
+  .ts-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
+  .chip { border: 1px solid currentColor; border-radius: 6px; padding: 3px 8px; opacity: .85; }
+  .bank { border: 1px dashed currentColor; border-radius: 8px; padding: 10px 12px; margin: 6px 0; opacity: .8; }
+  .slice { border-radius: 8px; padding: 8px 10px; margin: 4px 0; border: 1px solid currentColor; }
+  .studentA { border-left: 3px solid #3b82f6; padding-left: 10px; margin: 6px 0; }
+  .studentB { border-left: 3px solid #f59e0b; padding-left: 10px; margin: 6px 0; }
+  .verdict { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: rgba(127,127,127,.12); font-size: 12px; }
+  .yes { color: #16a34a; font-weight: 600; }
+  .no  { color: #dc2626; font-weight: 600; }
+  .meh { color: #d97706; font-weight: 600; }
+  table.cmp { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 13px; }
+  table.cmp th, table.cmp td { border: 1px solid rgba(127,127,127,.3); padding: 7px 9px; text-align: left; }
+  table.cmp th { background: rgba(127,127,127,.1); }
+</style>
+
+<h2>How does Task Set #7 stay the same set, but give two students different papers?</h2>
+<p class="subtitle">You said: dynamic, leak-proof, "same question type, different version, different options". Here are the three ways to build that. Pick one — or tell me a mix.</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Concept-slot set — #7 is a frozen list of 45 <em>concepts</em></h3>
+      <div class="ts-diagram">
+        <div class="bank">TASK SET #7 = [ yield-at-roundabout, stopping-distance-wet, sign-362, … ] &nbsp;(45 concept slots, fixed forever)</div>
+        <div class="studentA"><b>Student A</b> slot 1 → <span class="chip">"You approach a roundabout…"</span> options shuffled</div>
+        <div class="studentB"><b>Student B</b> slot 1 → <span class="chip">"Who has right of way here?"</span> options shuffled</div>
+      </div>
+      <div class="verdict">
+        Coverage: <span class="yes">guaranteed</span> — finish all sets, you've met every concept.<br>
+        Leak resistance: <span class="meh">depends entirely on how many alternates exist per concept.</span> With 1 variant per concept (today's reality) both students get the <em>identical</em> question, only the option order differs.
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Shape-only set — #7 is just a blueprint, drawn fresh every sitting</h3>
+      <div class="ts-diagram">
+        <div class="bank">TASK SET #7 = { 8 signs, 7 yield, 6 vehicle, … · difficulty 30/40/30 } &nbsp;(a shape, no fixed questions)</div>
+        <div class="studentA"><b>Student A</b> → 45 drawn from the <em>whole</em> bank matching that shape</div>
+        <div class="studentB"><b>Student B</b> → 45 different ones from the whole bank</div>
+      </div>
+      <div class="verdict">
+        Leak resistance: <span class="yes">highest</span> — nothing to leak, the paper never repeats.<br>
+        Coverage: <span class="no">none</span> — a student can grind 32 sets and never see some questions.<br>
+        Set identity: <span class="no">meaningless</span> — #7 and #12 differ only by random seed. The grid becomes decorative.
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Pool-slice set — #7 <em>owns</em> a slice of the bank, each sitting draws from that slice</h3>
+      <div class="ts-diagram">
+        <div class="bank">BANK (approved, mixed TEXT + IMAGE + SIGN) — AI partitions it into balanced slices</div>
+        <div class="ts-row">
+          <span class="chip">#6 · 70 concepts</span>
+          <span class="slice"><b>#7 · 70 concepts</b> ← the set's identity</span>
+          <span class="chip">#8 · 70 concepts</span>
+        </div>
+        <div class="studentA"><b>Student A</b> sits #7 → engine draws <b>45 of those 70</b>, seeded per user+attempt</div>
+        <div class="studentB"><b>Student B</b> sits #7 → a <b>different 45 of the 70</b>, different phrasings where alternates exist</div>
+        <div style="opacity:.75; margin-top:6px">Student A retries #7 → different 45 again. Never the same paper twice.</div>
+      </div>
+      <div class="verdict">
+        Coverage: <span class="yes">guaranteed</span> — every question lives in exactly one slice.<br>
+        Leak resistance: <span class="yes">strong even with today's single-variant bank</span> — you can't memorise "set 7 = these 45", because it's 45-of-70, reshuffled, re-optioned.<br>
+        Set identity: <span class="yes">real</span> — #7 is a genuine, stable chunk of material. "Passed #7" means something.<br>
+        Gets <em>better</em> automatically as AI alternates land, without changing the model.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<table class="cmp">
+  <tr>
+    <th></th><th>A · Concept slots</th><th>B · Shape only</th><th>C · Pool slice</th>
+  </tr>
+  <tr>
+    <td>Two students, same set, same sitting</td>
+    <td>Same 45 concepts, different wording <em>if alternates exist</em></td>
+    <td>Completely different</td>
+    <td>Overlapping but different 45-of-70</td>
+  </tr>
+  <tr>
+    <td>Works leak-proof <b>today</b> (1 variant/question)</td>
+    <td class="no">No — identical papers</td>
+    <td class="yes">Yes</td>
+    <td class="yes">Yes</td>
+  </tr>
+  <tr>
+    <td>"I've completed all the material"</td>
+    <td class="yes">Provable</td>
+    <td class="no">Never</td>
+    <td class="yes">Provable</td>
+  </tr>
+  <tr>
+    <td>Reuses existing engine (assembly.ts seed + conceptGroup + option shuffle)</td>
+    <td class="meh">Partly — needs slot-pinning</td>
+    <td class="yes">Fully</td>
+    <td class="yes">Fully — one extra filter</td>
+  </tr>
+  <tr>
+    <td>New Prisma models</td>
+    <td>TaskSet + TaskSetSlot + progress</td>
+    <td>TaskSet (blueprint) + progress</td>
+    <td>TaskSet + TaskSetMember + progress</td>
+  </tr>
+</table>
+
+<p class="subtitle" style="margin-top:16px"><b>My recommendation: C.</b> It is the only one that is leak-proof <em>with the bank you have right now</em>, keeps the numbered grid meaningful, guarantees full coverage, and needs the least new engine code — the slice is one <code>WHERE masterItemId IN (…)</code> on the existing assembly path. AI variants, when you build them, make C strictly better with no rework.</p>

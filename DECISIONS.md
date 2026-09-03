@@ -210,3 +210,78 @@ or an architecture decision is made that isn't captured in a spec — it gets an
 - **Why:** Keeps every session resumable, keeps plans and evidence auditable, and keeps specs as stable contracts.
 - **Impact:** All specs 01–14 follow the Phase A–D loop. Spec-09's notes path standardized to `specs/notes/spec-09-notes.md`.
 - **Approved by:** developer
+
+## 2026-09-03 · spec-08/09/16/17 · Task sets replace the four-tile student panel
+
+- **Decision:** the student panel drops from four test entry points to three — **Task set**,
+  **Practice**, **Sign test** — specified in the new `specs/spec-16-task-sets.md`. The **Theory
+  Test** and **Image Quiz** tiles are removed; the **Mock Exam** tile is replaced by Task sets. A
+  task set is a numbered full mock exam that mixes TEXT, IMAGE and SIGN questions, which is what
+  the official teoriprøven actually is. Spec-08's tile bullet and spec-09's homepage section 2 are
+  withdrawn by amendments in those files.
+- **Why:** four sibling tiles are a menu, not a study path. Nothing told a student where to start,
+  nothing tracked coverage, and the Theory/Image split exposed an authoring distinction the real
+  exam does not make.
+- **A task set is a POOL SLICE, not a fixed paper.** `poolSize = ceil(paperSize × 1.5)`; each
+  sitting draws `paperSize` from that slice, seeded per attempt. Two students sitting #7 get
+  different papers; a retry gets a third. `TaskSetMember` is unique on `masterItemId`, so every
+  approved question lives in exactly one slice — coverage is provable by one COUNT, and finishing
+  all sets means finishing the bank.
+- **Rejected:** *fixed 45-question sets* (identical, memorisable papers — the exact leak the school
+  wants to avoid) and *shape-only sets* (unleakable, but coverage is never provable and #7 vs #12
+  differ only by random seed, making the numbered grid decoration).
+- **This is leak-proof with today's single-variant bank.** `publish.ts` writes exactly one
+  `TEMPLATE` variant per master item and nothing has ever written an `AI_VARIATION`, so "the same
+  question in different words" cannot come from variants yet. It comes from the 45-of-68 draw plus
+  per-attempt option order. Spec-17 makes it come from wording too, with no rework here.
+- **`assembly.ts` is not modified.** The only engine change is an optional `taskSetId` on
+  `VariantSource.candidatesByTopic`, applied as one filter in `PrismaVariantSource`. Every existing
+  guarantee — one master per paper, `conceptGroupId` de-duplication, difficulty spread, seen-window
+  exclusion, seeded option order — carries over unchanged.
+- **`TaskSetProgress` is denormalized on purpose** (`@@id([userId, taskSetId])`, `@@index([userId])`).
+  The grid needs pass state, best score and attempt count for ~32 sets in one render; derived, that
+  is a `groupBy` plus a correlated best-score lookup per set. Written inside the grading
+  transaction, so it cannot drift. `passedAt` is set once and **never cleared** — a failed retry
+  cannot take a green tile away.
+- **Slices are built by an admin-triggered AI run and published only after review** (`TaskSetBuild`,
+  `/admin/task-sets`). A rebuild preserves the number of any slice whose membership is unchanged: a
+  student's passed #7 must not silently become different material. A build that would orphan an
+  item fails rather than publishing partial coverage.
+- **Pass guarantee:** a completed `TASK_SET` attempt always counts; the existing `evaluateGuarantee`
+  rule is kept, so a full-length, all-categories, timed Practice run still counts too.
+- **UI, fixed at approval:** task-set hero card + 2-up Practice/Sign test with bare 54px Phosphor
+  `Car` and `TrafficSign` **fill** glyphs (no tinted container); `/task-sets` is a compact 3-up
+  numbered grid — green + tick when passed, blue outline in progress, last score in grey when
+  failed, **no red tiles**; tapping a tile opens a start sheet with best score, attempt count, pool
+  size and the full attempt list. Homepage "My previous tests" goes from 3 to **10, all types**,
+  with See all. Headline stats stay at two cards; the streak and readiness gauge move to the
+  statistics page. Norwegian: **Oppgavesett / Øving / Skiltest**.
+- **Sign test is unchanged** — one tap into a sign run. `startQuizInput.itemType` stays in the
+  engine; only the Theory and Image *tiles* are gone.
+- **Impact:** new `specs/spec-16-task-sets.md` and `specs/spec-17-ai-variants.md`; amendments
+  appended to specs 08 and 09; new Prisma models `TaskSet`, `TaskSetMember`, `TaskSetBuild`,
+  `TaskSetProgress`, enum `TaskSetStatus`, `AttemptMode.TASK_SET`, `ExamAttempt.taskSetId`. New
+  routes `/task-sets` and `/admin/task-sets`. `StartTiles` loses three tiles and the topic-practice
+  dropdown. No hardcoded 45/90/38 — all snapshotted from `LicenseClass` onto `TaskSet` at publish,
+  so later config changes cannot retroactively alter a set a student already passed.
+- **Approved by:** developer
+
+## 2026-09-03 · spec-17 · AI variant generator is its own spec, sequenced after 16
+
+- **Decision:** generating alternate phrasings of an approved question (`ItemVariant` with
+  `source: AI_VARIATION`) is specified separately in `specs/spec-17-ai-variants.md` and built after
+  spec-16, not inside it.
+- **Why:** it is a spec's worth of work — prompt design, a review queue, version coupling, and one
+  genuine safety risk: **a reworded distractor can accidentally become correct**, producing a
+  question that marks a right answer wrong in an exam a student paid to pass. Spec-16 is leak-proof
+  without it, so bundling them would put a risky component on the critical path of a UI
+  restructure that does not need it.
+- **Safety rules fixed at approval:** a variant is never auto-activated (`isActive = false` until a
+  human approves); an independent answer-equivalence AI call must agree with the master's correct
+  answer or the candidate is rejected as `WRONG_ANSWER`; stem-embedding similarity must fall in a
+  band (too close = paraphrase in name only, too far = a different question); a variant is only
+  activatable once every configured locale has a reviewed rendering, because a student may switch
+  language mid-exam.
+- **Impact:** no engine change — `PrismaVariantSource` already serves active variants and assembly
+  already treats variants of one master as one concept. More active variants simply widen the pool.
+- **Approved by:** developer

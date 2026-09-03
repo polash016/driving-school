@@ -44,3 +44,27 @@ Build all student-facing screens **mobile-first at 390px as the design target; t
 - [ ] Submit exam → dashboard reflects new mastery/readiness immediately (cache invalidation test).
 - [ ] Dashboard route: exactly 1 aggregate query round trip, p95 <150ms.
 - [ ] Resume from dashboard lands on exact question. SM-2 intervals unit-tested.
+
+---
+
+## Amendment 2026-09-03 — homepage section 2 is superseded by spec-16
+
+Item **2** of the reference-driven structure above ("Quick-start tiles — ours: Image Quiz / Theory
+Test / Sign Test, each with a Practice⇄Exam mode toggle") is **withdrawn** and replaced by
+[spec-16](spec-16-task-sets.md):
+
+2. **Task set hero card** (progress bar, "12 of 32 passed", "Next up #13") → `/task-sets`, with a
+   2-up row beneath: **Practice** and **Sign test**. Bare 54px `Car` / `TrafficSign` fill glyphs,
+   no tinted container. No mode toggle — a task set is always timed, practice is always
+   configurable.
+
+Everything else in this spec stands: the reference's vertical order (1, 3, 4, 5, 6), every
+modernization requirement, the 390px viewport rule, mastery, readiness and the single cached
+aggregate.
+
+Two clarifications from the same approval:
+
+- **"My previous tests" shows the latest 10 attempts of all types** — task sets, practice and sign
+  runs, each labelled — with a **See all** link to `/account/history`. It was 3.
+- **Headline stats stay at two cards** (pass rate, passed) to match the reference. The streak and
+  readiness gauge specified above move to the statistics page rather than the homepage.

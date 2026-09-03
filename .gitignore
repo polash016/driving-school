@@ -55,3 +55,6 @@ next-env.d.ts
 # `pnpm signs:extract` reads it, and its OUTPUT (public/signs/ + prisma/data/signs.json) is what
 # gets committed. The book itself is not ours to redistribute.
 /traffic_rules/
+
+# superpowers brainstorming sessions
+.superpowers/

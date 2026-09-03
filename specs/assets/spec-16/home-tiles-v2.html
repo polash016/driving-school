@@ -1,0 +1,229 @@
+<style>
+  .phones { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; align-items: flex-start; margin-top: 6px; }
+  .phone-wrap { width: 330px; }
+  .phone-label { text-align: center; font-size: 13px; font-weight: 600; margin-bottom: 8px; opacity: .8; }
+  .phone {
+    width: 330px; border-radius: 22px; overflow: hidden;
+    background: oklch(0.982 0.003 250);
+    border: 1px solid oklch(0.9 0.006 250);
+    box-shadow: 0 4px 12px oklch(0 0 0 / .08), 0 12px 32px oklch(0 0 0 / .08);
+    color: oklch(0.3 0.012 255);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 13px;
+  }
+  .phone * { box-sizing: border-box; }
+  .p-top { display:flex; align-items:center; justify-content:space-between; padding: 12px 14px; border-bottom: 1px solid oklch(0.9 0.006 250); background: #fff; }
+  .logo { display:flex; align-items:center; gap:6px; font-weight:700; color: oklch(0.2 0.015 255); font-size: 14px; }
+  .dot { width:9px; height:9px; border-radius:50%; background: oklch(0.46 0.15 255); }
+  .p-body { padding: 14px; display:flex; flex-direction:column; gap:12px; }
+  .greet { font-size: 18px; font-weight: 700; color: oklch(0.2 0.015 255); letter-spacing:-.01em; }
+  .greet + .sub { font-size: 12px; color: oklch(0.52 0.01 255); margin-top:-8px; }
+
+  .card { background: #fff; border: 1px solid oklch(0.9 0.006 250); border-radius: 14px; box-shadow: 0 1px 2px oklch(0 0 0 / .04); }
+  .tile { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:9px; padding:16px 10px; text-align:center; }
+  .tile .t-label { font-size: 14px; font-weight: 650; color: oklch(0.2 0.015 255); }
+  .tile .t-sub { font-size: 11px; color: oklch(0.52 0.01 255); }
+  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+
+  .hero { padding: 16px; display:flex; flex-direction:column; gap:12px;
+          background: linear-gradient(160deg, oklch(0.46 0.15 255), oklch(0.40 0.15 262)); color:#fff; border:none; border-radius:16px; }
+  .hero-top { display:flex; align-items:center; gap:12px; }
+  .hero h4 { margin:0; font-size:17px; font-weight:700; letter-spacing:-.01em; }
+  .hero p { margin:2px 0 0; font-size:11.5px; opacity:.85; }
+  .bar { height:7px; border-radius:99px; background: rgba(255,255,255,.25); overflow:hidden; }
+  .bar > i { display:block; height:100%; width:38%; background:#fff; border-radius:99px; }
+  .hero-foot { display:flex; justify-content:space-between; font-size:11px; opacity:.9; }
+
+  .iconbox { display:grid; place-items:center; border-radius:16px; }
+  .ib-56 { width:56px; height:56px; }
+  .ib-64 { width:64px; height:64px; }
+  .ib-76 { width:76px; height:76px; border-radius:20px; }
+  .ib-blue { background: oklch(0.94 0.03 255); color: oklch(0.46 0.15 255); }
+  .ib-amber { background: oklch(0.95 0.06 90); color: oklch(0.60 0.14 68); }
+  .ib-white { background: rgba(255,255,255,.18); color:#fff; }
+
+  .stats { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .stat { padding:12px; text-align:center; }
+  .stat .n { font-size:24px; font-weight:750; color:oklch(0.2 0.015 255); letter-spacing:-.02em; }
+  .stat .k { font-size:10.5px; color:oklch(0.52 0.01 255); text-transform:uppercase; letter-spacing:.05em; }
+  .sect-h { font-size:12px; font-weight:700; color:oklch(0.2 0.015 255); text-transform:uppercase; letter-spacing:.05em; padding: 2px 2px 0; }
+  .fade { position:relative; height:50px; overflow:hidden; }
+  .fade:after { content:""; position:absolute; inset:0; background:linear-gradient(oklch(0.982 0.003 250 / 0), oklch(0.982 0.003 250)); }
+  .note { font-size:11px; color:oklch(0.52 0.01 255); text-align:center; margin-top:8px; line-height:1.5; }
+  .ruler { font-family: ui-monospace, monospace; font-size:10px; color:oklch(0.52 0.01 255); text-align:center; margin-top:4px; }
+</style>
+
+<h2>B, with the Practice and Sign test icons scaled up</h2>
+<p class="subtitle">Same hero layout you picked. Three icon sizes for the bottom two tiles — the hero card's icon stays 56px in all of them so it doesn't fight the two below. Pick the size that feels right.</p>
+
+<div class="phones">
+
+  <!-- ============ B1 ============ -->
+  <div class="phone-wrap">
+    <div class="phone-label">B1 · 64px boxes</div>
+    <div class="phone">
+      <div class="p-top">
+        <div class="logo"><span class="dot"></span>TeoriPro</div>
+        <div style="font-size:11px;color:oklch(0.52 0.01 255)">EN / NO &nbsp;☰</div>
+      </div>
+      <div class="p-body">
+        <div class="greet">Hei, Ola</div>
+        <div class="sub">12 of 32 task sets passed.</div>
+
+        <div class="hero">
+          <div class="hero-top">
+            <div class="iconbox ib-56 ib-white">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v16h4.5A2.5 2.5 0 0 1 20 21.5z"/><path d="M14.6 9.4l1.5 1.5 3-3"/></svg>
+            </div>
+            <div><h4>Task sets</h4><p>Full mock exams · 45 questions · 90 min</p></div>
+          </div>
+          <div class="bar"><i></i></div>
+          <div class="hero-foot"><span>12 of 32 passed</span><span>Next up: #13 ›</span></div>
+        </div>
+
+        <div class="grid2">
+          <div class="card tile">
+            <div class="iconbox ib-64 ib-blue">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5h15M5.6 16.5l1.6-6A2.2 2.2 0 0 1 9.3 8.8h5.4a2.2 2.2 0 0 1 2.1 1.7l1.6 6"/><path d="M4.5 16.5v2.2M19.5 16.5v2.2"/><circle cx="7.6" cy="16.6" r="1.7"/><circle cx="16.4" cy="16.6" r="1.7"/></svg>
+            </div>
+            <div class="t-label">Practice</div>
+            <div class="t-sub">Your rules</div>
+          </div>
+          <div class="card tile">
+            <div class="iconbox ib-64 ib-amber">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.6l6.6 6.6a1.1 1.1 0 0 1 0 1.6L12 17.4l-6.6-6.6a1.1 1.1 0 0 1 0-1.6z"/><path d="M12 17.4V21.4M9.6 21.4h4.8"/></svg>
+            </div>
+            <div class="t-label">Sign test</div>
+            <div class="t-sub">287 signs</div>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="card stat"><div class="n">78%</div><div class="k">Pass rate</div></div>
+          <div class="card stat"><div class="n">12</div><div class="k">Passed</div></div>
+        </div>
+        <div class="sect-h">How I'm doing</div>
+        <div class="fade"><div class="card" style="height:50px"></div></div>
+      </div>
+    </div>
+    <div class="ruler">icon box 64px · glyph 36px · tile ~124px tall</div>
+    <p class="note">A clear step up, still visually calmer than the hero card.</p>
+  </div>
+
+  <!-- ============ B2 ============ -->
+  <div class="phone-wrap">
+    <div class="phone-label">B2 · 76px boxes ★</div>
+    <div class="phone">
+      <div class="p-top">
+        <div class="logo"><span class="dot"></span>TeoriPro</div>
+        <div style="font-size:11px;color:oklch(0.52 0.01 255)">EN / NO &nbsp;☰</div>
+      </div>
+      <div class="p-body">
+        <div class="greet">Hei, Ola</div>
+        <div class="sub">12 of 32 task sets passed.</div>
+
+        <div class="hero">
+          <div class="hero-top">
+            <div class="iconbox ib-56 ib-white">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v16h4.5A2.5 2.5 0 0 1 20 21.5z"/><path d="M14.6 9.4l1.5 1.5 3-3"/></svg>
+            </div>
+            <div><h4>Task sets</h4><p>Full mock exams · 45 questions · 90 min</p></div>
+          </div>
+          <div class="bar"><i></i></div>
+          <div class="hero-foot"><span>12 of 32 passed</span><span>Next up: #13 ›</span></div>
+        </div>
+
+        <div class="grid2">
+          <div class="card tile">
+            <div class="iconbox ib-76 ib-blue">
+              <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5h15M5.6 16.5l1.6-6A2.2 2.2 0 0 1 9.3 8.8h5.4a2.2 2.2 0 0 1 2.1 1.7l1.6 6"/><path d="M4.5 16.5v2.2M19.5 16.5v2.2"/><circle cx="7.6" cy="16.6" r="1.7"/><circle cx="16.4" cy="16.6" r="1.7"/></svg>
+            </div>
+            <div class="t-label">Practice</div>
+            <div class="t-sub">Your rules</div>
+          </div>
+          <div class="card tile">
+            <div class="iconbox ib-76 ib-amber">
+              <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.6l6.6 6.6a1.1 1.1 0 0 1 0 1.6L12 17.4l-6.6-6.6a1.1 1.1 0 0 1 0-1.6z"/><path d="M12 17.4V21.4M9.6 21.4h4.8"/></svg>
+            </div>
+            <div class="t-label">Sign test</div>
+            <div class="t-sub">287 signs</div>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="card stat"><div class="n">78%</div><div class="k">Pass rate</div></div>
+          <div class="card stat"><div class="n">12</div><div class="k">Passed</div></div>
+        </div>
+        <div class="sect-h">How I'm doing</div>
+        <div class="fade"><div class="card" style="height:50px"></div></div>
+      </div>
+    </div>
+    <div class="ruler">icon box 76px · glyph 44px · tile ~140px tall</div>
+    <p class="note"><b>My pick of the three.</b> Unmistakably big and thumb-obvious, and the two tiles still read as a pair under the hero rather than competing with it.</p>
+  </div>
+
+  <!-- ============ B3 ============ -->
+  <div class="phone-wrap">
+    <div class="phone-label">B3 · 76px, no tint box</div>
+    <div class="phone">
+      <div class="p-top">
+        <div class="logo"><span class="dot"></span>TeoriPro</div>
+        <div style="font-size:11px;color:oklch(0.52 0.01 255)">EN / NO &nbsp;☰</div>
+      </div>
+      <div class="p-body">
+        <div class="greet">Hei, Ola</div>
+        <div class="sub">12 of 32 task sets passed.</div>
+
+        <div class="hero">
+          <div class="hero-top">
+            <div class="iconbox ib-56 ib-white">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v16h4.5A2.5 2.5 0 0 1 20 21.5z"/><path d="M14.6 9.4l1.5 1.5 3-3"/></svg>
+            </div>
+            <div><h4>Task sets</h4><p>Full mock exams · 45 questions · 90 min</p></div>
+          </div>
+          <div class="bar"><i></i></div>
+          <div class="hero-foot"><span>12 of 32 passed</span><span>Next up: #13 ›</span></div>
+        </div>
+
+        <div class="grid2">
+          <div class="card tile" style="padding-top:20px;padding-bottom:18px">
+            <div style="color:oklch(0.46 0.15 255)">
+              <svg width="54" height="54" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5h15M5.6 16.5l1.6-6A2.2 2.2 0 0 1 9.3 8.8h5.4a2.2 2.2 0 0 1 2.1 1.7l1.6 6"/><path d="M4.5 16.5v2.2M19.5 16.5v2.2"/><circle cx="7.6" cy="16.6" r="1.7"/><circle cx="16.4" cy="16.6" r="1.7"/></svg>
+            </div>
+            <div class="t-label">Practice</div>
+            <div class="t-sub">Your rules</div>
+          </div>
+          <div class="card tile" style="padding-top:20px;padding-bottom:18px">
+            <div style="color:oklch(0.60 0.14 68)">
+              <svg width="54" height="54" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.6l6.6 6.6a1.1 1.1 0 0 1 0 1.6L12 17.4l-6.6-6.6a1.1 1.1 0 0 1 0-1.6z"/><path d="M12 17.4V21.4M9.6 21.4h4.8"/></svg>
+            </div>
+            <div class="t-label">Sign test</div>
+            <div class="t-sub">287 signs</div>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="card stat"><div class="n">78%</div><div class="k">Pass rate</div></div>
+          <div class="card stat"><div class="n">12</div><div class="k">Passed</div></div>
+        </div>
+        <div class="sect-h">How I'm doing</div>
+        <div class="fade"><div class="card" style="height:50px"></div></div>
+      </div>
+    </div>
+    <div class="ruler">bare glyph 54px · no tinted square</div>
+    <p class="note">Biggest-looking glyph of the three. Closest to the reference's bare-icon look, but loses the color-coding the tinted square gives each module.</p>
+  </div>
+
+</div>
+
+<div class="options" style="margin-top:26px">
+  <div class="option" data-choice="b1" onclick="toggleSelect(this)">
+    <div class="letter">1</div><div class="content"><h3>B1 · 64px tinted boxes</h3><p>Moderate step up from the original.</p></div>
+  </div>
+  <div class="option" data-choice="b2" onclick="toggleSelect(this)">
+    <div class="letter">2</div><div class="content"><h3>B2 · 76px tinted boxes ★ recommended</h3><p>Big and thumb-obvious, keeps per-module color coding.</p></div>
+  </div>
+  <div class="option" data-choice="b3" onclick="toggleSelect(this)">
+    <div class="letter">3</div><div class="content"><h3>B3 · 54px bare glyphs, no box</h3><p>Largest glyph, reference-like, no tint.</p></div>
+  </div>
+</div>

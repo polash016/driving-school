@@ -1,0 +1,186 @@
+<style>
+  .wrap { display:flex; gap:24px; justify-content:center; align-items:flex-start; flex-wrap:wrap; margin-top:8px; }
+  .col { width:344px; }
+  .col > h4 { text-align:center; font-size:13px; font-weight:650; opacity:.8; margin:0 0 8px; }
+  .phone { width:344px; border-radius:22px; overflow:hidden; background:oklch(0.982 0.003 250);
+           border:1px solid oklch(0.9 0.006 250); box-shadow:0 4px 12px oklch(0 0 0 / .08), 0 12px 32px oklch(0 0 0 / .08);
+           font-family:ui-sans-serif,system-ui,-apple-system,sans-serif; color:oklch(0.3 0.012 255); font-size:13px; }
+  .phone * { box-sizing:border-box; }
+  .nav { display:flex; align-items:center; gap:10px; padding:12px 14px; background:#fff; border-bottom:1px solid oklch(0.9 0.006 250); }
+  .nav .bk { color:oklch(0.52 0.01 255); font-size:17px; line-height:1; }
+  .nav .ti { font-weight:700; color:oklch(0.2 0.015 255); font-size:15px; }
+  .body { padding:14px; display:flex; flex-direction:column; gap:12px; }
+
+  .banner { background:linear-gradient(160deg, oklch(0.46 0.15 255), oklch(0.40 0.15 262)); color:#fff;
+            border-radius:16px; padding:15px; }
+  .banner h3 { margin:0 0 3px; font-size:16px; font-weight:700; letter-spacing:-.01em; }
+  .banner p { margin:0; font-size:11.5px; opacity:.86; line-height:1.5; }
+  .banner .bar { height:7px; border-radius:99px; background:rgba(255,255,255,.25); overflow:hidden; margin-top:11px; }
+  .banner .bar > i { display:block; height:100%; width:38%; background:#fff; border-radius:99px; }
+  .banner .ft { display:flex; justify-content:space-between; font-size:11px; opacity:.9; margin-top:7px; }
+
+  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
+  .cell { position:relative; border:1px solid; border-radius:13px; padding:13px 6px 10px; text-align:center;
+          min-height:70px; box-shadow:0 1px 2px oklch(0 0 0 / .04); }
+  .cn { font-size:18px; font-weight:750; letter-spacing:-.02em; }
+  .cs { font-size:10.5px; font-weight:600; margin-top:2px; }
+  .cs.dim { color:oklch(0.52 0.01 255); font-weight:500; }
+  .cs.blue { color:oklch(0.46 0.15 255); }
+  .tick { position:absolute; top:6px; right:6px; display:grid; place-items:center; width:17px; height:17px;
+          border-radius:50%; background:oklch(0.52 0.13 150); color:#fff; }
+
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .bcell { background:#fff; border:1px solid oklch(0.9 0.006 250); border-radius:14px; padding:12px;
+           box-shadow:0 1px 2px oklch(0 0 0 / .04); min-height:84px; }
+  .bcell.passed { border-color:oklch(0.80 0.09 150); background:oklch(0.97 0.02 150); }
+  .bcell.progress { border-color:oklch(0.46 0.15 255); }
+  .brow { display:flex; align-items:center; justify-content:space-between; }
+  .bn { font-size:17px; font-weight:750; color:oklch(0.2 0.015 255); letter-spacing:-.02em; }
+  .bchip { font-size:9.5px; font-weight:650; padding:2px 6px; border-radius:99px; }
+  .bchip.ok { background:oklch(0.52 0.13 150); color:#fff; }
+  .bchip.pr { background:oklch(0.94 0.03 255); color:oklch(0.40 0.13 255); }
+  .bchip.no { background:oklch(0.94 0.04 27); color:oklch(0.45 0.16 27); }
+  .bmeta { font-size:10.5px; color:oklch(0.52 0.01 255); margin-top:4px; line-height:1.45; }
+  .bbar { height:5px; border-radius:99px; background:oklch(0.955 0.004 250); overflow:hidden; margin-top:8px; }
+  .bbar > i { display:block; height:100%; background:oklch(0.52 0.13 150); border-radius:99px; }
+  .bbar > i.r { background:oklch(0.62 0.17 27); }
+
+  .caption { text-align:center; font-size:11.5px; color:oklch(0.52 0.01 255); margin-top:9px; line-height:1.55; }
+
+  /* start sheet */
+  .sheetphone { position:relative; }
+  .scrim { position:absolute; inset:0; background:oklch(0.2 0.015 255 / .45); }
+  .sheet { position:absolute; left:0; right:0; bottom:0; background:#fff; border-radius:20px 20px 0 0; padding:16px 16px 18px;
+           box-shadow:0 -8px 30px oklch(0 0 0 / .18); }
+  .grab { width:38px; height:4px; border-radius:99px; background:oklch(0.82 0.008 250); margin:0 auto 13px; }
+  .sh-top { display:flex; align-items:center; justify-content:space-between; }
+  .sh-top h3 { margin:0; font-size:19px; font-weight:750; color:oklch(0.2 0.015 255); letter-spacing:-.02em; }
+  .sh-meta { font-size:12px; color:oklch(0.52 0.01 255); margin-top:4px; }
+  .sh-stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin:13px 0; }
+  .sh-stat { background:oklch(0.955 0.004 250); border-radius:11px; padding:9px 6px; text-align:center; }
+  .sh-stat .v { font-size:15px; font-weight:750; color:oklch(0.2 0.015 255); }
+  .sh-stat .k { font-size:9.5px; color:oklch(0.52 0.01 255); text-transform:uppercase; letter-spacing:.04em; margin-top:1px; }
+  .cta { display:block; width:100%; background:oklch(0.46 0.15 255); color:#fff; border:none; border-radius:12px;
+         padding:14px; font-size:15px; font-weight:650; text-align:center; }
+  .hist { margin-top:13px; }
+  .hist .hh { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:oklch(0.52 0.01 255); margin-bottom:6px; }
+  .hrow { display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-top:1px solid oklch(0.94 0.005 250); font-size:12px; }
+  .hrow .sc { font-weight:650; color:oklch(0.2 0.015 255); }
+  .hrow .dt { color:oklch(0.52 0.01 255); font-size:11px; }
+  .hrow .st { font-size:10px; font-weight:650; padding:2px 7px; border-radius:99px; }
+  .st.ok { background:oklch(0.94 0.05 150); color:oklch(0.38 0.10 150); }
+  .st.no { background:oklch(0.94 0.04 27); color:oklch(0.45 0.16 27); }
+</style>
+
+<h2>The Task set page — and what a tap opens</h2>
+<p class="subtitle">Two ways to draw the grid, plus the start sheet you chose. Note the icons are now <b>Car (fill)</b> and <b>TrafficSign (fill)</b> as you picked.</p>
+
+<div class="wrap">
+
+  <div class="col">
+    <h4>G1 · Compact 3-up, reference-faithful ★</h4>
+    <div class="phone">
+      <div class="nav"><span class="bk">‹</span><span class="ti">Task sets</span></div>
+      <div class="body">
+        <div class="banner">
+          <h3>32 task sets</h3>
+          <p>Each one is a full mock exam drawn fresh from its own pool — no two sittings are the same.</p>
+          <div class="bar"><i></i></div>
+          <div class="ft"><span>12 of 32 passed</span><span>Next up: #6</span></div>
+        </div>
+        <div class="grid3"><div class="cell" style="background:oklch(0.94 0.05 150);border-color:oklch(0.80 0.09 150);color:oklch(0.38 0.10 150)"><span class="tick"><svg width="13" height="13" viewBox="0 0 256 256" fill="currentColor"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg></span><div class="cn">#1</div><div class="cs">43/45</div></div><div class="cell" style="background:oklch(0.94 0.05 150);border-color:oklch(0.80 0.09 150);color:oklch(0.38 0.10 150)"><span class="tick"><svg width="13" height="13" viewBox="0 0 256 256" fill="currentColor"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg></span><div class="cn">#2</div><div class="cs">39/45</div></div><div class="cell" style="background:oklch(0.94 0.05 150);border-color:oklch(0.80 0.09 150);color:oklch(0.38 0.10 150)"><span class="tick"><svg width="13" height="13" viewBox="0 0 256 256" fill="currentColor"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg></span><div class="cn">#3</div><div class="cs">41/45</div></div><div class="cell" style="background:#fff;border-color:oklch(0.9 0.006 250);color:oklch(0.2 0.015 255)"><div class="cn">#4</div><div class="cs dim">33/45</div></div><div class="cell" style="background:oklch(0.94 0.05 150);border-color:oklch(0.80 0.09 150);color:oklch(0.38 0.10 150)"><span class="tick"><svg width="13" height="13" viewBox="0 0 256 256" fill="currentColor"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg></span><div class="cn">#5</div><div class="cs">44/45</div></div><div class="cell" style="background:oklch(0.94 0.03 255);border-color:oklch(0.46 0.15 255);color:oklch(0.40 0.13 255)"><div class="cn">#6</div><div class="cs blue">Resume</div></div><div class="cell" style="background:#fff;border-color:oklch(0.9 0.006 250);color:oklch(0.2 0.015 255)"><div class="cn">#7</div><div class="cs dim">&nbsp;</div></div><div class="cell" style="background:#fff;border-color:oklch(0.9 0.006 250);color:oklch(0.2 0.015 255)"><div class="cn">#8</div><div class="cs dim">&nbsp;</div></div><div class="cell" style="background:#fff;border-color:oklch(0.9 0.006 250);color:oklch(0.2 0.015 255)"><div class="cn">#9</div><div class="cs dim">&nbsp;</div></div><div class="cell" style="background:#fff;border-color:oklch(0.9 0.006 250);color:oklch(0.2 0.015 255)"><div class="cn">#10</div><div class="cs dim">&nbsp;</div></div><div class="cell" style="background:#fff;border-color:oklch(0.9 0.006 250);color:oklch(0.2 0.015 255)"><div class="cn">#11</div><div class="cs dim">&nbsp;</div></div><div class="cell" style="background:#fff;border-color:oklch(0.9 0.006 250);color:oklch(0.2 0.015 255)"><div class="cn">#12</div><div class="cs dim">&nbsp;</div></div></div>
+      </div>
+    </div>
+    <p class="caption">12 sets visible without scrolling. Green + tick = passed (stays green after a retry). Blue outline = in progress. A failed set keeps its last score in grey — honest, not punitive. No red tiles.</p>
+  </div>
+
+  <div class="col">
+    <h4>G2 · Roomy 2-up with status</h4>
+    <div class="phone">
+      <div class="nav"><span class="bk">‹</span><span class="ti">Task sets</span></div>
+      <div class="body">
+        <div class="banner">
+          <h3>32 task sets</h3>
+          <p>Each one is a full mock exam drawn fresh from its own pool — no two sittings are the same.</p>
+          <div class="bar"><i></i></div>
+          <div class="ft"><span>12 of 32 passed</span><span>Next up: #6</span></div>
+        </div>
+        <div class="grid2"><div class="bcell passed">
+    <div class="brow"><span class="bn">#1</span><span class="bchip ok">Passed</span></div>
+    <div class="bmeta">Best 43/45 · 2 attempts</div>
+    <div class="bbar"><i style="width:91%"></i></div>
+  </div><div class="bcell failed">
+    <div class="brow"><span class="bn">#2</span><span class="bchip no">33/45</span></div>
+    <div class="bmeta">1 attempt</div>
+    <div class="bbar"><i class="r" style="width:73%"></i></div>
+  </div><div class="bcell progress">
+    <div class="brow"><span class="bn">#3</span><span class="bchip pr">In progress</span></div>
+    <div class="bmeta">Q18 of 45 · 41 min left</div>
+    
+  </div><div class="bcell fresh">
+    <div class="brow"><span class="bn">#4</span></div>
+    <div class="bmeta">45 questions · 90 min</div>
+    
+  </div><div class="bcell fresh">
+    <div class="brow"><span class="bn">#5</span></div>
+    <div class="bmeta">45 questions · 90 min</div>
+    
+  </div><div class="bcell fresh">
+    <div class="brow"><span class="bn">#6</span></div>
+    <div class="bmeta">45 questions · 90 min</div>
+    
+  </div></div>
+      </div>
+    </div>
+    <p class="caption">Every set states its own story — best score, attempts, progress bar. But only 6 fit on screen, so reaching #28 is a long scroll.</p>
+  </div>
+
+  <div class="col">
+    <h4>The start sheet (tap #7)</h4>
+    <div class="phone sheetphone" style="min-height:520px">
+      <div class="nav"><span class="bk">‹</span><span class="ti">Task sets</span></div>
+      <div class="body">
+        <div class="banner" style="opacity:.55">
+          <h3>32 task sets</h3>
+          <p>Each one is a full mock exam drawn fresh from its own pool.</p>
+          <div class="bar"><i></i></div>
+        </div>
+        <div class="grid3" style="opacity:.55"><div class="cell" style="background:oklch(0.94 0.05 150);border-color:oklch(0.80 0.09 150);color:oklch(0.38 0.10 150)"><span class="tick"><svg width="13" height="13" viewBox="0 0 256 256" fill="currentColor"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg></span><div class="cn">#1</div><div class="cs">43/45</div></div><div class="cell" style="background:oklch(0.94 0.05 150);border-color:oklch(0.80 0.09 150);color:oklch(0.38 0.10 150)"><span class="tick"><svg width="13" height="13" viewBox="0 0 256 256" fill="currentColor"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg></span><div class="cn">#2</div><div class="cs">39/45</div></div><div class="cell" style="background:oklch(0.94 0.05 150);border-color:oklch(0.80 0.09 150);color:oklch(0.38 0.10 150)"><span class="tick"><svg width="13" height="13" viewBox="0 0 256 256" fill="currentColor"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg></span><div class="cn">#3</div><div class="cs">41/45</div></div><div class="cell" style="background:#fff;border-color:oklch(0.9 0.006 250);color:oklch(0.2 0.015 255)"><div class="cn">#4</div><div class="cs dim">33/45</div></div><div class="cell" style="background:oklch(0.94 0.05 150);border-color:oklch(0.80 0.09 150);color:oklch(0.38 0.10 150)"><span class="tick"><svg width="13" height="13" viewBox="0 0 256 256" fill="currentColor"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg></span><div class="cn">#5</div><div class="cs">44/45</div></div><div class="cell" style="background:oklch(0.94 0.03 255);border-color:oklch(0.46 0.15 255);color:oklch(0.40 0.13 255)"><div class="cn">#6</div><div class="cs blue">Resume</div></div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="sh-top">
+          <div>
+            <h3>Task set #7</h3>
+            <div class="sh-meta">45 questions · 90 min · pass at 38</div>
+          </div>
+          <span class="bchip ok" style="font-size:11px;padding:4px 9px">Passed</span>
+        </div>
+        <div class="sh-stats">
+          <div class="sh-stat"><div class="v">41/45</div><div class="k">Best</div></div>
+          <div class="sh-stat"><div class="v">3</div><div class="k">Attempts</div></div>
+          <div class="sh-stat"><div class="v">68</div><div class="k">In pool</div></div>
+        </div>
+        <div class="cta">Try again</div>
+        <div class="hist">
+          <div class="hh">Your attempts</div>
+          <div class="hrow"><span class="sc">41/45</span><span class="dt">2 Sep · 63 min</span><span class="st ok">Passed</span></div>
+          <div class="hrow"><span class="sc">36/45</span><span class="dt">28 Aug · 71 min</span><span class="st no">Failed</span></div>
+          <div class="hrow"><span class="sc">29/45</span><span class="dt">21 Aug · 88 min</span><span class="st no">Failed</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="caption">Every attempt listed, pass badge kept forever, retry always available — exactly what you asked for. A never-attempted set shows just the meta line and a <b>Start</b> button.</p>
+  </div>
+
+</div>
+
+<div class="options" style="margin-top:26px">
+  <div class="option" data-choice="g1" onclick="toggleSelect(this)">
+    <div class="letter">1</div><div class="content"><h3>G1 · Compact 3-up ★ recommended</h3><p>12 sets per screen, matches your reference. Status carried by color + tick + small score.</p></div>
+  </div>
+  <div class="option" data-choice="g2" onclick="toggleSelect(this)">
+    <div class="letter">2</div><div class="content"><h3>G2 · Roomy 2-up</h3><p>Richer per-set detail, 6 per screen, much longer scroll.</p></div>
+  </div>
+</div>
