@@ -34,7 +34,10 @@ function content(index: number) {
     },
     nb: {
       stem: `[${RUN}] Vurderingsspørsmål ${index}: hvem har forkjørsrett?`,
-      options: options.map((option) => ({ ...option, text: `${option.text} (nb)` })),
+      options: options.map((option) => ({
+        ...option,
+        text: `${option.text} (nb)`,
+      })),
       explanation: "Høyreregelen gjelder.",
     },
   };
@@ -46,7 +49,11 @@ test.beforeAll(async () => {
       data: {
         email,
         role: "INSTRUCTOR",
-        passwordHash: hashSync(PASSWORD, { memoryCost: 19456, timeCost: 2, parallelism: 1 }),
+        passwordHash: hashSync(PASSWORD, {
+          memoryCost: 19456,
+          timeCost: 2,
+          parallelism: 1,
+        }),
         emailVerifiedAt: new Date(),
         profile: { create: { firstName: "Rev", lastName: RUN } },
       },
@@ -107,7 +114,9 @@ test.afterAll(async () => {
     where: { email: { contains: RUN } },
     select: { id: true },
   });
-  await db.auditLog.deleteMany({ where: { actorId: { in: users.map((u) => u.id) } } });
+  await db.auditLog.deleteMany({
+    where: { actorId: { in: users.map((u) => u.id) } },
+  });
   await db.user.deleteMany({ where: { id: { in: users.map((u) => u.id) } } });
   await db.$disconnect();
 });
@@ -125,12 +134,16 @@ async function login(
 
 test.describe.configure({ mode: "serial" });
 
-test("two reviewers sign off ten AI questions with the keyboard alone", async ({ page }) => {
+test("two reviewers sign off ten AI questions with the keyboard alone", async ({
+  page,
+}) => {
   // First reviewer: ten keystrokes, ten approvals recorded — nothing goes live yet, because an
   // AI-written question needs a second pair of eyes (spec-04b).
   await login(page);
   await page.goto(`/en/admin/review?batch=${batchId}`);
-  await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Review queue" }),
+  ).toBeVisible();
   await expect(page.getByText(`${REVIEW_COUNT} waiting`)).toBeVisible();
 
   for (let remaining = REVIEW_COUNT; remaining > 0; remaining--) {
@@ -139,8 +152,12 @@ test("two reviewers sign off ten AI questions with the keyboard alone", async ({
   }
   await expect(page.getByText("Nothing waiting for review.")).toBeVisible();
 
-  expect(await db.masterItem.count({ where: { batchId, status: "APPROVED" } })).toBe(0);
-  expect(await db.itemApproval.count({ where: { masterItem: { batchId } } })).toBe(REVIEW_COUNT);
+  expect(
+    await db.masterItem.count({ where: { batchId, status: "APPROVED" } }),
+  ).toBe(0);
+  expect(
+    await db.itemApproval.count({ where: { masterItem: { batchId } } }),
+  ).toBe(REVIEW_COUNT);
 
   // Second reviewer: the same ten are waiting for them, and now they go live.
   await page.context().clearCookies();
@@ -159,7 +176,10 @@ test("two reviewers sign off ten AI questions with the keyboard alone", async ({
   // Approval published them: the engine can now serve every one (spec-04 D1).
   const approved = await db.masterItem.findMany({
     where: { batchId, status: "APPROVED" },
-    select: { id: true, variants: { where: { isActive: true }, select: { id: true } } },
+    select: {
+      id: true,
+      variants: { where: { isActive: true }, select: { id: true } },
+    },
   });
   expect(approved).toHaveLength(REVIEW_COUNT);
   expect(approved.every((item) => item.variants.length === 1)).toBe(true);
@@ -168,34 +188,52 @@ test("two reviewers sign off ten AI questions with the keyboard alone", async ({
 test("shows the set with its acceptance rate", async ({ page }) => {
   await login(page);
   await page.goto("/en/admin/sets");
-  await expect(page.getByRole("heading", { name: "Question sets" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Question sets" }),
+  ).toBeVisible();
 
   await page.getByRole("link", { name: `e2e ${RUN}` }).click();
-  await expect(page.getByRole("heading", { name: `Set · e2e ${RUN}` })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: `Set · e2e ${RUN}` }),
+  ).toBeVisible();
   await expect(page.getByText("100% accepted")).toBeVisible();
   await expect(page.getByText(`e2e-model-${RUN}`)).toBeVisible();
 
   // The AI controls are visible but inert until the pipeline lands (spec-06).
-  await expect(page.getByRole("button", { name: "Revise with AI" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Generate more" })).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Revise with AI" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Generate more" }),
+  ).toBeDisabled();
 });
 
 test("reports AI accuracy per model", async ({ page }) => {
   await login(page);
   await page.goto("/en/admin/questions/accuracy?groupBy=model&sinceDays=7");
-  await expect(page.getByRole("heading", { name: "AI accuracy" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "AI accuracy" }),
+  ).toBeVisible();
 
   const row = page.getByRole("row", { name: new RegExp(`e2e-model-${RUN}`) });
   await expect(row).toContainText("100%");
   await expect(row).toContainText(String(REVIEW_COUNT));
 });
 
-test("browses and searches the question bank in both locales", async ({ page }) => {
+test("browses and searches the question bank in both locales", async ({
+  page,
+}) => {
   await login(page);
   await page.goto(`/en/admin/questions?search=${RUN}`);
-  await expect(page.getByRole("heading", { name: "Question bank" })).toBeVisible();
-  await expect(page.getByRole("link", { name: new RegExp("Review question 0") })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Question bank" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: new RegExp("Review question 0") }),
+  ).toBeVisible();
 
   await page.goto("/no/admin/questions");
-  await expect(page.getByRole("heading", { name: "Spørsmålsbank" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Spørsmålsbank" }),
+  ).toBeVisible();
 });

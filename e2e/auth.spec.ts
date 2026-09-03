@@ -37,7 +37,12 @@ async function createUser(email: string, role: "INSTRUCTOR" | "ADMIN") {
       role,
       passwordHash: hash(PASSWORD),
       emailVerifiedAt: new Date(),
-      profile: { create: { firstName: role === "ADMIN" ? "Admin" : "Instructor", lastName: RUN } },
+      profile: {
+        create: {
+          firstName: role === "ADMIN" ? "Admin" : "Instructor",
+          lastName: RUN,
+        },
+      },
     },
     select: { id: true },
   });
@@ -55,16 +60,22 @@ async function latestMailTo(
         messages: { ID: string; To: { Address: string }[] }[];
       };
       const match = body.messages.find((message) =>
-        message.To.some((to) => to.Address.toLowerCase() === address.toLowerCase()),
+        message.To.some(
+          (to) => to.Address.toLowerCase() === address.toLowerCase(),
+        ),
       );
       if (match) {
-        const detail = await request.get(`${MAILPIT}/api/v1/message/${match.ID}`);
+        const detail = await request.get(
+          `${MAILPIT}/api/v1/message/${match.ID}`,
+        );
         return ((await detail.json()) as { Text: string }).Text;
       }
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error(`No mail delivered to ${address} — is mailpit running on ${MAILPIT}?`);
+  throw new Error(
+    `No mail delivered to ${address} — is mailpit running on ${MAILPIT}?`,
+  );
 }
 
 /**
@@ -95,8 +106,8 @@ test.beforeAll(async () => {
     select: { value: true },
   });
   previousPolicy =
-    (existing?.value as { adminTwoFactorRequired?: boolean } | null)?.adminTwoFactorRequired ??
-    null;
+    (existing?.value as { adminTwoFactorRequired?: boolean } | null)
+      ?.adminTwoFactorRequired ?? null;
   await setAdminTwoFactorPolicy(true);
 
   const admin = await createUser(adminEmail, "ADMIN");
@@ -117,7 +128,10 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   // Leave the school's own policy exactly as it was.
   if (previousPolicy !== null) await setAdminTwoFactorPolicy(previousPolicy);
-  else await db.setting.deleteMany({ where: { key: "security.adminTwoFactorRequired" } });
+  else
+    await db.setting.deleteMany({
+      where: { key: "security.adminTwoFactorRequired" },
+    });
 
   const users = await db.user.findMany({
     where: { email: { contains: RUN } },
@@ -137,10 +151,14 @@ test("invite → register → verify email → log in", async ({ page, request }
 
   // 1. Registration is only reachable with the invite token.
   await page.goto("/en/register");
-  await expect(page.getByRole("heading", { name: "Invitation required" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Invitation required" }),
+  ).toBeVisible();
 
   await page.goto(`/en/register?invite=${inviteToken}`);
-  await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Create your account" }),
+  ).toBeVisible();
 
   await page.getByLabel("First name").fill("Kari");
   await page.getByLabel("Last name").fill("Nordmann");
@@ -182,7 +200,12 @@ test("invite → register → verify email → log in", async ({ page, request }
   await page.getByRole("button", { name: "Log in" }).click();
 
   await expect(page).toHaveURL(/\/en$/);
+  // At the 390px design target the account links live behind the header menu (spec-16): four
+  // inline text buttons overflowed the viewport on every signed-in page. Log out is still one
+  // tap away, and this asserts the tap actually reaches it.
+  await page.getByRole("button", { name: "Menu" }).click();
   await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
+  await page.keyboard.press("Escape");
 
   // 5. The session is real: an authenticated-only page renders.
   await page.goto("/en/account/security");
@@ -210,7 +233,9 @@ test("wrong role gets a bilingual 403 on admin routes", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("signed-out access to an account page returns 401 with a way in", async ({ page }) => {
+test("signed-out access to an account page returns 401 with a way in", async ({
+  page,
+}) => {
   const response = await page.goto("/en/account/security");
   expect(response?.status()).toBe(401);
   await expect(
@@ -239,7 +264,11 @@ test("admin must set up two-factor before a session exists, then can invite", as
   );
 
   const secret = (await page.locator("p.font-mono").innerText()).trim();
-  const code = new TOTP({ secret: Secret.fromBase32(secret), digits: 6, period: 30 }).generate();
+  const code = new TOTP({
+    secret: Secret.fromBase32(secret),
+    digits: 6,
+    period: 30,
+  }).generate();
 
   await page.getByLabel("6-digit code").fill(code);
   await page.getByRole("button", { name: "Turn on two-factor" }).click();

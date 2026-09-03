@@ -114,8 +114,15 @@ test("practice: start, answer, hand in, and never receive the answer key early",
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page).toHaveURL(/\/en$/);
 
-  await page.getByRole("button", { name: "Theory test", exact: true }).click();
-  await page.waitForURL(/\/quiz\//);
+  // Practice now opens the setup screen (spec-16): the Theory Test tile is gone, and the
+  // configurable path IS practice. A short paper keeps this test quick.
+  await page.getByRole("link", { name: /^Practice\b/ }).click();
+  await page.waitForURL(/\/quiz\/new/);
+  await page.locator('input[type="range"]').fill("10");
+  await page.getByRole("button", { name: "Start test" }).click();
+  // Negative lookahead: /quiz/new matches a bare /quiz/<segment> too, so without
+  // it this resolves instantly and captures the SETUP url as the attempt url.
+  await page.waitForURL(/\/quiz\/(?!new)[^/]+$/);
   await expect(page.getByText(/Question 1 of \d+/)).toBeVisible();
 
   // Answer the first question; practice grades it server-side and reveals.
@@ -226,8 +233,13 @@ test("an answer cannot be changed once it is given, and the test resumes where i
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page).toHaveURL(/\/en$/);
 
-  await page.getByRole("button", { name: "Theory test", exact: true }).click();
-  await page.waitForURL(/\/quiz\//);
+  await page.getByRole("link", { name: /^Practice\b/ }).click();
+  await page.waitForURL(/\/quiz\/new/);
+  await page.locator('input[type="range"]').fill("10");
+  await page.getByRole("button", { name: "Start test" }).click();
+  // Negative lookahead: /quiz/new matches a bare /quiz/<segment> too, so without
+  // it this resolves instantly and captures the SETUP url as the attempt url.
+  await page.waitForURL(/\/quiz\/(?!new)[^/]+$/);
   const attemptUrl = page.url();
 
   // Answer question 1, then move on.

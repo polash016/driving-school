@@ -27,7 +27,9 @@ test.afterAll(async () => {
   await redis.quit().catch(() => undefined);
 });
 
-test("a language added at runtime routes, with no redeploy", async ({ page }) => {
+test("a language added at runtime routes, with no redeploy", async ({
+  page,
+}) => {
   // The registry is memoised in the server process, so allow for the TTL to lapse.
   test.setTimeout(90_000);
 
@@ -55,7 +57,9 @@ test("a language added at runtime routes, with no redeploy", async ({ page }) =>
   await redis.del("tp:i18n:registry");
 
   await expect(async () => {
-    const response = await page.goto(`/${CODE}`, { waitUntil: "domcontentloaded" });
+    const response = await page.goto(`/${CODE}`, {
+      waitUntil: "domcontentloaded",
+    });
     expect(response?.status()).toBe(200);
     await expect(page.locator("html")).toHaveAttribute("lang", CODE);
     // Direction comes from the language row — this is what makes Arabic possible at all.
@@ -65,11 +69,15 @@ test("a language added at runtime routes, with no redeploy", async ({ page }) =>
   // Nothing is translated, so every string reads English. That is the designed fallback, not a bug:
   // English is merged underneath every catalogue so a missing key can never reach a student as a
   // raw dotted path.
-  await expect(page.locator("body")).toContainText("Ready for your theory test");
+  await expect(page.locator("body")).toContainText(
+    "Ready for your theory test",
+  );
   await expect(page.locator("body")).not.toContainText(/\bhome\.title\b/);
 });
 
-test("a language that is not student-visible stays out of the switcher", async ({ page }) => {
+test("a language that is not student-visible stays out of the switcher", async ({
+  page,
+}) => {
   await page.goto("/en");
   const switcher = page.getByRole("group", { name: "Language" });
   await expect(switcher).toBeVisible();

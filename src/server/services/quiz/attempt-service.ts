@@ -59,6 +59,21 @@ import {
  */
 
 const DEFAULT_PRACTICE_COUNT = 15;
+
+/**
+ * The modes that reveal correctness the moment an answer is given.
+ *
+ * An ALLOWLIST, deliberately. This was written as `mode !== "EXAM"` — an exclusion list — and
+ * spec-16's TASK_SET therefore started leaking the answer key mid-exam the day it was added,
+ * because a new mode inherited "reveal" by default. Getting this wrong is a security bug
+ * (CLAUDE.md: correct answers never reach the client before submission), so the default for
+ * anything unlisted is now SECRET, and adding a mode is a deliberate act.
+ */
+const REVEALING_MODES: ReadonlySet<string> = new Set([
+  "PRACTICE",
+  "TOPIC",
+  "SIGN",
+]);
 const distributionSchema = z.record(z.string(), z.int().positive());
 const optionOrderSchema = z.array(z.string().min(1));
 
@@ -476,7 +491,7 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       throw new ValidationError({ reason: "option not part of this question" });
     }
 
-    const reveal = attempt.mode !== "EXAM"; // practice-like modes get instant server-graded feedback
+    const reveal = REVEALING_MODES.has(attempt.mode);
     const correct = input.optionKey === question.variant.correctOptionKey;
 
     // An answer is written once (developer decision 2026-08-25). Re-sending the SAME answer is
@@ -524,8 +539,8 @@ export function createAttemptService(deps: AttemptServiceDeps) {
    * explanation again instead of a blank card. It reveals nothing new: the answer is recorded and
    * can no longer change, and this is the same payload the student was shown when they answered.
    *
-   * It is a read, not a re-answer, and it refuses on both counts that matter: never in EXAM mode,
-   * never for a question that has not been answered yet.
+   * It is a read, not a re-answer, and it refuses on both counts that matter: never in a mode
+   * that grades at submit (EXAM, TASK_SET), never for a question that has not been answered yet.
    */
   async function revealAnswered(
     userId: string,
@@ -534,7 +549,7 @@ export function createAttemptService(deps: AttemptServiceDeps) {
     const input = revealInputSchema.parse(rawInput);
     const attempt = await loadOwnedAttempt(userId, input.attemptId);
 
-    if (attempt.mode === "EXAM") {
+    if (!REVEALING_MODES.has(attempt.mode)) {
       throw new ForbiddenError({ attemptId: attempt.id }, "errors.forbidden");
     }
 

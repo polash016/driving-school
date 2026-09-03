@@ -93,6 +93,7 @@ async function seedFixtures() {
       "u20",
       "u21",
       "u22",
+      "u23",
     ].map((id) => ({
       id,
       email: `${id}@test.local`,
@@ -866,7 +867,12 @@ async function seedTaskSet(params: {
         (params.paperSize * licenseClass.passMark) / licenseClass.questionCount,
       ),
       timeLimitSec: 90 * 60,
-      composition: { topicCounts: {}, typeCounts: {}, avgDifficulty: 3, warnings: [] },
+      composition: {
+        topicCounts: {},
+        typeCounts: {},
+        avgDifficulty: 3,
+        warnings: [],
+      },
       publishedAt: T0,
     },
   });
@@ -1019,7 +1025,56 @@ d("task sets (integration)", () => {
       locale: "en",
     });
     await service.submit("u21", { attemptId: attempt.id, locale: "en" });
-    expect(await db.taskSetProgress.count({ where: { userId: "u21" } })).toBe(0);
+    expect(await db.taskSetProgress.count({ where: { userId: "u21" } })).toBe(
+      0,
+    );
+  });
+
+  /**
+   * THE security invariant (CLAUDE.md), at the point it was actually broken.
+   *
+   * The reveal check used to read `mode !== "EXAM"` — an exclusion list — so TASK_SET inherited
+   * "reveal instantly" the day it was added and handed the student the answer key mid-exam. The
+   * check is now an allowlist; this test is what stops it drifting back.
+   */
+  it("does not reveal correctness when an answer is given, unlike practice", async () => {
+    const attempt = await service.startQuiz("u22", {
+      mode: "TASK_SET",
+      taskSetId: "ts-1",
+      locale: "en",
+    });
+
+    const ack = await service.answer("u22", {
+      attemptId: attempt.id,
+      position: 1,
+      optionKey: attempt.questions[0].options[0].key,
+      locale: "en",
+    });
+
+    expect(ack).toEqual({ position: 1, saved: true });
+    expect(JSON.stringify(ack)).not.toMatch(/correctOptionKey|isCorrect/);
+  });
+
+  it("refuses to re-reveal an answered question mid-set", async () => {
+    const attempt = await service.startQuiz("u23", {
+      mode: "TASK_SET",
+      taskSetId: "ts-1",
+      locale: "en",
+    });
+    await service.answer("u23", {
+      attemptId: attempt.id,
+      position: 1,
+      optionKey: attempt.questions[0].options[0].key,
+      locale: "en",
+    });
+
+    await expect(
+      service.revealAnswered("u23", {
+        attemptId: attempt.id,
+        position: 1,
+        locale: "en",
+      }),
+    ).rejects.toThrow(ForbiddenError);
   });
 
   it("rejects TASK_SET without a taskSetId rather than serving the whole bank", async () => {

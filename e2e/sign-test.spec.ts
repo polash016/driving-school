@@ -103,10 +103,10 @@ test("the homepage offers a sign test, and it serves a question with its picture
 
   // The complaint this work started from: only one way in was offered.
   await expect(
-    page.getByRole("button", { name: "Sign test", exact: true }),
+    page.getByRole("button", { name: /^Sign test\b/ }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Sign test", exact: true }).click();
+  await page.getByRole("button", { name: /^Sign test\b/ }).click();
   await page.waitForURL(/\/quiz\//);
   await expect(page.getByText(/Question 1 of \d+/)).toBeVisible();
 
@@ -144,26 +144,27 @@ test("the homepage offers a sign test, and it serves a question with its picture
   expect(leaks.map((entry) => entry.url)).toEqual([]);
 });
 
-test("a tile with no questions behind it is disabled rather than failing on tap", async ({
+test("an empty sign pool renders a genuinely disabled tile, not one that fails on tap", async ({
   page,
 }) => {
-  const imageQuestions = await db.masterItem.count({
+  const signQuestions = await db.masterItem.count({
     where: {
-      type: "IMAGE",
+      type: "SIGN",
       status: "APPROVED",
       deletedAt: null,
       variants: { some: { isActive: true } },
     },
   });
   test.skip(
-    imageQuestions > 0,
-    "this database has image questions, so the tile is live",
+    signQuestions > 0,
+    "this database has sign questions, so the tile is live",
   );
 
   await logIn(page);
 
-  // Genuinely disabled, carrying the reason — not faded-but-live, which fails only on tap.
-  const tile = page.getByRole("button", { name: /Image quiz not ready/ });
+  // Spec-16 removed the Theory and Image tiles; Sign test is the one that is still pool-gated,
+  // and it must be genuinely disabled rather than faded-but-live.
+  const tile = page.getByRole("button", { name: /Sign test not ready/ });
   await expect(tile).toBeVisible();
   await expect(tile).toBeDisabled();
 });

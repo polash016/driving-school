@@ -19,9 +19,7 @@ for (const path of [
     const blocking = results.violations.filter((v) =>
       ["serious", "critical"].includes(v.impact ?? ""),
     );
-    expect(
-      blocking.map((v) => `${v.id}: ${v.description}`),
-    ).toEqual([]);
+    expect(blocking.map((v) => `${v.id}: ${v.description}`)).toEqual([]);
   });
 }
 

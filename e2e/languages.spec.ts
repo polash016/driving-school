@@ -25,7 +25,11 @@ test.beforeAll(async () => {
     data: {
       email: reviewerEmail,
       role: "INSTRUCTOR",
-      passwordHash: hashSync(PASSWORD, { memoryCost: 19456, timeCost: 2, parallelism: 1 }),
+      passwordHash: hashSync(PASSWORD, {
+        memoryCost: 19456,
+        timeCost: 2,
+        parallelism: 1,
+      }),
       emailVerifiedAt: new Date(),
       profile: { create: { firstName: "Lang", lastName: RUN } },
     },
@@ -73,7 +77,10 @@ test.afterAll(async () => {
   await db.translation.deleteMany({ where: { locale: CODE } });
   await db.translationMemory.deleteMany({ where: { locale: CODE } });
   await db.language.deleteMany({ where: { code: CODE } });
-  const users = await db.user.findMany({ where: { email: reviewerEmail }, select: { id: true } });
+  const users = await db.user.findMany({
+    where: { email: reviewerEmail },
+    select: { id: true },
+  });
   const ids = users.map((user) => user.id);
   await db.auditLog.deleteMany({ where: { actorId: { in: ids } } });
   await db.user.deleteMany({ where: { id: { in: ids } } });
@@ -94,7 +101,9 @@ test("a reviewer sees the source beside the translation, with the flag in words"
   await login(page);
   await page.goto(`/en/admin/languages/${CODE}`);
 
-  await expect(page.getByRole("heading", { name: /QA Revisión/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /QA Revisión/ }),
+  ).toBeVisible();
   // The QA code is rendered as something a reviewer can act on, not as NUMBER_DRIFT.
   await expect(page.getByText("The meaning may have shifted")).toBeVisible();
   await expect(page.getByText(`Prioridad ${RUN}`)).toBeVisible();
@@ -116,7 +125,9 @@ test("the language board is admin-only, and an unfinished language stays hidden"
   await login(page);
   // Reviewing is an instructor's job; adding a language and starting a run is not.
   await page.goto("/en/admin/languages");
-  await expect(page.locator("body")).toContainText(/do not have access|ikke tilgang/i);
+  await expect(page.locator("body")).toContainText(
+    /do not have access|ikke tilgang/i,
+  );
 
   const language = await db.language.findUniqueOrThrow({
     where: { code: CODE },
@@ -126,5 +137,7 @@ test("the language board is admin-only, and an unfinished language stays hidden"
 
   // A hidden language is not offered to students, whatever exists in the database.
   await page.goto("/en");
-  await expect(page.getByRole("group", { name: "Language" })).not.toContainText("QA Revisión");
+  await expect(page.getByRole("group", { name: "Language" })).not.toContainText(
+    "QA Revisión",
+  );
 });
