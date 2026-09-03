@@ -839,3 +839,156 @@ d("resuming a test that was walked away from", () => {
     expect(untested?.percent).toBeNull();
   });
 });
+
+/**
+ * Task sets (spec-16). The point of these tests is the leak-resistance claim: a set is a stable
+ * slice, but the paper drawn from it is not, so "set #7 is these questions" is not memorisable.
+ */
+async function seedTaskSet(params: {
+  id: string;
+  number: number;
+  memberIds: string[];
+  paperSize: number;
+}): Promise<void> {
+  const licenseClass = await db.licenseClass.findFirstOrThrow({
+    where: { code: "TB" },
+    select: { id: true, passMark: true, questionCount: true },
+  });
+  await db.taskSet.create({
+    data: {
+      id: params.id,
+      number: params.number,
+      licenseClassId: licenseClass.id,
+      status: "PUBLISHED",
+      poolSize: params.memberIds.length,
+      paperSize: params.paperSize,
+      passMark: Math.ceil(
+        (params.paperSize * licenseClass.passMark) / licenseClass.questionCount,
+      ),
+      timeLimitSec: 90 * 60,
+      composition: { topicCounts: {}, typeCounts: {}, avgDifficulty: 3, warnings: [] },
+      publishedAt: T0,
+    },
+  });
+  await db.taskSetMember.createMany({
+    data: params.memberIds.map((masterItemId) => ({
+      masterItemId,
+      taskSetId: params.id,
+    })),
+  });
+}
+
+async function masterIdsOf(attemptId: string): Promise<string[]> {
+  const rows = await db.examAttemptQuestion.findMany({
+    where: { attemptId },
+    orderBy: { position: "asc" },
+    select: { variant: { select: { masterItemId: true } } },
+  });
+  return rows.map((row) => row.variant.masterItemId);
+}
+
+d("task sets (integration)", () => {
+  const memberIds = [
+    ...Array.from({ length: 6 }, (_, i) => `r1-m${i}`),
+    ...Array.from({ length: 6 }, (_, i) => `r2-m${i}`),
+  ];
+
+  beforeAll(async () => {
+    await db.taskSetProgress.deleteMany();
+    await db.taskSetMember.deleteMany();
+    await db.taskSet.deleteMany();
+    await seedTaskSet({
+      id: "ts-1",
+      number: 1,
+      memberIds,
+      paperSize: 6,
+    });
+  });
+
+  it("draws only from its own slice, and differently for two students", async () => {
+    const a = await service.startQuiz("u10", {
+      mode: "TASK_SET",
+      taskSetId: "ts-1",
+      locale: "en",
+    });
+    const b = await service.startQuiz("u11", {
+      mode: "TASK_SET",
+      taskSetId: "ts-1",
+      locale: "en",
+    });
+
+    const fromA = await masterIdsOf(a.id);
+    const fromB = await masterIdsOf(b.id);
+
+    expect(fromA).toHaveLength(6);
+    expect(fromB).toHaveLength(6);
+    // Nothing outside the slice may appear — that is what makes #1 a set rather than a label.
+    expect(fromA.every((id) => memberIds.includes(id))).toBe(true);
+    expect(fromB.every((id) => memberIds.includes(id))).toBe(true);
+    // 6 of 12, twice: overlap is expected, an identical paper is not.
+    expect(fromA.join(",")).not.toEqual(fromB.join(","));
+  });
+
+  it("snapshots the set's clock and pass mark onto the attempt", async () => {
+    const attempt = await service.startQuiz("u12", {
+      mode: "TASK_SET",
+      taskSetId: "ts-1",
+      locale: "en",
+    });
+    const row = await db.examAttempt.findUniqueOrThrow({
+      where: { id: attempt.id },
+      select: {
+        mode: true,
+        taskSetId: true,
+        timeLimitSecSnapshot: true,
+        passMarkSnapshot: true,
+        countsTowardGuarantee: true,
+        expiresAt: true,
+      },
+    });
+    expect(row.mode).toBe("TASK_SET");
+    expect(row.taskSetId).toBe("ts-1");
+    expect(row.timeLimitSecSnapshot).toBe(90 * 60);
+    // 6 questions at the class's 4-of-6 ratio.
+    expect(row.passMarkSnapshot).toBe(4);
+    // A task set IS the mock exam, so it always counts.
+    expect(row.countsTowardGuarantee).toBe(true);
+    expect(row.expiresAt).not.toBeNull();
+  });
+
+  it("never ships correctness before submit", async () => {
+    const attempt = await service.startQuiz("u13", {
+      mode: "TASK_SET",
+      taskSetId: "ts-1",
+      locale: "en",
+    });
+    expect(JSON.stringify(attempt)).not.toMatch(/correctOptionKey/);
+    for (const question of attempt.questions) {
+      expect(question).not.toHaveProperty("correctOptionKey");
+    }
+  });
+
+  it("rejects TASK_SET without a taskSetId rather than serving the whole bank", async () => {
+    await expect(
+      service.startQuiz("u14", { mode: "TASK_SET", locale: "en" }),
+    ).rejects.toThrow();
+  });
+
+  it("refuses an unpublished set", async () => {
+    await db.taskSet.update({
+      where: { id: "ts-1" },
+      data: { status: "DRAFT" },
+    });
+    await expect(
+      service.startQuiz("u15", {
+        mode: "TASK_SET",
+        taskSetId: "ts-1",
+        locale: "en",
+      }),
+    ).rejects.toThrow(NotFoundError);
+    await db.taskSet.update({
+      where: { id: "ts-1" },
+      data: { status: "PUBLISHED" },
+    });
+  });
+});

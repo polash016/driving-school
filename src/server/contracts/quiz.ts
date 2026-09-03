@@ -35,6 +35,12 @@ export const startQuizInputSchema = z
      */
     itemType: itemTypeSchema.optional(),
     /**
+     * The task set being sat (spec-16). Required for TASK_SET mode and validated in the service —
+     * a slice filter that were silently dropped would produce a paper drawn from the WHOLE bank
+     * while the UI told the student it was set #7.
+     */
+    taskSetId: idSchema.optional(),
+    /**
      * Run this attempt against the official clock. EXAM is always timed; the student chooses for
      * everything else, which is what makes a self-configured full-length rehearsal possible.
      */

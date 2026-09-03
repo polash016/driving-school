@@ -22,7 +22,14 @@ export const itemStatusSchema = z.enum([
 ]);
 export const provenanceSchema = z.enum(["AI", "HUMAN"]);
 export const variantSourceSchema = z.enum(["TEMPLATE", "AI_VARIATION"]);
-export const attemptModeSchema = z.enum(["PRACTICE", "EXAM", "TOPIC", "SIGN"]);
+export const attemptModeSchema = z.enum([
+  "PRACTICE",
+  "EXAM",
+  "TOPIC",
+  "SIGN",
+  // A numbered task set: a full mock exam drawn from its own slice of the bank (spec-16).
+  "TASK_SET",
+]);
 export const attemptStatusSchema = z.enum([
   "IN_PROGRESS",
   "SUBMITTED",

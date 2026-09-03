@@ -114,8 +114,49 @@ export function createAttemptService(deps: AttemptServiceDeps) {
     let licenseClassId: string | null = null;
     let blueprintId: string | null = null;
     let typeFilter: ItemType | undefined;
+    let taskSetId: string | null = null;
 
-    if (input.mode === "EXAM") {
+    if (input.mode === "TASK_SET") {
+      // A task set IS the mock exam, but its paper comes from ONE slice of the bank rather than
+      // the blueprint's view of the whole of it (spec-16).
+      if (!input.taskSetId) {
+        throw new ValidationError({
+          reason: "taskSetId required for TASK_SET",
+        });
+      }
+      const set = await db.taskSet.findFirst({
+        where: { id: input.taskSetId, status: "PUBLISHED" },
+        select: {
+          id: true,
+          licenseClassId: true,
+          paperSize: true,
+          passMark: true,
+          timeLimitSec: true,
+          poolSize: true,
+        },
+      });
+      // NotFound rather than Forbidden for a DRAFT set: an unpublished set does not exist as far
+      // as a student is concerned, and saying otherwise leaks the build queue.
+      if (!set) throw new NotFoundError({ taskSetId: input.taskSetId });
+
+      // Snapshots taken at publish, never live config — the set a student passed must stay the
+      // set they passed even if the school later re-tunes the licence class.
+      taskSetId = set.id;
+      licenseClassId = set.licenseClassId;
+      timeLimitSec = set.timeLimitSec;
+      passMark = set.passMark;
+
+      const roots = await db.topic.findMany({
+        where: { parentId: null, isActive: true, deletedAt: null },
+        select: { slug: true },
+      });
+      // The slice already carries its own topic balance, so the paper spreads evenly over what is
+      // actually in it and rebalanceToAvailability settles the remainder.
+      distribution = evenDistribution(
+        roots.map((r) => r.slug),
+        Math.min(set.paperSize, set.poolSize),
+      );
+    } else if (input.mode === "EXAM") {
       if (!input.licenseClassCode) {
         throw new ValidationError({
           reason: "licenseClassCode required for EXAM",
@@ -205,6 +246,7 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       topicSlugs: Object.keys(distribution),
       type: typeFilter,
       licenseClassId,
+      ...(taskSetId ? { taskSetId } : {}),
     });
     if (input.mode !== "EXAM") {
       distribution = rebalanceToAvailability(distribution, candidates);
@@ -254,7 +296,13 @@ export function createAttemptService(deps: AttemptServiceDeps) {
           passMarkSnapshot: passMark,
           startedAt: now,
           expiresAt: computeExpiresAt(now, timeLimitSec),
-          countsTowardGuarantee: options.countsTowardGuarantee ?? false,
+          taskSetId,
+          // A task set is the full official rehearsal by construction, so it always counts —
+          // there is no setup screen on which a student could have configured it into not doing.
+          countsTowardGuarantee:
+            input.mode === "TASK_SET"
+              ? true
+              : (options.countsTowardGuarantee ?? false),
           ...(options.setupSnapshot
             ? { setupSnapshot: options.setupSnapshot as Prisma.InputJsonValue }
             : {}),
@@ -302,6 +350,8 @@ export function createAttemptService(deps: AttemptServiceDeps) {
         correctCount: true,
         passed: true,
         topicBreakdown: true,
+        // Read here so gradeAndClose can write task set progress without a second query.
+        taskSetId: true,
       },
     });
     // NotFound (not Forbidden) for foreign attempts — don't leak existence (IDOR, spec-12)
