@@ -20,7 +20,8 @@
     "languages": "Languages",
     "images": "Images",
     "signs": "Signs",
-    "taskSets": "Task sets"
+    "taskSets": "Task sets",
+    "menu": "Menu"
   },
   "language": {
     "label": "Language",
@@ -853,6 +854,7 @@
     "emptyBody": "Your driving school is still preparing them. This page opens as soon as the first sets are published.",
     "poolNote": "Each sitting draws {paper} questions from {pool}, so no two attempts are the same.",
     "openSet": "Open task set #{number}",
-    "close": "Close"
+    "close": "Close",
+    "starting": "Starting…"
   }
 }

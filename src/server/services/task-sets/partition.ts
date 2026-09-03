@@ -9,10 +9,12 @@ import type { ItemType } from "@prisma/client";
  *   through `TaskSetMember.masterItemId` being a primary key;
  * - a slice draws from several topics, because a paper drawn from a single-topic slice would not
  *   be a mock exam;
+ * - EVERY slice mirrors the bank's topic mix, not just "more than one topic" — see
+ *   `chunkStratified` for why the obvious approach fails on a real, lopsided bank;
  * - a slice whose membership is unchanged KEEPS ITS NUMBER — a student's passed #7 must not
  *   silently become different material on the next rebuild;
- * - a remainder under half a paper folds into the previous slice instead of being published as a
- *   stub that would misreport a student's readiness.
+ * - a remainder is absorbed into the slices rather than published as a short one, so a "task set"
+ *   of nine questions — which would misreport a student's readiness — cannot exist.
  *
  * Determinism matters as much as balance: the same bank must produce the same slices, or number
  * preservation could not be checked and a rebuild would reshuffle everyone's progress.
@@ -61,7 +63,7 @@ export function partitionBank(
   if (items.length === 0) return { slices: [], orphaned: [] };
 
   const poolSize = Math.ceil(options.paperSize * options.poolRatio);
-  const chunks = chunkInterleaved(items, poolSize, options.paperSize);
+  const chunks = chunkStratified(items, poolSize);
 
   const slices: PartitionedSlice[] = chunks.map((chunk) => ({
     number: 0,
@@ -75,16 +77,28 @@ export function partitionBank(
 }
 
 /**
- * Round-robin over topic buckets so no slice fills from one topic, then cut into pools.
+ * Deal every topic across EVERY slice, so each slice mirrors the bank's own topic mix.
  *
- * Sorting by id before bucketing is what makes the result independent of the order rows came back
+ * The naive approach — round-robin one item per topic until the buckets drain — looks balanced and
+ * is not: a bank whose largest topic outnumbers the rest (this one has 574 sign questions against
+ * 130 of everything else) exhausts the small topics in the first slices and leaves the tail
+ * single-topic. Those sets would be sign quizzes wearing a mock exam's name.
+ *
+ * Instead the slice count is fixed first, then each topic's items are dealt round-robin across all
+ * slices, each topic continuing where the previous one stopped. Every slice ends up with a
+ * proportional share of every topic, and slice sizes differ by at most one.
+ *
+ * Sorting by id before dealing is what makes the result independent of the order rows came back
  * from the database — two rebuilds over the same bank must produce byte-identical slices.
  */
-function chunkInterleaved(
+function chunkStratified(
   items: PartitionItem[],
   poolSize: number,
-  paperSize: number,
 ): PartitionItem[][] {
+  // FLOOR, not ceil: a remainder is absorbed into the existing slices rather than published as a
+  // short one. Every slice is therefore at least `poolSize`, and a stub set cannot happen.
+  const sliceCount = Math.max(1, Math.floor(items.length / poolSize));
+
   const byTopic = new Map<string, PartitionItem[]>();
   for (const item of [...items].sort((a, b) =>
     a.masterItemId.localeCompare(b.masterItemId),
@@ -93,8 +107,8 @@ function chunkInterleaved(
     bucket.push(item);
     byTopic.set(item.topicSlug, bucket);
   }
-  // Easy questions first within a topic, so difficulty spreads evenly across slices rather than
-  // stacking the hard ones into the last one.
+  // Easy questions first within a topic, so difficulty spreads across slices rather than stacking
+  // the hard ones into the last one.
   for (const bucket of byTopic.values()) {
     bucket.sort(
       (a, b) =>
@@ -103,31 +117,18 @@ function chunkInterleaved(
     );
   }
 
-  const topics = [...byTopic.keys()].sort();
-  const interleaved: PartitionItem[] = [];
-  let drained = false;
-  while (!drained) {
-    drained = true;
-    for (const topic of topics) {
-      const next = byTopic.get(topic)!.shift();
-      if (next) {
-        interleaved.push(next);
-        drained = false;
-      }
-    }
-  }
-
-  const chunks: PartitionItem[][] = [];
-  for (let i = 0; i < interleaved.length; i += poolSize) {
-    chunks.push(interleaved.slice(i, i + poolSize));
-  }
-
-  // A stub set is worse than a fat one: fold a short tail back into its predecessor.
-  if (chunks.length > 1) {
-    const tail = chunks[chunks.length - 1];
-    if (tail.length < paperSize / 2) {
-      chunks[chunks.length - 2].push(...tail);
-      chunks.pop();
+  const chunks: PartitionItem[][] = Array.from(
+    { length: sliceCount },
+    () => [],
+  );
+  // One cursor across all topics: topic B picks up where topic A stopped, so a topic smaller than
+  // the slice count still lands in different slices each rebuild-neutral pass rather than always
+  // in the first few.
+  let cursor = 0;
+  for (const topic of [...byTopic.keys()].sort()) {
+    for (const item of byTopic.get(topic)!) {
+      chunks[cursor % sliceCount].push(item);
+      cursor += 1;
     }
   }
   return chunks;

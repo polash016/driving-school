@@ -13,6 +13,8 @@ import { toActionError } from "@/server/http/action-result";
 import { attemptService } from "@/server/services/assessment";
 import { evaluateGuarantee } from "@/server/services/assessment/pass-guarantee";
 import { db } from "@/server/db";
+import { taskSetService } from "@/server/services/task-sets";
+import type { TaskSetAttempt } from "@/server/contracts/task-sets";
 import type { AppLocale } from "../../../../../config/school.config";
 
 /**
@@ -202,4 +204,50 @@ export async function startConfiguredQuizAction(
 
   redirect({ href: `/quiz/${attemptId}`, locale });
   return { ok: true };
+}
+
+/**
+ * Start a task set (spec-16).
+ *
+ * Deliberately separate from `startQuizAction`: a task set takes no configuration at all, so
+ * accepting a length or a topic list here would be an invitation to send one.
+ */
+export async function startTaskSetAction(
+  _prev: ActionResult | undefined,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await requireUser();
+  const locale = String(formData.get("locale") ?? "en") as AppLocale;
+
+  let attemptId: string;
+  try {
+    const attempt = await attemptService.startQuiz(user.id, {
+      mode: "TASK_SET",
+      taskSetId: String(formData.get("taskSetId") ?? ""),
+      locale,
+    });
+    attemptId = attempt.id;
+  } catch (error) {
+    const mapped = toActionError(error);
+    // A published set whose pool has been emptied by retirement is a real state, not a crash.
+    if (mapped.code === "EXAM_STATE") {
+      return { ...mapped, messageKey: "quiz.errors.noQuestions" };
+    }
+    return mapped;
+  }
+
+  redirect({ href: `/quiz/${attemptId}`, locale });
+  return { ok: true };
+}
+
+/** One set's attempt history, fetched when the start sheet opens. */
+export async function taskSetAttemptsAction(
+  taskSetId: string,
+): Promise<ActionResult<TaskSetAttempt[]>> {
+  const user = await requireUser();
+  try {
+    return { ok: true, data: await taskSetService.attemptsFor(user.id, taskSetId) };
+  } catch (error) {
+    return toActionError(error);
+  }
 }

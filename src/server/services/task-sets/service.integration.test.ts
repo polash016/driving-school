@@ -128,15 +128,26 @@ d("taskSetService (integration)", () => {
     expect(placed).toBe(approved);
   });
 
-  it("sizes slices at ceil(paperSize * 1.5) and scales a short slice's pass mark", async () => {
+  it("makes every slice at least one pool deep, with the official paper and pass mark", async () => {
     const result = await service.build({ licenseClassCode: "TS" }, null);
 
-    // 150 items, pool 68 → 68 + 68 + 14; the 14 is under half a paper, so it folds back.
+    // 150 items at pool ceil(45 × 1.5) = 68 → 2 slices of 75, not 2 of 68 plus a 14-question stub.
     expect(result.sets).toHaveLength(2);
-    expect(result.sets[0].poolSize).toBe(68);
-    expect(result.sets[0].paperSize).toBe(45);
-    expect(result.sets[0].passMark).toBe(38);
-    expect(result.sets[1].poolSize).toBe(82);
+    for (const set of result.sets) {
+      expect(set.poolSize).toBeGreaterThanOrEqual(68);
+      // Values come from LicenseClass config, never hardcoded in the service.
+      expect(set.paperSize).toBe(45);
+      expect(set.passMark).toBe(38);
+      expect(set.timeLimitSec).toBe(90 * 60);
+    }
+  });
+
+  it("gives every slice a share of every topic", async () => {
+    const result = await service.build({ licenseClassCode: "TS" }, null);
+    for (const set of result.sets) {
+      expect(Object.keys(set.composition.topicCounts)).toHaveLength(3);
+      expect(set.composition.warnings).toEqual([]);
+    }
   });
 
   it("keeps sets DRAFT until published, and only then serves them", async () => {

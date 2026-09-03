@@ -24,22 +24,26 @@ describe("partitionBank", () => {
     expect(result.orphaned).toEqual([]);
   });
 
-  it("sizes full slices at ceil(paperSize * poolRatio)", () => {
+  it("makes every slice at least one pool deep", () => {
+    // FLOOR sizing: 300 items at pool 68 is 4 slices of 75, not 4 of 68 plus a 28-question stub.
     const result = partitionBank(bank(300), OPTIONS);
-    expect(result.slices[0].masterItemIds).toHaveLength(68);
+    expect(result.slices).toHaveLength(4);
+    for (const slice of result.slices) {
+      expect(slice.masterItemIds.length).toBeGreaterThanOrEqual(68);
+    }
   });
 
-  it("merges a remainder smaller than half a paper into the previous slice", () => {
-    // 68 + 68 + 10 → the 10 fold back: a 10-question "mock exam" misreports readiness.
+  it("absorbs the remainder rather than publishing a short slice", () => {
+    // 146 at pool 68 → 2 slices of 73. A 10-question "mock exam" would misreport readiness.
     const result = partitionBank(bank(146), OPTIONS);
     expect(result.slices).toHaveLength(2);
-    expect(result.slices[1].masterItemIds).toHaveLength(78);
+    expect(result.slices.map((s) => s.masterItemIds.length)).toEqual([73, 73]);
   });
 
-  it("keeps a remainder of half a paper or more as its own slice", () => {
-    const result = partitionBank(bank(160), OPTIONS);
-    expect(result.slices).toHaveLength(3);
-    expect(result.slices[2].masterItemIds).toHaveLength(24);
+  it("keeps slice sizes within one of each other", () => {
+    const result = partitionBank(bank(205), OPTIONS);
+    const sizes = result.slices.map((s) => s.masterItemIds.length);
+    expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThanOrEqual(1);
   });
 
   it("spreads topics rather than filling a slice from one topic", () => {
@@ -53,7 +57,7 @@ describe("partitionBank", () => {
 
   it("numbers slices from 1 upwards with no gaps", () => {
     const result = partitionBank(bank(300), OPTIONS);
-    expect(result.slices.map((s) => s.number)).toEqual([1, 2, 3, 4, 5]);
+    expect(result.slices.map((s) => s.number)).toEqual([1, 2, 3, 4]);
   });
 
   it("preserves the number of a slice whose membership is unchanged", () => {
@@ -117,6 +121,40 @@ describe("partitionBank", () => {
     expect(topicTotal).toBe(68);
     expect(composition.avgDifficulty).toBeGreaterThan(0);
     expect(composition.avgDifficulty).toBeLessThanOrEqual(5);
+  });
+
+  /**
+   * Regression: the real bank is 574 sign questions against 130 of everything else. A round-robin
+   * that drains buckets exhausts the small topics in the first slices and leaves the tail
+   * single-topic — sign quizzes wearing a mock exam's name. Every slice must mirror the mix.
+   */
+  it("spreads a dominant topic across every slice instead of exhausting the small ones", () => {
+    const lopsided: PartitionItem[] = [
+      ...Array.from({ length: 574 }, (_, i) => ({
+        masterItemId: `sign${String(i).padStart(4, "0")}`,
+        topicSlug: "signs",
+        type: "SIGN" as const,
+        difficulty: (i % 5) + 1,
+      })),
+      ...Array.from({ length: 130 }, (_, i) => ({
+        masterItemId: `text${String(i).padStart(4, "0")}`,
+        topicSlug: ["yield", "vehicle", "speed", "law"][i % 4],
+        type: "TEXT" as const,
+        difficulty: (i % 5) + 1,
+      })),
+    ];
+
+    const result = partitionBank(lopsided, OPTIONS);
+
+    expect(result.slices.length).toBeGreaterThan(1);
+    for (const slice of result.slices) {
+      // No slice may be a single-topic set…
+      expect(Object.keys(slice.composition.topicCounts).length).toBeGreaterThan(1);
+      expect(slice.composition.warnings).not.toContain("SINGLE_TOPIC");
+      // …and each must carry a real share of the non-dominant material.
+      const nonSign = slice.masterItemIds.length - (slice.composition.topicCounts.signs ?? 0);
+      expect(nonSign).toBeGreaterThan(5);
+    }
   });
 
   it("returns an empty result for an empty bank rather than throwing", () => {

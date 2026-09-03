@@ -20,7 +20,8 @@
     "languages": "Språk",
     "images": "Bilder",
     "signs": "Skilt",
-    "taskSets": "Oppgavesett"
+    "taskSets": "Oppgavesett",
+    "menu": "Meny"
   },
   "language": {
     "label": "Språk",
@@ -853,6 +854,7 @@
     "emptyBody": "Trafikkskolen din forbereder dem fortsatt. Denne siden åpnes så snart de første settene er publisert.",
     "poolNote": "Hvert forsøk trekker {paper} spørsmål fra {pool}, så ingen to forsøk er like.",
     "openSet": "Åpne oppgavesett #{number}",
-    "close": "Lukk"
+    "close": "Lukk",
+    "starting": "Starter…"
   }
 }

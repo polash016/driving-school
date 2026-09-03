@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "prisma generate && next dev",
+    "dev": "prisma generate && next dev --port 3000",
     "build": "next build",
-    "start": "next start",
+    "start": "next start --port 3000",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -26,7 +26,8 @@
     "db:seed-signs": "tsx prisma/seed-signs.ts",
     "signs:extract": "tsx scripts/extract-signs.ts",
     "signs:enrich": "tsx scripts/enrich-signs.ts",
-    "signs:questions": "tsx scripts/seed-sign-questions.ts"
+    "signs:questions": "tsx scripts/seed-sign-questions.ts",
+    "tasksets:build": "tsx scripts/build-task-sets.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1116.0",

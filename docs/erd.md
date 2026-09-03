@@ -271,6 +271,7 @@ erDiagram
   DateTime attestedAt "nullable"
   Boolean countsTowardGuarantee
   Json setupSnapshot "nullable"
+  String taskSetId FK "nullable"
   Int focusLossCount
   Boolean anomalyFlagged
   DateTime createdAt
@@ -289,6 +290,49 @@ erDiagram
   DateTime answeredAt "nullable"
   Int timeSpentMs "nullable"
   DateTime createdAt
+  DateTime updatedAt
+}
+"TaskSet" {
+  String id PK
+  Int number
+  String licenseClassId FK
+  TaskSetStatus status
+  Int poolSize
+  Int paperSize
+  Int passMark
+  Int timeLimitSec
+  Json composition
+  String buildId FK "nullable"
+  DateTime publishedAt "nullable"
+  DateTime createdAt
+  DateTime updatedAt
+}
+"TaskSetMember" {
+  String masterItemId PK,FK
+  String taskSetId FK
+  DateTime createdAt
+}
+"TaskSetBuild" {
+  String id PK
+  BatchStatus status
+  String providerId "nullable"
+  String modelVersion "nullable"
+  String promptVersion "nullable"
+  Json stats
+  Json warnings
+  String requestedById FK "nullable"
+  DateTime createdAt
+  DateTime updatedAt
+}
+"TaskSetProgress" {
+  String userId FK
+  String taskSetId FK
+  Int attempts
+  Int bestCorrect "nullable"
+  Int bestOutOf "nullable"
+  DateTime passedAt "nullable"
+  String lastAttemptId "nullable"
+  DateTime lastAttemptAt "nullable"
   DateTime updatedAt
 }
 "TopicMastery" {
@@ -557,9 +601,17 @@ erDiagram
 "ExamAttempt" }o--|| "User" : user
 "ExamAttempt" }o--o| "LicenseClass" : licenseClass
 "ExamAttempt" }o--o| "ExamBlueprint" : blueprint
+"ExamAttempt" }o--o| "TaskSet" : taskSet
 "ExamAttemptQuestion" }o--|| "ExamAttempt" : attempt
 "ExamAttemptQuestion" }o--|| "ItemVariant" : variant
 "ExamAttemptQuestion" }o--|| "Topic" : topic
+"TaskSet" }o--|| "LicenseClass" : licenseClass
+"TaskSet" }o--o| "TaskSetBuild" : build
+"TaskSetMember" |o--|| "MasterItem" : masterItem
+"TaskSetMember" }o--|| "TaskSet" : taskSet
+"TaskSetBuild" }o--o| "User" : requestedBy
+"TaskSetProgress" }o--|| "User" : user
+"TaskSetProgress" }o--|| "TaskSet" : taskSet
 "TopicMastery" }o--|| "User" : user
 "TopicMastery" }o--|| "Topic" : topic
 "ReadinessSnapshot" }o--|| "User" : user
@@ -946,6 +998,9 @@ Properties as follows:
 - `setupSnapshot`
   > What the student chose: timer on/off, question count, categories. Kept so a disputed result
   > can be explained without reconstructing it from the questions.
+- `taskSetId`
+  > The task set this attempt sits, when it is one (spec-16). Null for practice, topic drills,
+  > sign tests and legacy mock exams.
 - `focusLossCount`:
 - `anomalyFlagged`:
 - `createdAt`:
@@ -967,6 +1022,87 @@ Properties as follows:
 - `answeredAt`:
 - `timeSpentMs`:
 - `createdAt`:
+- `updatedAt`:
+
+### `TaskSet`
+
+One numbered task set: a SLICE of the approved bank.
+
+A sitting draws `paperSize` questions from `poolSize` members, so the paper differs per student
+and per attempt while the set itself stays a stable, nameable chunk of material. That is what
+makes "passed #7" mean something without making #7 memorisable.
+
+Properties as follows:
+
+- `id`:
+- `number`:
+- `licenseClassId`:
+- `status`:
+- `poolSize`:
+- `paperSize`
+  > Snapshots of LicenseClass config, frozen at publish. Changing class config later must not
+  > retroactively alter a set a student has already passed.
+- `passMark`:
+- `timeLimitSec`:
+- `composition`: { topicCounts, typeCounts, avgDifficulty, warnings[] } — what an admin reviews before publishing.
+- `buildId`:
+- `publishedAt`:
+- `createdAt`:
+- `updatedAt`:
+
+### `TaskSetMember`
+
+A question's membership of exactly one slice.
+
+`masterItemId` is the PRIMARY KEY, so the database itself guarantees full coverage: no question
+can sit in two sets, and counting members against approved items proves none is orphaned. That
+single constraint is what lets the product claim "finish every set and you have met the whole
+bank" without a background job to verify it.
+
+Properties as follows:
+
+- `masterItemId`:
+- `taskSetId`:
+- `createdAt`:
+
+### `TaskSetBuild`
+
+One partitioning run. Sets stay DRAFT until an admin publishes the build, so nothing reaches a
+student without a person having seen its composition.
+
+Properties as follows:
+
+- `id`:
+- `status`:
+- `providerId`:
+- `modelVersion`:
+- `promptVersion`:
+- `stats`:
+- `warnings`:
+- `requestedById`:
+- `createdAt`:
+- `updatedAt`:
+
+### `TaskSetProgress`
+
+Denormalized per-user standing on one task set.
+
+The grid needs pass state, best score and attempt count for ~32 sets in a single render;
+derived, that is a groupBy plus a correlated best-score lookup per set. Written inside the
+grading transaction, so it cannot drift from the attempts it summarises.
+
+Properties as follows:
+
+- `userId`:
+- `taskSetId`:
+- `attempts`:
+- `bestCorrect`:
+- `bestOutOf`:
+- `passedAt`
+  > Set once, NEVER cleared. A student who passes a set and then fails a retry keeps the pass —
+  > the retry is practice, and taking it away would punish them for practising.
+- `lastAttemptId`:
+- `lastAttemptAt`:
 - `updatedAt`:
 
 ### `TopicMastery`

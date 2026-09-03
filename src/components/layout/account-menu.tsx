@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { logoutAction } from "@/app/[locale]/(auth)/actions";
+import { AccountSheet } from "@/components/layout/account-sheet";
 import { Button } from "@/components/ui/button";
 import { getSessionUser } from "@/server/auth";
 import { Link } from "@/i18n/navigation";
@@ -22,8 +23,9 @@ export async function AccountMenu({ locale }: { locale: string }) {
     );
   }
 
-  return (
-    <div className="flex items-center gap-1">
+  // Rendered once, placed twice: inline from `sm` up, and inside the mobile sheet below it.
+  const links = (
+    <>
       {user.role !== "STUDENT" ? (
         <Button asChild variant="ghost" size="sm" className="min-h-11">
           <Link href="/admin/invites">{t("admin")}</Link>
@@ -41,6 +43,13 @@ export async function AccountMenu({ locale }: { locale: string }) {
           {t("logout")}
         </Button>
       </form>
-    </div>
+    </>
+  );
+
+  return (
+    <>
+      <div className="hidden items-center gap-1 sm:flex">{links}</div>
+      <AccountSheet>{links}</AccountSheet>
+    </>
   );
 }
