@@ -95,7 +95,11 @@ model TaskSet {
   progress     TaskSetProgress[]
   attempts     ExamAttempt[]
 
-  @@unique([licenseClassId, number])
+  // Unique WITHIN A BUILD, not within a class: a rebuild re-issues preserved numbers, so a DRAFT
+  // #7 must coexist with the PUBLISHED #7 it replaces. The invariant that matters — one PUBLISHED
+  // #7 per class — is a PARTIAL unique index in the migration SQL, which Prisma cannot express.
+  // (Corrected 2026-09-03; the original constraint made rebuilds impossible. See DECISIONS.md.)
+  @@unique([buildId, number])
   // The grid: published sets of one class, in order
   @@index([licenseClassId, status, number])
 }

@@ -285,3 +285,26 @@ or an architecture decision is made that isn't captured in a spec — it gets an
 - **Impact:** no engine change — `PrismaVariantSource` already serves active variants and assembly
   already treats variants of one master as one concept. More active variants simply widen the pool.
 - **Approved by:** developer
+
+## 2026-09-03 · spec-16 · Task set numbers are unique per BUILD, not per licence class
+
+- **Decision:** `TaskSet` carries `@@unique([buildId, number])` instead of the
+  `@@unique([licenseClassId, number])` written into spec-16 and its plan. The invariant that
+  actually matters — at most one PUBLISHED set may carry a given number within a licence class —
+  is enforced by a **partial unique index** created in the migration SQL
+  (`TaskSet_published_number_key ... WHERE status = 'PUBLISHED'`), because Prisma cannot express
+  a partial index.
+- **Why:** the original constraint made spec-16's own rebuild rule unimplementable, and the
+  integration test caught it on the second build. A rebuild deliberately re-issues the numbers of
+  the slices it preserves — that is the entire point, so a student's passed #7 does not silently
+  become different material — which means a DRAFT #7 must coexist with the PUBLISHED #7 it will
+  replace, and with every ARCHIVED #7 before them. The old constraint rejected the second build
+  outright, so task sets could never have been rebuilt even once.
+- **Impact:** migration `20260903104500_fix_task_set_number_uniqueness`, hand-written per the
+  2026-08-26 rule (Prisma's own diff again proposed dropping both pgvector HNSW indexes and both
+  generated-column defaults; those statements were omitted). `specs/spec-16-task-sets.md` and
+  `specs/plans/spec-16-plan.md` updated to match. **The partial index joins the HNSW indexes and
+  generated columns on the list of objects Prisma re-proposes dropping on every future migration**
+  — check for it in every hand-edit from now on.
+- **Approved by:** developer (correction within the approved design intent; unique numbering is
+  preserved, only the mechanism changed)
