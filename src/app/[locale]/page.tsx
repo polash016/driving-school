@@ -3,17 +3,17 @@ import { CategoryProgress } from "@/components/quiz/category-progress";
 import { RecentTests } from "@/components/quiz/recent-tests";
 import { ResumeCard } from "@/components/quiz/resume-card";
 import { StartTiles } from "@/components/quiz/start-tiles";
+import { TaskSetHero } from "@/components/task-sets/task-set-hero";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
-import { pickBilingualText } from "@/lib/i18n-content";
 import { getSessionUser } from "@/server/auth";
 import { db } from "@/server/db";
-import { examReadiness } from "@/server/services/assessment/exam-readiness";
 import {
   categoryPerformance,
   getResumableAttempt,
   listAttemptHistory,
 } from "@/server/services/assessment/history";
+import { taskSetService } from "@/server/services/task-sets";
 import { schoolConfig, type AppLocale } from "../../../config/school.config";
 
 /**
@@ -59,34 +59,35 @@ export default async function HomePage({
     );
   }
 
-  // How much material is actually ready to serve — an empty pool must say so, not fail on tap.
-  // Counted per type, because the three tiles draw from three different pools: a school with a
-  // full theory bank and no sign registry must get a working Theory tile and an honestly disabled
-  // Sign tile, not three tiles of which two fail on tap.
+  // What the panel needs, in one round of parallel reads (mandate 2).
+  //
+  // Only the SIGN pool is counted now: Practice opens the setup screen rather than starting a
+  // paper, and a task set's readiness is the published-set count, not a bank total. A school with
+  // no sign registry must still get a working Practice tile and an honestly disabled Sign test —
+  // so the tile is gated on its own pool, not on the bank as a whole.
   // Served by MasterItem_topicId_status_type_idx.
-  const [byType, examReady, topics, history, resumable, categories] =
+  const [signCount, licenseClass, board, history, resumable, categories] =
     await Promise.all([
-      db.masterItem.groupBy({
-        by: ["type"],
+      db.masterItem.count({
         where: {
+          type: "SIGN",
           status: "APPROVED",
           deletedAt: null,
           variants: { some: { isActive: true } },
         },
-        _count: { _all: true },
       }),
-      // Whether an exam can actually be assembled — a total is not the same as a full blueprint.
-      examReadiness(db, schoolConfig.licenseClassSeeds[0].code),
-      db.topic.findMany({
-        where: { parentId: null, isActive: true, deletedAt: null },
-        select: { id: true, slug: true, name: true },
-        orderBy: { sortOrder: "asc" },
+      db.licenseClass.findFirst({
+        where: { code: schoolConfig.licenseClassSeeds[0].code },
+        select: { questionCount: true, timeLimitMin: true },
       }),
-      listAttemptHistory(db, user, user.id, { page: 1, pageSize: 3 }),
+      taskSetService.studentBoard(user.id),
+      // Ten, all types — the reference lists a page of them, and three was too few to read as a
+      // record of anything (spec-09 amendment 2026-09-03).
+      listAttemptHistory(db, user, user.id, { page: 1, pageSize: 10 }),
       // A test left half-finished is offered back before anything new is started.
       getResumableAttempt(db, user, user.id),
-      // Category standing, from tests only — practice does not tell you how you perform under test
-      // conditions, which is the question this panel answers.
+      // Category standing, from tests only — practice does not tell you how you perform under
+      // test conditions, which is the question this panel answers.
       categoryPerformance(db, user, user.id, locale as AppLocale),
     ]);
 
@@ -103,20 +104,16 @@ export default async function HomePage({
 
       {resumable ? <ResumeCard attempt={resumable} /> : null}
 
+      <TaskSetHero
+        board={board}
+        paperSize={licenseClass?.questionCount ?? 45}
+        timeLimitSec={(licenseClass?.timeLimitMin ?? 90) * 60}
+      />
+
       <StartTiles
         locale={locale as AppLocale}
-        counts={{
-          TEXT: byType.find((row) => row.type === "TEXT")?._count._all ?? 0,
-          IMAGE: byType.find((row) => row.type === "IMAGE")?._count._all ?? 0,
-          SIGN: byType.find((row) => row.type === "SIGN")?._count._all ?? 0,
-        }}
+        signCount={signCount}
         signTestEnabled={schoolConfig.featureFlags.signTest}
-        examReady={examReady.ready}
-        examShortfall={examReady.shortfall.length}
-        topics={topics.map((topic) => ({
-          slug: topic.slug,
-          label: pickBilingualText(topic.name, locale as AppLocale),
-        }))}
       />
 
       <CategoryProgress categories={categories} />

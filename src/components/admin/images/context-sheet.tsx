@@ -47,32 +47,50 @@ export function ContextSheetPanel({
     ActionResult<{ settled: boolean; unresolved: string[] }> | undefined,
     FormData
   >(extractContextSheetAction, undefined);
-  const [confirmState, confirm] = useActionState<ActionResult | undefined, FormData>(
-    confirmContextSheetAction,
-    undefined,
-  );
+  const [confirmState, confirm] = useActionState<
+    ActionResult | undefined,
+    FormData
+  >(confirmContextSheetAction, undefined);
   const [genState, generate] = useActionState<
-    ActionResult<{ batchId: string; accepted: number; answerDisputed: number; factsVerified: boolean }> | undefined,
+    | ActionResult<{
+        batchId: string;
+        accepted: number;
+        answerDisputed: number;
+        factsVerified: boolean;
+      }>
+    | undefined,
     FormData
   >(generateFromImageAction, undefined);
 
-  const nameFor = (code: string) => signOptions.find((s) => s.code === code)?.name ?? code;
+  const nameFor = (code: string) =>
+    signOptions.find((s) => s.code === code)?.name ?? code;
 
   function removeSign(code: string) {
     setDraft((current) =>
-      current ? { ...current, signs: current.signs.filter((s) => s.signCode !== code) } : current,
+      current
+        ? {
+            ...current,
+            signs: current.signs.filter((s) => s.signCode !== code),
+          }
+        : current,
     );
   }
 
   function addSign(code: string) {
     setDraft((current) => {
-      if (!current || !code || current.signs.some((s) => s.signCode === code)) return current;
+      if (!current || !code || current.signs.some((s) => s.signCode === code))
+        return current;
       // Added by a person, so it carries full confidence — that number is display-only anyway.
-      return { ...current, signs: [...current.signs, { signCode: code, confidence: 1 }] };
+      return {
+        ...current,
+        signs: [...current.signs, { signCode: code, confidence: 1 }],
+      };
     });
   }
 
-  const error = [extractState, confirmState, genState].find((s) => s?.ok === false);
+  const error = [extractState, confirmState, genState].find(
+    (s) => s?.ok === false,
+  );
 
   return (
     <Card>
@@ -80,14 +98,21 @@ export function ContextSheetPanel({
         <CardTitle className="text-base">{t("contextSheet")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {error?.ok === false ? <FormAlert>{tErrors(error.messageKey)}</FormAlert> : null}
+        {error?.ok === false ? (
+          <FormAlert>{tErrors(error.messageKey)}</FormAlert>
+        ) : null}
 
         {!draft ? (
           <>
-            <p className="text-sm/relaxed text-muted-foreground">{t("noSheet")}</p>
+            <p className="text-sm/relaxed text-muted-foreground">
+              {t("noSheet")}
+            </p>
             <form action={extract}>
               <input type="hidden" name="imageAssetId" value={imageAssetId} />
-              <SubmitButton label={t("extract")} pendingLabel={t("extracting")} />
+              <SubmitButton
+                label={t("extract")}
+                pendingLabel={t("extracting")}
+              />
             </form>
           </>
         ) : (
@@ -95,7 +120,11 @@ export function ContextSheetPanel({
             {/* The picture with what was found on it — a reviewer checks a sign by looking at it. */}
             <div className="relative overflow-hidden rounded-[var(--radius-base)] bg-muted">
               {/* eslint-disable-next-line @next/next/no-img-element -- authenticated app route */}
-              <img src={imageUrl} alt="" className="max-h-96 w-full object-contain" />
+              <img
+                src={imageUrl}
+                alt=""
+                className="max-h-96 w-full object-contain"
+              />
               {draft.signs
                 .filter((sign) => sign.bbox)
                 .map((sign) => (
@@ -113,9 +142,13 @@ export function ContextSheetPanel({
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-medium text-foreground">{t("signsFound")}</p>
+              <p className="text-sm font-medium text-foreground">
+                {t("signsFound")}
+              </p>
               {draft.signs.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{t("noSignsFound")}</p>
+                <p className="text-sm text-muted-foreground">
+                  {t("noSignsFound")}
+                </p>
               ) : (
                 <ul className="flex flex-wrap gap-2">
                   {draft.signs.map((sign) => (
@@ -126,7 +159,9 @@ export function ContextSheetPanel({
                         className="inline-flex min-h-11 items-center gap-2 rounded-full bg-muted px-3 text-sm hover:bg-destructive/10"
                       >
                         <span>{nameFor(sign.signCode)}</span>
-                        <span aria-hidden className="text-muted-foreground">×</span>
+                        <span aria-hidden className="text-muted-foreground">
+                          ×
+                        </span>
                         <span className="sr-only">{t("removeSign")}</span>
                       </button>
                     </li>
@@ -153,7 +188,9 @@ export function ContextSheetPanel({
               <textarea
                 value={draft.situationSummary}
                 onChange={(event) =>
-                  setDraft((c) => (c ? { ...c, situationSummary: event.target.value } : c))
+                  setDraft((c) =>
+                    c ? { ...c, situationSummary: event.target.value } : c,
+                  )
                 }
                 rows={3}
                 className="w-full rounded-[var(--radius-control)] border border-input bg-transparent px-3 py-2 text-sm"
@@ -162,7 +199,9 @@ export function ContextSheetPanel({
 
             {extractState?.ok && extractState.data.unresolved.length > 0 ? (
               <div className="space-y-1 rounded-[var(--radius-control)] bg-amber-500/10 px-3 py-2 text-sm">
-                <p className="font-medium text-foreground">{t("needsAttention")}</p>
+                <p className="font-medium text-foreground">
+                  {t("needsAttention")}
+                </p>
                 <ul className="list-inside list-disc text-muted-foreground">
                   {extractState.data.unresolved.map((line) => (
                     <li key={line}>{line}</li>
@@ -180,7 +219,11 @@ export function ContextSheetPanel({
             <div className="flex flex-wrap gap-2">
               <form action={confirm}>
                 <input type="hidden" name="imageAssetId" value={imageAssetId} />
-                <input type="hidden" name="sheet" value={JSON.stringify(draft)} />
+                <input
+                  type="hidden"
+                  name="sheet"
+                  value={JSON.stringify(draft)}
+                />
                 <SubmitButton label={t("confirmSheet")} />
               </form>
               <form action={generate} className="flex items-end gap-2">
@@ -204,17 +247,24 @@ export function ContextSheetPanel({
               </form>
             </div>
             {!verified ? (
-              <p className="text-xs text-muted-foreground">{t("generateUnconfirmedHint")}</p>
+              <p className="text-xs text-muted-foreground">
+                {t("generateUnconfirmedHint")}
+              </p>
             ) : null}
 
             {genState?.ok ? (
-              <div className="space-y-1 rounded-[var(--radius-control)] bg-muted px-3 py-2 text-sm" role="status">
+              <div
+                className="space-y-1 rounded-[var(--radius-control)] bg-muted px-3 py-2 text-sm"
+                role="status"
+              >
                 <p className="font-medium text-foreground">
                   {t("generated", { count: genState.data.accepted })}
                 </p>
                 {genState.data.answerDisputed > 0 ? (
                   <p className="text-muted-foreground">
-                    {t("answerDisputed", { count: genState.data.answerDisputed })}
+                    {t("answerDisputed", {
+                      count: genState.data.answerDisputed,
+                    })}
                   </p>
                 ) : null}
                 <Button asChild variant="ghost" size="sm">

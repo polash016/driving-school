@@ -23,7 +23,13 @@ import {
  * disputed mark is answerable only while its record exists.
  */
 
-export const attemptKindSchema = z.enum(["TEST", "PRACTICE", "TOPIC", "SIGN"]);
+export const attemptKindSchema = z.enum([
+  "TASK_SET",
+  "TEST",
+  "PRACTICE",
+  "TOPIC",
+  "SIGN",
+]);
 export type AttemptKind = z.infer<typeof attemptKindSchema>;
 
 export const attemptSummarySchema = z
@@ -269,11 +275,19 @@ export async function getAttemptSummary(
  * started.
  */
 const TEST_ONLY: Prisma.ExamAttemptWhereInput = {
-  OR: [{ mode: "EXAM" }, { setupSnapshot: { not: Prisma.DbNull } }],
+  OR: [
+    { mode: "EXAM" },
+    // A task set IS the mock exam, so it counts towards category standing (spec-16).
+    { mode: "TASK_SET" },
+    { setupSnapshot: { not: Prisma.DbNull } },
+  ],
 };
 
 /** How an attempt is named to the student. A configured test is a test, whatever its mode. */
 function kindOf(mode: string, setupSnapshot: unknown): AttemptKind {
+  // Checked before the setupSnapshot branch: a task set carries no setup, but it is a task set
+  // first and a test second — the student knows it by its number, not by its shape (spec-16).
+  if (mode === "TASK_SET") return "TASK_SET";
   if (mode === "EXAM" || setupSnapshot !== null) return "TEST";
   if (mode === "SIGN") return "SIGN";
   if (mode === "TOPIC") return "TOPIC";

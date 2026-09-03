@@ -37,12 +37,9 @@
     "shellNote": "Your training dashboard is on its way. Your driving school will let you know when it opens.",
     "signedOutNote": "Your driving school will send you an invitation to get started.",
     "logIn": "Log in",
-    "mockExam": "Test",
-    "mockExamLocked": "Test not ready yet",
-    "topicPractice": "Practise one topic",
     "start": "Start",
     "starting": "Starting…",
-    "recentTests": "Recent tests",
+    "recentTests": "My previous tests",
     "inProgressTitle": "Pick up where you left off",
     "inProgressProgress": "{answered} of {total} questions answered",
     "timeLeft": "{minutes} min left",
@@ -51,19 +48,18 @@
     "resume": "Resume",
     "noQuestionsTitle": "No questions are ready yet",
     "noQuestionsBody": "Your driving school is still preparing the question bank. This page will open as soon as the first questions are approved.",
-    "mockExamLockedHint": "A test mirrors the official theory test topic by topic. {topics} topic(s) still need more approved questions.",
     "categoryTitle": "How you are doing by category",
     "categorySubtitle": "From the tests you have sat — practice is not counted.",
     "categoryEmpty": "Not tested yet",
     "categoryScore": "{correct} of {answered} correct",
     "categoryNothingYet": "Sit a test and your categories will show up here.",
-    "theoryTest": "Theory test",
-    "theoryTestEmpty": "Theory test not ready",
-    "imageQuiz": "Image quiz",
-    "imageQuizEmpty": "Image quiz not ready",
     "signTest": "Sign test",
     "signTestEmpty": "Sign test not ready",
-    "tileEmptyHint": "No approved questions of this kind yet. Your school adds them in the admin panel."
+    "tileEmptyHint": "No approved questions of this kind yet. Your school adds them in the admin panel.",
+    "practice": "Practice",
+    "practiceSub": "Your rules",
+    "signTestSub": "{count} signs",
+    "previousTests": "My previous tests"
   },
   "errors": {
     "validation": "Some of the information you entered is not valid. Please check and try again.",
@@ -787,7 +783,8 @@
       "TEST": "Test",
       "PRACTICE": "Mock exam",
       "TOPIC": "Topic practice",
-      "SIGN": "Sign test"
+      "SIGN": "Sign test",
+      "TASK_SET": "Task set"
     }
   },
   "quiz": {

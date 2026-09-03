@@ -35,7 +35,7 @@ export function AccountSheet({ children }: { children: ReactNode }) {
         aria-expanded={open}
         onClick={() => setOpen(true)}
       >
-        <ListIcon size={22} weight="bold" aria-hidden />
+        <ListIcon weight="bold" className="size-[1.375rem]" aria-hidden />
       </Button>
 
       <SheetContent side="bottom" className="mx-auto gap-0 sm:max-w-md">

@@ -37,12 +37,9 @@
     "shellNote": "Treningsdashbordet ditt er på vei. Trafikkskolen din gir deg beskjed når det åpner.",
     "signedOutNote": "Trafikkskolen din sender deg en invitasjon for å komme i gang.",
     "logIn": "Logg inn",
-    "mockExam": "Prøve",
-    "mockExamLocked": "Prøven er ikke klar ennå",
-    "topicPractice": "Øv på ett tema",
     "start": "Start",
     "starting": "Starter …",
-    "recentTests": "Siste prøver",
+    "recentTests": "Mine tidligere prøver",
     "inProgressTitle": "Fortsett der du slapp",
     "inProgressProgress": "{answered} av {total} spørsmål besvart",
     "timeLeft": "{minutes} min igjen",
@@ -51,19 +48,18 @@
     "resume": "Fortsett",
     "noQuestionsTitle": "Ingen spørsmål er klare ennå",
     "noQuestionsBody": "Trafikkskolen din holder på å bygge spørsmålsbanken. Denne siden åpner så snart de første spørsmålene er godkjent.",
-    "mockExamLockedHint": "En prøve speiler den offisielle teoriprøven tema for tema. {topics} tema mangler fortsatt godkjente spørsmål.",
     "categoryTitle": "Slik ligger du an per kategori",
     "categorySubtitle": "Fra prøvene du har tatt — øving teller ikke med.",
     "categoryEmpty": "Ikke prøvd ennå",
     "categoryScore": "{correct} av {answered} riktig",
     "categoryNothingYet": "Ta en prøve, så dukker kategoriene dine opp her.",
-    "theoryTest": "Teoriprøve",
-    "theoryTestEmpty": "Teoriprøven er ikke klar",
-    "imageQuiz": "Bildeoppgaver",
-    "imageQuizEmpty": "Bildeoppgaver er ikke klare",
-    "signTest": "Skiltprøve",
-    "signTestEmpty": "Skiltprøven er ikke klar",
-    "tileEmptyHint": "Ingen godkjente spørsmål av denne typen ennå. Skolen din legger dem inn i administrasjonspanelet."
+    "signTest": "Skiltest",
+    "signTestEmpty": "Skiltest ikke klar",
+    "tileEmptyHint": "Ingen godkjente spørsmål av denne typen ennå. Skolen din legger dem inn i administrasjonspanelet.",
+    "practice": "Øving",
+    "practiceSub": "Dine regler",
+    "signTestSub": "{count} skilt",
+    "previousTests": "Mine tidligere prøver"
   },
   "errors": {
     "validation": "Noe av informasjonen du oppga er ikke gyldig. Sjekk og prøv igjen.",
@@ -787,7 +783,8 @@
       "TEST": "Prøve",
       "PRACTICE": "Prøveeksamen",
       "TOPIC": "Emneøving",
-      "SIGN": "Skiltprøve"
+      "SIGN": "Skiltprøve",
+      "TASK_SET": "Oppgavesett"
     }
   },
   "quiz": {

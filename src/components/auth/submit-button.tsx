@@ -16,6 +16,7 @@ export function SubmitButton({
   value,
   disabled = false,
   icon,
+  sublabel,
 }: {
   label: string;
   pendingLabel?: string;
@@ -28,6 +29,8 @@ export function SubmitButton({
   disabled?: boolean;
   /** Decorative glyph shown above the label. Hidden from assistive tech by the caller. */
   icon?: React.ReactNode;
+  /** Secondary line under the label — a tile's "287 signs", not a second action. */
+  sublabel?: string;
 }) {
   const { pending } = useFormStatus();
 
@@ -43,7 +46,14 @@ export function SubmitButton({
       value={value}
     >
       {icon}
-      {pending ? (pendingLabel ?? label) : label}
+      <span className="text-sm font-semibold">
+        {pending ? (pendingLabel ?? label) : label}
+      </span>
+      {sublabel && !pending ? (
+        <span className="text-xs font-normal text-muted-foreground">
+          {sublabel}
+        </span>
+      ) : null}
     </Button>
   );
 }

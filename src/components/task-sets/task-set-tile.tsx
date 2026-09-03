@@ -56,7 +56,7 @@ export function TaskSetTile({
           aria-hidden
           className="absolute top-1.5 right-1.5 grid size-[1.15rem] place-items-center rounded-full bg-[var(--status-success)] text-[var(--status-success-fg)]"
         >
-          <CheckIcon size={12} weight="bold" />
+          <CheckIcon weight="bold" className="size-3" />
         </span>
       ) : null}
 
