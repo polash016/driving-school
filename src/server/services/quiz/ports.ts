@@ -16,6 +16,16 @@ export interface VariantSource {
     topicSlugs: string[];
     type?: ItemType;
     licenseClassId?: string | null;
+    /**
+     * Restrict candidates to ONE task set's slice (spec-16).
+     *
+     * This is the entire engine change task sets need: a set IS a slice, and a sitting is the
+     * ordinary assembly path run against that slice. `assembly.ts` never learns task sets exist,
+     * so every guarantee it already makes — one master item per paper, conceptGroup
+     * de-duplication, difficulty spread, seen-window exclusion, seeded option order — carries
+     * over to a 45-of-68 draw for free.
+     */
+    taskSetId?: string;
   }): Promise<Record<string, VariantCandidate[]>>;
 }
 

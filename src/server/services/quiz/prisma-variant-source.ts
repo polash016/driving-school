@@ -18,6 +18,7 @@ export class PrismaVariantSource implements VariantSource {
     topicSlugs: string[];
     type?: ItemType;
     licenseClassId?: string | null;
+    taskSetId?: string;
   }): Promise<Record<string, VariantCandidate[]>> {
     const topics = await this.db.topic.findMany({
       where: { deletedAt: null },
@@ -62,6 +63,11 @@ export class PrismaVariantSource implements VariantSource {
                 { licenseClassId: params.licenseClassId },
               ],
             }
+          : {}),
+        // One extra predicate is the entire cost of task sets on the hot path (spec-16).
+        // Served by TaskSetMember_taskSetId_idx.
+        ...(params.taskSetId
+          ? { taskSetMember: { taskSetId: params.taskSetId } }
           : {}),
       },
       select: {
