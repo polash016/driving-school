@@ -19,7 +19,8 @@
     "ai": "AI providers",
     "languages": "Languages",
     "images": "Images",
-    "signs": "Signs"
+    "signs": "Signs",
+    "taskSets": "Task sets"
   },
   "language": {
     "label": "Language",
@@ -703,6 +704,33 @@
       "search": "Search signs",
       "count": "{shown} of {total} signs",
       "sourceNote": "Source"
+    },
+    "taskSets": {
+      "title": "Task sets",
+      "subtitle": "Partition the approved question bank into numbered sets. Nothing reaches a student until you publish it.",
+      "rebuildTitle": "Rebuild sets",
+      "rebuildBody": "Re-partitions every approved question with a live variant. A set whose questions have not changed keeps its number, so a student's passed set stays the set they passed.",
+      "rebuild": "Rebuild sets",
+      "rebuilding": "Rebuilding…",
+      "buildTitle": "{count} sets proposed",
+      "publish": "Publish {count} sets",
+      "publishing": "Publishing…",
+      "published": "Published",
+      "emptyTitle": "No builds yet",
+      "emptyBody": "Rebuild the sets to propose a first partition of the question bank.",
+      "colSet": "Set",
+      "colPool": "Pool",
+      "colPaper": "Paper",
+      "colTopics": "Topics",
+      "colVisual": "With picture",
+      "colDifficulty": "Avg. difficulty",
+      "colNotes": "Notes",
+      "paperCell": "{paper} · pass {mark}",
+      "balanced": "Balanced",
+      "warning": {
+        "NO_VISUAL_QUESTIONS": "No image or sign questions",
+        "SINGLE_TOPIC": "Draws from a single topic"
+      }
     }
   },
   "emails": {
@@ -798,5 +826,33 @@
       }
     },
     "imageAlt": "Picture for this question"
+  },
+  "taskSets": {
+    "title": "Task sets",
+    "heroTitle": "Task sets",
+    "heroSubtitle": "Full mock exams · {count} questions · {minutes} min",
+    "subtitle": "Each set is a full mock exam drawn fresh from its own pool of questions.",
+    "progress": "{passed} of {total} passed",
+    "nextUp": "Next up: #{number}",
+    "setNumber": "Task set #{number}",
+    "meta": "{count} questions · {minutes} min · pass at {mark}",
+    "best": "Best",
+    "attempts": "Attempts",
+    "inPool": "In pool",
+    "start": "Start",
+    "tryAgain": "Try again",
+    "resume": "Resume",
+    "passed": "Passed",
+    "failed": "Not passed",
+    "inProgress": "In progress",
+    "notStarted": "Not started",
+    "yourAttempts": "Your attempts",
+    "noAttempts": "You have not sat this set yet.",
+    "scoreOf": "{correct}/{total}",
+    "emptyTitle": "No task sets yet",
+    "emptyBody": "Your driving school is still preparing them. This page opens as soon as the first sets are published.",
+    "poolNote": "Each sitting draws {paper} questions from {pool}, so no two attempts are the same.",
+    "openSet": "Open task set #{number}",
+    "close": "Close"
   }
 }

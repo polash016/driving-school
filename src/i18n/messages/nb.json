@@ -19,7 +19,8 @@
     "ai": "KI-leverandører",
     "languages": "Språk",
     "images": "Bilder",
-    "signs": "Skilt"
+    "signs": "Skilt",
+    "taskSets": "Oppgavesett"
   },
   "language": {
     "label": "Språk",
@@ -703,6 +704,33 @@
       "search": "Søk i skilt",
       "count": "{shown} av {total} skilt",
       "sourceNote": "Kilde"
+    },
+    "taskSets": {
+      "title": "Oppgavesett",
+      "subtitle": "Del den godkjente spørsmålsbanken inn i nummererte sett. Ingenting når en elev før du publiserer det.",
+      "rebuildTitle": "Bygg settene på nytt",
+      "rebuildBody": "Fordeler alle godkjente spørsmål med en aktiv variant på nytt. Et sett med uendrede spørsmål beholder nummeret sitt, slik at et bestått sett forblir det settet eleven besto.",
+      "rebuild": "Bygg på nytt",
+      "rebuilding": "Bygger…",
+      "buildTitle": "{count} sett foreslått",
+      "publish": "Publiser {count} sett",
+      "publishing": "Publiserer…",
+      "published": "Publisert",
+      "emptyTitle": "Ingen bygg ennå",
+      "emptyBody": "Bygg settene for å foreslå en første inndeling av spørsmålsbanken.",
+      "colSet": "Sett",
+      "colPool": "Utvalg",
+      "colPaper": "Prøve",
+      "colTopics": "Emner",
+      "colVisual": "Med bilde",
+      "colDifficulty": "Gj.sn. vanskegrad",
+      "colNotes": "Merknader",
+      "paperCell": "{paper} · bestått {mark}",
+      "balanced": "Balansert",
+      "warning": {
+        "NO_VISUAL_QUESTIONS": "Ingen bilde- eller skiltspørsmål",
+        "SINGLE_TOPIC": "Trekker fra kun ett emne"
+      }
     }
   },
   "emails": {
@@ -798,5 +826,33 @@
       }
     },
     "imageAlt": "Bilde til dette spørsmålet"
+  },
+  "taskSets": {
+    "title": "Oppgavesett",
+    "heroTitle": "Oppgavesett",
+    "heroSubtitle": "Fullstendige prøveeksamener · {count} spørsmål · {minutes} min",
+    "subtitle": "Hvert sett er en fullstendig prøveeksamen, trukket på nytt fra sitt eget utvalg spørsmål.",
+    "progress": "{passed} av {total} bestått",
+    "nextUp": "Neste: #{number}",
+    "setNumber": "Oppgavesett #{number}",
+    "meta": "{count} spørsmål · {minutes} min · bestått ved {mark}",
+    "best": "Beste",
+    "attempts": "Forsøk",
+    "inPool": "I utvalget",
+    "start": "Start",
+    "tryAgain": "Prøv igjen",
+    "resume": "Fortsett",
+    "passed": "Bestått",
+    "failed": "Ikke bestått",
+    "inProgress": "Pågår",
+    "notStarted": "Ikke påbegynt",
+    "yourAttempts": "Dine forsøk",
+    "noAttempts": "Du har ikke tatt dette settet ennå.",
+    "scoreOf": "{correct}/{total}",
+    "emptyTitle": "Ingen oppgavesett ennå",
+    "emptyBody": "Trafikkskolen din forbereder dem fortsatt. Denne siden åpnes så snart de første settene er publisert.",
+    "poolNote": "Hvert forsøk trekker {paper} spørsmål fra {pool}, så ingen to forsøk er like.",
+    "openSet": "Åpne oppgavesett #{number}",
+    "close": "Lukk"
   }
 }

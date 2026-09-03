@@ -23,6 +23,7 @@ export default async function AdminLayout({
     { href: "/admin/questions/accuracy", label: t("accuracy") },
     ...(user.role === "ADMIN"
       ? [
+          { href: "/admin/task-sets" as const, label: t("taskSets") },
           { href: "/admin/ai" as const, label: t("ai") },
           { href: "/admin/languages" as const, label: t("languages") },
           { href: "/admin/security" as const, label: t("security") },

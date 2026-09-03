@@ -55,6 +55,8 @@ export const AUDIT = {
   imagesUploaded: "image.uploaded",
   imageDeleted: "image.deleted",
   signUpdated: "sign.updated",
+  taskSetsBuilt: "taskset.built",
+  taskSetsPublished: "taskset.published",
 } as const;
 
 export type AuditAction = (typeof AUDIT)[keyof typeof AUDIT];
