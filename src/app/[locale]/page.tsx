@@ -104,10 +104,19 @@ export default async function HomePage({
 
       {resumable ? <ResumeCard attempt={resumable} /> : null}
 
+      {/* Falls back to the CONFIG seed, never to a literal: mandate 4 forbids "45" and "38"
+          appearing in code, and a school with a different class must not see class B's numbers
+          because a row was missing. */}
       <TaskSetHero
         board={board}
-        paperSize={licenseClass?.questionCount ?? 45}
-        timeLimitSec={(licenseClass?.timeLimitMin ?? 90) * 60}
+        paperSize={
+          licenseClass?.questionCount ??
+          schoolConfig.licenseClassSeeds[0].questionCount
+        }
+        timeLimitSec={
+          (licenseClass?.timeLimitMin ??
+            schoolConfig.licenseClassSeeds[0].timeLimitMin) * 60
+        }
       />
 
       <StartTiles
