@@ -968,6 +968,60 @@ d("task sets (integration)", () => {
     }
   });
 
+  /**
+   * The product rule, proved end to end rather than only in the pure reducer: a green tile is not
+   * taken away by a failed retry. Anything else punishes a student for practising.
+   */
+  it("keeps a set passed after a failed retry, and keeps the best score", async () => {
+    async function sit(userId: string, correctCount: number): Promise<void> {
+      const attempt = await service.startQuiz(userId, {
+        mode: "TASK_SET",
+        taskSetId: "ts-1",
+        locale: "en",
+      });
+      for (const q of attempt.questions) {
+        await service.answer(userId, {
+          attemptId: attempt.id,
+          position: q.position,
+          optionKey:
+            q.position <= correctCount
+              ? "a"
+              : q.options.find((o) => o.key !== "a")!.key,
+          locale: "en",
+        });
+      }
+      await service.submit(userId, { attemptId: attempt.id, locale: "en" });
+    }
+
+    // Pass first (5 of 6, mark is 4), then fail a retry (1 of 6).
+    await sit("u20", 5);
+    const afterPass = await db.taskSetProgress.findUniqueOrThrow({
+      where: { userId_taskSetId: { userId: "u20", taskSetId: "ts-1" } },
+    });
+    expect(afterPass.attempts).toBe(1);
+    expect(afterPass.bestCorrect).toBe(5);
+    expect(afterPass.passedAt).not.toBeNull();
+
+    await sit("u20", 1);
+    const afterRetry = await db.taskSetProgress.findUniqueOrThrow({
+      where: { userId_taskSetId: { userId: "u20", taskSetId: "ts-1" } },
+    });
+    expect(afterRetry.attempts).toBe(2);
+    // Still passed, still showing the better score.
+    expect(afterRetry.passedAt).toEqual(afterPass.passedAt);
+    expect(afterRetry.bestCorrect).toBe(5);
+  });
+
+  it("writes no progress row for an attempt that is not a task set", async () => {
+    const attempt = await service.startQuiz("u21", {
+      mode: "PRACTICE",
+      questionCount: 3,
+      locale: "en",
+    });
+    await service.submit("u21", { attemptId: attempt.id, locale: "en" });
+    expect(await db.taskSetProgress.count({ where: { userId: "u21" } })).toBe(0);
+  });
+
   it("rejects TASK_SET without a taskSetId rather than serving the whole bank", async () => {
     await expect(
       service.startQuiz("u14", { mode: "TASK_SET", locale: "en" }),

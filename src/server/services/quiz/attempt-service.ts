@@ -30,6 +30,7 @@ import {
   type PracticeAnswerResult,
 } from "@/server/contracts/quiz";
 import { attestAttempt } from "@/server/services/assessment/attestation";
+import { recordTaskSetRun } from "@/server/services/task-sets/progress";
 import { loadOverlay } from "@/server/services/i18n/resolve";
 import { assembleQuiz } from "./assembly";
 import { gradeAttempt, type GradableQuestion } from "./grading";
@@ -623,6 +624,23 @@ export function createAttemptService(deps: AttemptServiceDeps) {
             grade.topicBreakdown as unknown as Prisma.InputJsonValue,
         },
       });
+      // Denormalized standing, written in the SAME transaction as the grade (spec-16) — so the
+      // task set grid can never show a result the attempt table disagrees with.
+      if (attempt.taskSetId) {
+        await recordTaskSetRun(tx, {
+          userId: attempt.userId,
+          taskSetId: attempt.taskSetId,
+          run: {
+            correctCount: grade.correctCount,
+            outOf: attempt.questionCountSnapshot,
+            // A task set always carries a pass mark, so `passed` is never null here — but a
+            // null would mean "ungraded", which is not a pass under any reading.
+            passed: grade.passed ?? false,
+            attemptId: attempt.id,
+            at: clock.now(),
+          },
+        });
+      }
       // Attest inside the same transaction (spec-04b): after this the DB refuses to change the
       // result at all, so the digest has to be written while the record is still being closed.
       await attestAttempt(tx, attempt.id);
