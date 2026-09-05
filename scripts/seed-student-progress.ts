@@ -16,7 +16,7 @@ import { db } from "@/server/db";
  * can be shown with something other than a row of identical greens.
  *
  *   pnpm dev:seed-progress elev@example.no
- *   pnpm dev:seed-progress elev@example.no --sets 5 --reset
+ *   pnpm dev:seed-progress elev@example.no --sets 5 --practice 4
  */
 
 /** Target accuracy per ROOT topic slug. Anything unlisted gets DEFAULT_ACCURACY. */
@@ -30,6 +30,25 @@ const ACCURACY: Record<string, number> = {
   "laws-rules": 0.55,
 };
 const DEFAULT_ACCURACY = 0.6;
+
+/**
+ * How much a student improves across the run.
+ *
+ * Without this every attempt scores about the same and the history reads as noise — six sets all
+ * at 38/45 is obviously synthetic. A gentle upward drift makes the early sets fail and the later
+ * ones pass, which is what a dashboard is FOR: it should show a direction, not a constant.
+ */
+const IMPROVEMENT_PER_ATTEMPT = 0.05;
+const MAX_ACCURACY = 0.96;
+/**
+ * How far below their eventual level the student starts.
+ *
+ * Needed because the bank is not evenly weighted: 163 of the 197 sign-and-marking questions sit in
+ * one topic at 0.91 accuracy, which drags every paper above the 38/45 pass mark and makes a student
+ * who has never sat a test pass their first one. Starting them down and letting them climb is both
+ * more believable and the only way the dashboard has an arc to show.
+ */
+const START_HANDICAP = 0.2;
 
 /** Deterministic per (attempt, position) — a reseed reproduces the same dashboard. */
 function hashUnit(seed: string): number {
@@ -67,6 +86,8 @@ async function main(): Promise<void> {
 
   const setsFlag = args.indexOf("--sets");
   const howMany = setsFlag >= 0 ? Number(args[setsFlag + 1]) : 4;
+  const practiceFlag = args.indexOf("--practice");
+  const practiceRuns = practiceFlag >= 0 ? Number(args[practiceFlag + 1]) : 3;
   const reset = args.includes("--reset");
 
   const user = await db.user.findUniqueOrThrow({
@@ -121,7 +142,7 @@ async function main(): Promise<void> {
       "no published task sets — run `pnpm tasksets:build --publish` first",
     );
 
-  for (const set of sets) {
+  for (const [index, set] of sets.entries()) {
     const attempt = await attemptService.startQuiz(user.id, {
       mode: "TASK_SET",
       taskSetId: set.id,
@@ -142,7 +163,11 @@ async function main(): Promise<void> {
 
     for (const row of rows) {
       const slug = rootSlug.get(row.topicId) ?? "";
-      const target = ACCURACY[slug] ?? DEFAULT_ACCURACY;
+      const base = ACCURACY[slug] ?? DEFAULT_ACCURACY;
+      const target = Math.min(
+        MAX_ACCURACY,
+        base - START_HANDICAP + index * IMPROVEMENT_PER_ATTEMPT,
+      );
       const answerCorrectly =
         hashUnit(`${attempt.id}:${row.position}`) < target;
       const options = row.optionOrder as string[];
@@ -169,6 +194,58 @@ async function main(): Promise<void> {
     );
   }
 
+  // Practice runs. These deliberately do NOT feed the category bars — that panel counts tests
+  // only, because practice does not tell you how you perform under test conditions — but they do
+  // populate the history, which is what "this student has been practising" actually looks like.
+  for (let i = 0; i < practiceRuns; i += 1) {
+    try {
+      const run = await attemptService.startQuiz(user.id, {
+        mode: "PRACTICE",
+        questionCount: 10 + (i % 3) * 5,
+        locale: "en",
+      });
+      const rows = await db.examAttemptQuestion.findMany({
+        where: { attemptId: run.id },
+        select: {
+          position: true,
+          topicId: true,
+          optionOrder: true,
+          variant: { select: { correctOptionKey: true } },
+        },
+      });
+      for (const row of rows) {
+        const slug = rootSlug.get(row.topicId) ?? "";
+        const target = Math.min(
+          MAX_ACCURACY,
+          (ACCURACY[slug] ?? DEFAULT_ACCURACY) -
+            START_HANDICAP +
+            i * IMPROVEMENT_PER_ATTEMPT,
+        );
+        const options = row.optionOrder as string[];
+        const wrong = options.find((k) => k !== row.variant.correctOptionKey);
+        const key =
+          hashUnit(`${run.id}:${row.position}`) < target
+            ? row.variant.correctOptionKey
+            : (wrong ?? options[0]);
+        await attemptService.answer(user.id, {
+          attemptId: run.id,
+          position: row.position,
+          optionKey: key,
+          locale: "en",
+        });
+      }
+      const result = await attemptService.submit(user.id, {
+        attemptId: run.id,
+        locale: "en",
+      });
+      console.log(
+        `  practice ${rows.length} q: ${result.correctCount}/${rows.length}`,
+      );
+    } catch {
+      console.log("  practice: skipped (pool too thin)");
+    }
+  }
+
   // One sign test as well, so "My previous tests" is not a single-kind list.
   try {
     const sign = await attemptService.startQuiz(user.id, {
@@ -191,7 +268,9 @@ async function main(): Promise<void> {
     console.log("  sign test: skipped (no sign questions in this database)");
   }
 
-  console.log(`\nseeded ${sets.length} task set attempts for ${user.email}\n`);
+  console.log(
+    `\nseeded ${sets.length} task sets + ${practiceRuns} practice run(s) for ${user.email}\n`,
+  );
 }
 
 main()

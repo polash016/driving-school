@@ -1,4 +1,10 @@
-@import "tailwindcss";
+/*
+ * source("../") scopes Tailwind class detection to src/. Without it Tailwind v4 scans the
+ * whole repo — including specs/ mockup HTML and class names quoted in DECISIONS.md /
+ * specs prose — and emits utilities from that prose (e.g. `text-[var(--status-*)]`), which
+ * produces invalid CSS and fails the build. Keep app markup under src/.
+ */
+@import "tailwindcss" source("../");
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "../../config/theme.css";
