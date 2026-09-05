@@ -20,7 +20,7 @@ export function FormAlert({
         "rounded-[var(--radius-control)] px-3 py-2.5 text-sm/relaxed",
         tone === "error" && "bg-destructive/10 text-destructive",
         tone === "success" &&
-          "bg-[var(--status-success-soft)] text-[var(--status-success)]",
+          "bg-[var(--status-success-soft)] text-[var(--status-success-strong)]",
         tone === "info" && "bg-muted text-muted-foreground",
         className,
       )}

@@ -21,7 +21,10 @@ export class ValidationError extends AppError {
   readonly code = "VALIDATION";
   readonly httpStatus = 400;
   /** `messageKey` overrides the default user-facing message with a more specific one. */
-  constructor(meta?: Record<string, unknown>, messageKey = "errors.validation") {
+  constructor(
+    meta?: Record<string, unknown>,
+    messageKey = "errors.validation",
+  ) {
     super(messageKey, meta);
   }
 }
@@ -30,7 +33,10 @@ export class AuthError extends AppError {
   readonly code = "UNAUTHENTICATED";
   readonly httpStatus = 401;
   /** `messageKey` overrides the default user-facing message with a more specific one. */
-  constructor(meta?: Record<string, unknown>, messageKey = "errors.unauthenticated") {
+  constructor(
+    meta?: Record<string, unknown>,
+    messageKey = "errors.unauthenticated",
+  ) {
     super(messageKey, meta);
   }
 }
@@ -66,7 +72,10 @@ export class RateLimitError extends AppError {
   readonly code = "RATE_LIMITED";
   readonly httpStatus = 429;
   /** `messageKey` overrides the default user-facing message with a more specific one. */
-  constructor(meta?: Record<string, unknown>, messageKey = "errors.rateLimited") {
+  constructor(
+    meta?: Record<string, unknown>,
+    messageKey = "errors.rateLimited",
+  ) {
     super(messageKey, meta);
   }
 }

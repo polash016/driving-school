@@ -59,7 +59,12 @@
     "practice": "Practice",
     "practiceSub": "Your rules",
     "signTestSub": "{count} signs",
-    "previousTests": "My previous tests"
+    "previousTests": "My previous tests",
+    "greeting": "Hei, {name}",
+    "greetingAnon": "Hei there",
+    "greetingProgress": "{passed} of {total} task sets passed",
+    "statPassRate": "Pass rate",
+    "statSetsPassed": "Sets passed"
   },
   "errors": {
     "validation": "Some of the information you entered is not valid. Please check and try again.",

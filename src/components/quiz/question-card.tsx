@@ -94,7 +94,7 @@ export function QuestionCard({
                   "border-primary bg-accent text-accent-foreground",
                 !selected && !reveal && "border-border bg-card hover:bg-muted",
                 isCorrect &&
-                  "border-[var(--status-success)] bg-[var(--status-success-soft)] text-[var(--status-success)]",
+                  "border-[var(--status-success)] bg-[var(--status-success-soft)] text-[var(--status-success-strong)]",
                 isWrongPick &&
                   "border-destructive bg-destructive/10 text-destructive",
                 reveal &&

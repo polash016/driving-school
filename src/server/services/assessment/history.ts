@@ -49,6 +49,13 @@ export const attemptSummarySchema = z
     countsTowardGuarantee: z.boolean(),
     /** How it is named to the student: a configured test is a TEST whatever its engine mode. */
     kind: attemptKindSchema,
+    /**
+     * The set's student-facing number, when this was a task set (spec-16/18).
+     *
+     * Without it every row in the history reads "Task set", which is the one thing a student
+     * cannot use to tell their attempts apart.
+     */
+    taskSetNumber: z.number().int().nullable(),
     durationSec: z.int().min(0).nullable(),
   })
   .strict();
@@ -94,6 +101,7 @@ export async function listAttemptHistory(
         startedAt: true,
         submittedAt: true,
         questionCountSnapshot: true,
+        taskSet: { select: { number: true } },
         correctCount: true,
         passMarkSnapshot: true,
         passed: true,
@@ -122,6 +130,7 @@ export async function listAttemptHistory(
       attested: row.resultHash !== null,
       countsTowardGuarantee: row.countsTowardGuarantee,
       kind: kindOf(row.mode, row.setupSnapshot),
+      taskSetNumber: row.taskSet?.number ?? null,
       durationSec: row.submittedAt
         ? Math.max(
             0,
@@ -233,6 +242,7 @@ export async function getAttemptSummary(
       passed: true,
       resultHash: true,
       countsTowardGuarantee: true,
+      taskSet: { select: { number: true } },
       setupSnapshot: true,
     },
   });
@@ -253,6 +263,7 @@ export async function getAttemptSummary(
     attested: attempt.resultHash !== null,
     countsTowardGuarantee: attempt.countsTowardGuarantee,
     kind: kindOf(attempt.mode, attempt.setupSnapshot),
+    taskSetNumber: attempt.taskSet?.number ?? null,
     durationSec: attempt.submittedAt
       ? Math.max(
           0,
@@ -292,6 +303,37 @@ function kindOf(mode: string, setupSnapshot: unknown): AttemptKind {
   if (mode === "SIGN") return "SIGN";
   if (mode === "TOPIC") return "TOPIC";
   return "PRACTICE";
+}
+
+/**
+ * How often this student passes a test they sit (spec-18 / spec-09's headline stat).
+ *
+ * Counts the same attempts the category panel counts — real tests only, practice excluded — and
+ * returns null rather than 0 when there is nothing graded yet: "0%" reads as a verdict on a student
+ * who has not been assessed.
+ *
+ * Served by ExamAttempt_userId_startedAt_idx.
+ */
+export async function passRate(
+  db: PrismaClient,
+  session: SessionUser,
+  userId: string,
+): Promise<{ percent: number | null; graded: number }> {
+  authorizeOwner(session, userId);
+
+  const rows = await db.examAttempt.groupBy({
+    by: ["passed"],
+    where: { userId, status: { not: "IN_PROGRESS" }, ...TEST_ONLY },
+    _count: { _all: true },
+  });
+
+  const graded = rows
+    .filter((row) => row.passed !== null)
+    .reduce((sum, row) => sum + row._count._all, 0);
+  if (graded === 0) return { percent: null, graded: 0 };
+
+  const passed = rows.find((row) => row.passed === true)?._count._all ?? 0;
+  return { percent: Math.round((passed / graded) * 100), graded };
 }
 
 export const categoryPerformanceSchema = z
@@ -342,7 +384,7 @@ export async function categoryPerformance(
         JOIN "ExamAttempt" a ON a."id" = q."attemptId"
        WHERE a."userId" = ${userId}
          AND a."status" <> 'IN_PROGRESS'
-         AND (a."mode" = 'EXAM' OR a."setupSnapshot" IS NOT NULL)
+         AND (a."mode" IN ('EXAM', 'TASK_SET') OR a."setupSnapshot" IS NOT NULL)
        GROUP BY q."topicId"
     `),
     db.topic.findMany({

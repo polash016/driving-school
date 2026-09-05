@@ -65,13 +65,16 @@ export async function CategoryProgress({
                   <div
                     className={cn(
                       "h-full rounded-full transition-[width] duration-300",
+                      // red → amber → green (spec-09). The middle band was `bg-primary`, which
+                      // put the ACTION colour on a progress bar: blue says "tap me", not "you are
+                      // halfway". A ramp has to read as one scale, and brand blue is not on it.
                       category.percent === null
                         ? "bg-transparent"
-                        : category.percent >= 80
+                        : category.percent >= 70
                           ? "bg-[var(--status-success)]"
-                          : category.percent >= 50
-                            ? "bg-primary"
-                            : "bg-destructive",
+                          : category.percent >= 45
+                            ? "bg-[var(--status-warning)]"
+                            : "bg-[var(--status-danger)]",
                     )}
                     style={{ width: `${category.percent ?? 0}%` }}
                   />

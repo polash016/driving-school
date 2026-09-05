@@ -15,7 +15,9 @@ import { BUILTIN_PREFIXES, prefixForLocale, type Locale } from "@/lib/locale";
 const prefixes: Record<string, string> = { ...BUILTIN_PREFIXES };
 
 /** Called by the language registry after it reads the language list. */
-export function primeLocalePrefixes(next: Readonly<Record<string, string>>): void {
+export function primeLocalePrefixes(
+  next: Readonly<Record<string, string>>,
+): void {
   for (const [code, prefix] of Object.entries(next)) prefixes[code] = prefix;
 }
 
@@ -27,6 +29,10 @@ export function localePath(locale: Locale, path: string): string {
 }
 
 /** Absolute link for emails: absoluteUrl(base, "nb", "/login") → "https://…/no/login". */
-export function absoluteUrl(baseUrl: string, locale: Locale, path: string): string {
+export function absoluteUrl(
+  baseUrl: string,
+  locale: Locale,
+  path: string,
+): string {
   return `${baseUrl.replace(/\/$/, "")}${localePath(locale, path)}`;
 }

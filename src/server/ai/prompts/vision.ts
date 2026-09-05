@@ -70,13 +70,16 @@ export const signDiscriminationPrompt: PromptTemplate<{
       "Decide which listed sign, if any, the cropped region actually shows.",
       "",
       "Return STRICT JSON { code, reason } where:",
-      "  code   — the matching sign's code copied verbatim, or exactly \"NONE\" if the crop shows none of them.",
+      '  code   — the matching sign\'s code copied verbatim, or exactly "NONE" if the crop shows none of them.',
       "  reason — one short sentence naming the visual detail you matched on (shape, colour, symbol, number).",
       "",
       "Answer NONE whenever the crop is too blurred, too small, cut off, or is not a traffic sign at all.",
       "Being wrong here puts a false rule in front of a learner driver, so NONE is the right answer far more often than a guess is.",
       "",
       "CANDIDATES, in the order the images appear:",
-      ...candidates.map((candidate, index) => `  ${index + 1}. ${candidate.code} · ${candidate.name}`),
+      ...candidates.map(
+        (candidate, index) =>
+          `  ${index + 1}. ${candidate.code} · ${candidate.name}`,
+      ),
     ].join("\n"),
 };

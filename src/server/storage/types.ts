@@ -17,9 +17,7 @@ export interface StorageDriver {
    * Stream a stored object. Large images should not be buffered through the app just to be handed
    * to a client; `/api/images/[id]` pipes this straight into the response.
    */
-  stream(
-    key: string,
-  ): Promise<{
+  stream(key: string): Promise<{
     body: ReadableStream<Uint8Array>;
     contentType: string;
     contentLength: number;

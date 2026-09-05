@@ -19,7 +19,10 @@ export const localeSchema = z
   .string()
   .min(2)
   .max(35)
-  .regex(/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/, "must be a BCP-47 language tag, e.g. en, nb, pt-BR");
+  .regex(
+    /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/,
+    "must be a BCP-47 language tag, e.g. en, nb, pt-BR",
+  );
 
 export type Locale = z.infer<typeof localeSchema>;
 

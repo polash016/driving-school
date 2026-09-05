@@ -53,19 +53,25 @@ export function StartTiles({
       ) : null}
 
       <div className="grid grid-cols-2 gap-3">
-        <Card className="p-0">
+        <Card className="glass-lift rounded-[calc(var(--radius-base)+6px)] p-0">
           <CardContent className="p-0">
             <Link
               href="/quiz/new"
-              className="flex min-h-[8.75rem] flex-col items-center justify-center gap-2 rounded-[var(--radius-base)] px-2 py-5 text-center transition-transform duration-150 outline-none active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:active:scale-100"
+              className="flex min-h-[8.75rem] flex-col items-center justify-center gap-2 rounded-[calc(var(--radius-base)+6px)] px-2 py-5 text-center transition-transform duration-150 outline-none active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:active:scale-100"
             >
-              {/* Sized by CLASS, not the `size` prop: Button forces any svg without a `size-`
-                  class down to 16px, and the two tiles must match whichever element wraps them. */}
-              <CarIcon
-                weight="fill"
-                className="size-[3.375rem] text-primary"
-                aria-hidden
-              />
+              {/* Tinted chip from tokens (spec-18) — the glow and the fill are a school's to
+                  re-theme. Sized by CLASS, not the `size` prop: Button forces any svg without a
+                  `size-` class down to 16px, and the two tiles must match whichever element
+                  wraps them. */}
+              <span
+                className="grid size-14 place-items-center rounded-[1.15rem] shadow-[var(--chip-brand-glow),inset_0_1px_0_oklch(1_0_0/0.85)]"
+                style={{
+                  backgroundImage: "var(--chip-brand-bg)",
+                  color: "var(--chip-brand-fg)",
+                }}
+              >
+                <CarIcon weight="fill" className="size-8" aria-hidden />
+              </span>
               <span className="text-sm font-semibold text-foreground">
                 {t("practice")}
               </span>
@@ -77,7 +83,7 @@ export function StartTiles({
         </Card>
 
         {signTestEnabled ? (
-          <Card className="p-0">
+          <Card className="glass-lift rounded-[calc(var(--radius-base)+6px)] p-0">
             <CardContent className="p-0">
               {signAvailable ? (
                 <form action={startAction} className="contents">
@@ -87,18 +93,26 @@ export function StartTiles({
                   <input type="hidden" name="questionCount" value="10" />
                   <SubmitButton
                     variant="ghost"
-                    className="flex h-auto min-h-[8.75rem] w-full flex-col items-center justify-center gap-2 rounded-[var(--radius-base)] px-2 py-5 whitespace-normal"
+                    className="flex h-auto min-h-[8.75rem] w-full flex-col items-center justify-center gap-2 rounded-[calc(var(--radius-base)+6px)] px-2 py-5 whitespace-normal hover:bg-transparent dark:hover:bg-transparent"
                     label={t("signTest")}
                     pendingLabel={t("starting")}
                     icon={
-                      // 4rem against the car's 3.375rem: TrafficSign's diamond has far less
-                      // visual mass than a car silhouette at the same box, so equal numbers look
-                      // unequal. These two values are what make the pair read as a pair.
-                      <TrafficSignIcon
-                        weight="fill"
-                        className="size-16 text-[var(--brand-accent)]"
-                        aria-hidden
-                      />
+                      // The glyph runs larger than the car inside an identical chip: a diamond
+                      // has far less visual mass than a car silhouette at the same box, so equal
+                      // numbers look unequal. This is what makes the pair read as a pair.
+                      <span
+                        className="grid size-14 place-items-center rounded-[1.15rem] shadow-[var(--chip-accent-glow),inset_0_1px_0_oklch(1_0_0/0.85)]"
+                        style={{
+                          backgroundImage: "var(--chip-accent-bg)",
+                          color: "var(--chip-accent-fg)",
+                        }}
+                      >
+                        <TrafficSignIcon
+                          weight="fill"
+                          className="size-9"
+                          aria-hidden
+                        />
+                      </span>
                     }
                     sublabel={t("signTestSub", { count: signCount })}
                   />
@@ -109,13 +123,15 @@ export function StartTiles({
                   variant="ghost"
                   disabled
                   title={t("tileEmptyHint")}
-                  className="flex h-auto min-h-[8.75rem] w-full flex-col items-center justify-center gap-2 rounded-[var(--radius-base)] px-2 py-5 text-sm whitespace-normal"
+                  className="flex h-auto min-h-[8.75rem] w-full flex-col items-center justify-center gap-2 rounded-[calc(var(--radius-base)+6px)] px-2 py-5 text-sm whitespace-normal hover:bg-transparent dark:hover:bg-transparent"
                 >
-                  <TrafficSignIcon
-                    weight="fill"
-                    className="size-16"
-                    aria-hidden
-                  />
+                  <span className="grid size-14 place-items-center rounded-[1.15rem] bg-muted text-muted-foreground">
+                    <TrafficSignIcon
+                      weight="fill"
+                      className="size-9"
+                      aria-hidden
+                    />
+                  </span>
                   {t("signTestEmpty")}
                 </Button>
               )}

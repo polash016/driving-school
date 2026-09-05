@@ -58,7 +58,9 @@ export interface AnswerCheckInput {
  * Everything it could pattern-match on instead of reasoning is removed, which is what separates
  * this from asking a model "is this correct?" — a question it will almost always answer yes to.
  */
-export async function verifyAnswerBlind(input: AnswerCheckInput): Promise<BlindAnswerResult> {
+export async function verifyAnswerBlind(
+  input: AnswerCheckInput,
+): Promise<BlindAnswerResult> {
   // Re-shuffled: authored options often run correct-answer-first, and a verifier that learns that
   // agrees with the key for the wrong reason.
   const presented = shuffle(createRng(`${input.seed}:blind`), input.options);
@@ -112,7 +114,9 @@ export async function verifyAnswerBlind(input: AnswerCheckInput): Promise<BlindA
     };
   }
   if (chosen.key !== input.correctOptionKey) {
-    const authored = input.options.find((option) => option.key === input.correctOptionKey);
+    const authored = input.options.find(
+      (option) => option.key === input.correctOptionKey,
+    );
     return {
       verified: false,
       sceneMismatch: false,
@@ -122,7 +126,10 @@ export async function verifyAnswerBlind(input: AnswerCheckInput): Promise<BlindA
   }
   // A quote that is not actually in the supplied text means the verifier reasoned from memory
   // rather than from the regulation, so its agreement is not evidence of anything.
-  if (quote && !normalise(input.legalText).includes(normalise(quote).slice(0, 40))) {
+  if (
+    quote &&
+    !normalise(input.legalText).includes(normalise(quote).slice(0, 40))
+  ) {
     return {
       verified: false,
       sceneMismatch: false,
@@ -138,7 +145,8 @@ export async function verifyAnswerBlind(input: AnswerCheckInput): Promise<BlindA
   };
 }
 
-const normalise = (text: string) => text.toLowerCase().replace(/\s+/g, " ").trim();
+const normalise = (text: string) =>
+  text.toLowerCase().replace(/\s+/g, " ").trim();
 
 /**
  * Two options that mean the same thing make a question ungradeable — a student who picks the
@@ -152,8 +160,13 @@ export const DISTRACTOR_SIMILARITY_LIMIT = 0.93;
 export async function checkDistractorDistinctness(
   options: { key: string; text: string }[],
   limit = DISTRACTOR_SIMILARITY_LIMIT,
-): Promise<{ ok: boolean; collidingKeys: [string, string] | null; similarity: number }> {
-  if (options.length < 2) return { ok: true, collidingKeys: null, similarity: 0 };
+): Promise<{
+  ok: boolean;
+  collidingKeys: [string, string] | null;
+  similarity: number;
+}> {
+  if (options.length < 2)
+    return { ok: true, collidingKeys: null, similarity: 0 };
 
   const vectors = await aiEmbed(options.map((option) => option.text));
   let worst = 0;
@@ -195,7 +208,10 @@ export function checkStemHidesTheSign(
     const name = sign.name.toLowerCase().trim();
     if (!name) continue;
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const namedAsSign = new RegExp(`(\\b${escaped}\\s+sign\\b|\\bsign\\s+${escaped}\\b)`, "i");
+    const namedAsSign = new RegExp(
+      `(\\b${escaped}\\s+sign\\b|\\bsign\\s+${escaped}\\b)`,
+      "i",
+    );
     const byCode = new RegExp(`\\bsign\\s+${sign.code.toLowerCase()}\\b`, "i");
     if (namedAsSign.test(haystack) || byCode.test(haystack)) {
       return { ok: false, revealed: sign.name };

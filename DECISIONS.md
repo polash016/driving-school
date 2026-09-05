@@ -308,3 +308,46 @@ or an architecture decision is made that isn't captured in a spec — it gets an
   — check for it in every hand-edit from now on.
 - **Approved by:** developer (correction within the approved design intent; unique numbering is
   preserved, only the mechanism changed)
+
+## 2026-09-05 · spec-18 · Aurora is the student panel's visual language
+
+- **Decision:** the student panel gets a glossy visual language — frosted glass over a soft aurora
+  field — chosen from a three-way mockup review (Aurora / Cupertino-Apple / Refined). Specified in
+  `specs/spec-18-aurora-visual-language.md`.
+- **It is a TOKEN change, not a component rewrite.** Every glossy value — the aurora blooms, the
+  glass fill, blur, ring, highlight, the hero and stat gradients, the icon chips, the shadows —
+  lives in `config/theme.css`. Components consume the mapped shadcn variables they already
+  consumed, so `Card` became glass by redefining `--surface-card`. A school re-themes the whole
+  look by editing one block; a component that wrote its own colour would take that away, which is
+  what mandate 4 forbids.
+- **Admin opts out** with `data-surface="plain"` on its layout: dense tables get no benefit from a
+  translucent surface, and a blurred layer under a long grid is the most expensive thing on the
+  page.
+- **Accessibility is enforced, not hoped for.** `prefers-reduced-transparency`, `prefers-contrast:
+  more` and `@supports not (backdrop-filter)` each collapse the glass to an opaque surface. All
+  three verified by reading the computed style, not by reading the CSS.
+- **Two real defects were found by measuring rather than assuming:**
+  1. **`ring-1` silently erased every card shadow.** Tailwind's ring utilities compose into
+     `box-shadow`, and a utility beats a base-layer rule — so `.glass`'s shadow and highlight were
+     being overwritten and every surface rendered flat. The 1px edge now lives inside the same
+     `box-shadow` declaration. This is why the cards looked unseparated.
+  2. **The status colours failed WCAG AA as text** — pre-existing, app-wide. `--status-success` is
+     2.9:1 on its own soft chip and 3.4:1 on white; `--status-danger` likewise. New
+     `--status-success-strong` / `--status-danger-strong` tokens carry the TEXT job (measured 4.8:1
+     on soft, 5.6:1 on white); the originals keep fills and borders. A status colour cannot serve
+     both jobs.
+- **Also corrected:** `categoryPerformance`'s raw SQL duplicated the "tests only" rule and still
+  excluded `TASK_SET`, so task sets were missing from category standing — the Prisma copy had been
+  updated in spec-16 and this one had not. Category bars now use the red→amber→green ramp spec-09
+  asked for; the middle band had been `bg-primary`, which put the ACTION colour on a progress bar.
+- **Content added** (both from spec-09, still unbuilt): the greeting with progress, and the stat
+  pair (pass rate, sets passed) with a new `passRate()` read model. Attempt history now carries
+  `taskSetNumber`, because five rows all reading "Task set" is the one label a student cannot tell
+  apart.
+- **Impact:** `config/theme.css` (aurora + glass + strong status tokens), `globals.css`
+  (`.glass`, `.glass-lift`, `.aurora-field`), `Card`, the shell header, home, task-sets, the sheet,
+  and a sweep of `text-[var(--status-*)]` → `-strong` across student and admin surfaces. New
+  `pnpm dev:seed-progress <email>` sits real attempts through the real engine so a dashboard can be
+  demoed with production-shaped data instead of hand-written rows.
+- **Approved by:** developer (design chosen from mockups; hover/shadow/data follow-ups requested
+  and delivered in the same pass)

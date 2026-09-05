@@ -134,7 +134,8 @@ export function createTaskSetService(db: PrismaClient) {
             passMark: Math.max(
               1,
               Math.ceil(
-                (paperSize * licenseClass.passMark) / licenseClass.questionCount,
+                (paperSize * licenseClass.passMark) /
+                  licenseClass.questionCount,
               ),
             ),
             timeLimitSec: licenseClass.timeLimitMin * 60,
@@ -189,7 +190,8 @@ export function createTaskSetService(db: PrismaClient) {
       select: { licenseClassId: true },
       take: 1,
     });
-    if (drafts.length === 0) throw new NotFoundError({ buildId: input.buildId });
+    if (drafts.length === 0)
+      throw new NotFoundError({ buildId: input.buildId });
     const licenseClassId = drafts[0].licenseClassId;
 
     await db.$transaction(async (tx) => {

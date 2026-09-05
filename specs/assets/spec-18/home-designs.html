@@ -1,0 +1,536 @@
+<style>/* ── shared scaffolding for the showcase ───────────────────────────────── */
+.stage { display: flex; gap: 26px; flex-wrap: wrap; justify-content: center; align-items: flex-start; margin-top: 10px; }
+.stage figure { margin: 0; width: 356px; }
+.cap { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 650; margin-bottom: 10px; }
+.tag { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; color: #fff; font-size: 12px; font-weight: 700; }
+.tag-a { background: linear-gradient(135deg, #6d5efc, #2f6fed); }
+.tag-c { background: #0071e3; }
+.tag-r { background: oklch(0.46 0.15 255); }
+.note { font-size: 12px; line-height: 1.65; opacity: .8; margin-top: 12px; }
+.note b { opacity: 1; }
+
+.ph { width: 356px; border-radius: 30px; overflow: hidden; position: relative;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      box-shadow: 0 6px 18px rgba(0,0,0,.10), 0 24px 60px rgba(0,0,0,.14); }
+.ph * { box-sizing: border-box; }
+.ph a { text-decoration: none; }
+.a-hero, .a-tile, .c-hero, .c-tile, .c-row, .r-hero, .r-tile, .r-cat, .r-test { display: flex; }
+.a-hero, .a-tile { display: block; }
+.ph svg { display: block; }
+.i12 { width: 12px; height: 12px } .i13 { width: 13px; height: 13px }
+.i15 { width: 15px; height: 15px } .i16 { width: 16px; height: 16px }
+.i18 { width: 18px; height: 18px } .i20 { width: 20px; height: 20px }
+.i28 { width: 28px; height: 28px } .i30 { width: 30px; height: 30px }
+.i32 { width: 32px; height: 32px } .i34 { width: 34px; height: 34px }
+
+/* ══ A · AURORA ════════════════════════════════════════════════════════════ */
+.ph-a { --ok:#12b981; --warn:#f0a020; --bad:#ef4a4a; --mut:#d8dbe4;
+        background: #f4f5fb; color: oklch(0.24 0.015 255); }
+.a-bg { position: absolute; inset: 0;
+  background:
+    radial-gradient(58% 34% at 12% 4%,  oklch(0.66 0.20 275 / .40), transparent 70%),
+    radial-gradient(52% 30% at 96% 16%, oklch(0.72 0.17 205 / .34), transparent 72%),
+    radial-gradient(60% 26% at 50% 100%, oklch(0.72 0.16 320 / .20), transparent 74%);
+  filter: blur(2px); }
+.a-inner { position: relative; padding: 14px 15px 22px; display: flex; flex-direction: column; gap: 13px; }
+
+.a-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 750; font-size: 15px; letter-spacing: -.01em; }
+.a-logo { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; color: #fff;
+  background: linear-gradient(140deg, oklch(0.55 0.19 268), oklch(0.46 0.17 258));
+  box-shadow: 0 2px 8px oklch(0.5 0.18 265 / .45), inset 0 1px 0 rgba(255,255,255,.45); }
+.a-headr { display: flex; align-items: center; gap: 7px; }
+.a-seg { display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px; font-size: 11px; font-weight: 650;
+  background: rgba(255,255,255,.65); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,.85);
+  box-shadow: 0 1px 3px rgba(20,24,60,.07); }
+.a-seg b { padding: 3px 9px; border-radius: 999px; background: #fff; box-shadow: 0 1px 3px rgba(20,24,60,.14); }
+.a-seg i { padding: 3px 9px; font-style: normal; opacity: .5; }
+.a-ghost { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 11px;
+  background: rgba(255,255,255,.6); border: 1px solid rgba(255,255,255,.85); backdrop-filter: blur(10px); opacity: .8; }
+
+.a-h1 { margin: 4px 0 0; font-size: 27px; font-weight: 760; letter-spacing: -.028em; }
+.a-lede { margin: -9px 0 0; font-size: 13px; opacity: .58; }
+
+.a-hero { position: relative; overflow: hidden; padding: 16px; border-radius: 24px; color: #fff;
+  background: linear-gradient(142deg, oklch(0.58 0.20 272) 0%, oklch(0.47 0.19 262) 52%, oklch(0.44 0.16 246) 100%);
+  box-shadow: 0 10px 26px oklch(0.5 0.18 265 / .34), 0 2px 6px oklch(0.5 0.18 265 / .28),
+              inset 0 1px 0 rgba(255,255,255,.34); }
+.a-sheen { position: absolute; inset: -40% -10% auto -10%; height: 150%; pointer-events: none;
+  background: linear-gradient(28deg, transparent 34%, rgba(255,255,255,.20) 47%, rgba(255,255,255,.03) 58%, transparent 66%); }
+.a-hrow { position: relative; display: flex; align-items: center; gap: 12px; }
+.a-hicon { display: grid; place-items: center; width: 50px; height: 50px; border-radius: 16px; flex: none;
+  background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.28);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.4); }
+.a-htext { flex: 1; min-width: 0; }
+.a-htext b { display: block; font-size: 18px; font-weight: 720; letter-spacing: -.02em; }
+.a-htext i { display: block; font-style: normal; font-size: 11px; opacity: .8; margin-top: 3px; white-space: nowrap; }
+.a-hchev { opacity: .65; }
+.a-bar { position: relative; margin-top: 14px; height: 7px; border-radius: 999px; background: rgba(255,255,255,.22);
+  overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,.14); }
+.a-bar span { display: block; height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255,255,255,.75), #fff);
+  box-shadow: 0 0 10px rgba(255,255,255,.7); }
+.a-hfoot { position: relative; display: flex; justify-content: space-between; font-size: 11.5px; opacity: .88; margin-top: 8px; }
+
+.a-two { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+.a-tile { padding: 17px 10px 15px; border-radius: 21px; text-align: center;
+  background: rgba(255,255,255,.72); backdrop-filter: blur(18px) saturate(170%);
+  border: 1px solid rgba(255,255,255,.9);
+  box-shadow: 0 6px 18px rgba(30,36,80,.09), inset 0 1px 0 rgba(255,255,255,.95); }
+.a-chip { display: grid; place-items: center; width: 56px; height: 56px; margin: 0 auto 9px; border-radius: 18px; }
+.a-chip-b { color: oklch(0.50 0.18 265);
+  background: linear-gradient(150deg, oklch(0.93 0.05 265), oklch(0.88 0.07 265));
+  box-shadow: 0 4px 14px oklch(0.55 0.18 265 / .26), inset 0 1px 0 rgba(255,255,255,.85); }
+.a-chip-a { color: oklch(0.56 0.15 62);
+  background: linear-gradient(150deg, oklch(0.94 0.06 78), oklch(0.89 0.09 72));
+  box-shadow: 0 4px 14px oklch(0.70 0.14 70 / .30), inset 0 1px 0 rgba(255,255,255,.85); }
+.a-tile b { display: block; font-size: 14px; font-weight: 700; letter-spacing: -.01em; }
+.a-tile i { display: block; font-style: normal; font-size: 11px; opacity: .55; margin-top: 1px; }
+
+.a-stats .a-stat { padding: 13px; border-radius: 19px; text-align: center;
+  background: rgba(255,255,255,.66); backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid rgba(255,255,255,.88); box-shadow: 0 4px 14px rgba(30,36,80,.07), inset 0 1px 0 rgba(255,255,255,.9); }
+.a-stat b { display: block; font-size: 23px; font-weight: 760; letter-spacing: -.03em;
+  background: linear-gradient(140deg, oklch(0.52 0.19 268), oklch(0.44 0.17 252));
+  -webkit-background-clip: text; background-clip: text; color: transparent; }
+.a-stat i { display: block; font-style: normal; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; opacity: .5; margin-top: 3px; }
+
+.a-sec { margin: 6px 0 -4px; font-size: 12px; font-weight: 720; letter-spacing: .05em; text-transform: uppercase; opacity: .45; }
+.a-card { padding: 5px 15px; border-radius: 21px;
+  background: rgba(255,255,255,.72); backdrop-filter: blur(18px) saturate(170%);
+  border: 1px solid rgba(255,255,255,.9); box-shadow: 0 6px 18px rgba(30,36,80,.08), inset 0 1px 0 rgba(255,255,255,.95); }
+.a-cat { padding: 11px 0; border-bottom: 1px solid rgba(20,24,60,.06); }
+.a-cat:last-child { border-bottom: 0; }
+.a-catr { display: flex; justify-content: space-between; align-items: baseline; font-size: 12.5px; }
+.a-catr em { font-style: normal; font-size: 11px; font-weight: 650; opacity: .55; }
+.a-cbar { margin-top: 7px; height: 5px; border-radius: 999px; background: rgba(20,24,60,.07); overflow: hidden; }
+.a-cbar span { display: block; height: 100%; border-radius: 999px; }
+.a-tests { padding: 5px 15px; }
+.a-test { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(20,24,60,.06); }
+.a-test:last-child { border-bottom: 0; }
+.a-tn { font-size: 13px; font-weight: 620; }
+.a-tn em { display: block; font-style: normal; font-size: 10.5px; font-weight: 400; opacity: .5; margin-top: 2px; }
+.a-ts { font-size: 13px; font-weight: 720; padding: 4px 10px; border-radius: 999px; }
+.a-ts.passed { color: #067a55; background: rgba(18,185,129,.13); box-shadow: inset 0 0 0 1px rgba(18,185,129,.2); }
+.a-ts.failed { color: #b23a3a; background: rgba(239,74,74,.11); box-shadow: inset 0 0 0 1px rgba(239,74,74,.18); }
+.a-ts.plain  { color: oklch(0.36 0.02 255); background: rgba(20,24,60,.06); }
+
+/* ══ B · CUPERTINO ═════════════════════════════════════════════════════════ */
+.ph-c { --ios-blue:#0071e3; --ok:#34c759; --warn:#ff9f0a; --bad:#ff3b30; --mut:#d1d1d6;
+  background: #fbfbfd; color: #1d1d1f;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased; }
+.c-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px;
+  border-bottom: 0.5px solid rgba(0,0,0,.10); background: rgba(251,251,253,.86); backdrop-filter: saturate(180%) blur(20px); }
+.c-brand { font-size: 15px; font-weight: 600; letter-spacing: -.015em; }
+.c-headr { display: flex; align-items: center; gap: 12px; }
+.c-mut { color: #86868b; }
+.c-seg { display: flex; padding: 2px; border-radius: 9px; background: rgba(118,118,128,.12); font-size: 11px; font-weight: 590; }
+.c-seg b { padding: 3px 10px; border-radius: 7px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.10), 0 0 0 .5px rgba(0,0,0,.04); }
+.c-seg i { padding: 3px 10px; font-style: normal; color: #86868b; }
+
+.c-inner { padding: 8px 18px 26px; }
+.c-h1 { margin: 12px 0 18px; font-size: 34px; font-weight: 700; letter-spacing: -.028em; }
+
+.c-hero { align-items: center; gap: 16px; padding: 20px; border-radius: 18px; background: #fff;
+  box-shadow: 0 0 0 .5px rgba(0,0,0,.05), 0 1px 3px rgba(0,0,0,.04); }
+.c-hleft { flex: 1; min-width: 0; }
+.c-eyebrow { display: block; font-size: 12px; font-weight: 600; letter-spacing: .01em; color: #86868b; }
+.c-hbig { display: block; margin-top: 4px; font-size: 32px; font-weight: 700; letter-spacing: -.03em; line-height: 1; }
+.c-hbig span { font-size: 19px; font-weight: 500; color: #86868b; letter-spacing: -.01em; }
+.c-hsub { display: block; margin-top: 6px; font-size: 13px; color: #86868b; }
+.c-hring { position: relative; width: 80px; height: 80px; flex: none; }
+.c-ring { width: 80px; height: 80px; }
+.c-hpct { position: absolute; inset: 0; display: grid; place-items: center; font-size: 14px; font-weight: 640; letter-spacing: -.02em; }
+
+.c-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.c-tile { flex-direction: column; align-items: center; gap: 8px; padding: 20px 10px 16px; border-radius: 18px;
+  background: #fff; box-shadow: 0 0 0 .5px rgba(0,0,0,.05), 0 1px 3px rgba(0,0,0,.04); text-align: center; }
+.c-blue { color: var(--ios-blue); } .c-orange { color: var(--warn); }
+.c-tile b { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.c-tile i { font-style: normal; font-size: 12px; color: #86868b; margin-top: -3px; }
+
+.c-sec { margin: 26px 0 8px 4px; font-size: 13px; font-weight: 600; color: #86868b; letter-spacing: -.005em; }
+.c-group { border-radius: 14px; background: #fff; overflow: hidden; box-shadow: 0 0 0 .5px rgba(0,0,0,.05); }
+.c-row { align-items: center; gap: 12px; padding: 12px 14px; min-height: 52px; position: relative; }
+.c-row + .c-row::before { content: ""; position: absolute; left: 14px; right: 0; top: 0; height: .5px; background: rgba(0,0,0,.09); }
+.c-rowmain { flex: 1; min-width: 0; }
+.c-rowt { display: block; font-size: 15px; letter-spacing: -.01em; }
+.c-rowd { display: block; font-size: 12.5px; color: #86868b; margin-top: 2px; }
+.c-rowbar { display: block; margin-top: 7px; height: 4px; border-radius: 999px; background: rgba(118,118,128,.16); overflow: hidden; }
+.c-rowbar i { display: block; height: 100%; border-radius: 999px; }
+.c-rowv { font-size: 15px; font-variant-numeric: tabular-nums; color: #86868b; }
+.c-chev { color: #c7c7cc; flex: none; }
+.c-badge { font-size: 13px; font-weight: 590; font-variant-numeric: tabular-nums; padding: 3px 9px; border-radius: 999px; }
+.c-badge.passed { color: #0f7b32; background: rgba(52,199,89,.16); }
+.c-badge.failed { color: #b3261e; background: rgba(255,59,48,.13); }
+.c-badge.plain  { color: #6e6e73; background: rgba(118,118,128,.12); }
+
+/* ══ C · REFINED ═══════════════════════════════════════════════════════════ */
+.ph-r { --ok:oklch(0.62 0.15 150); --warn:oklch(0.78 0.14 80); --bad:oklch(0.62 0.18 27); --mut:oklch(0.90 0.006 250);
+  background: oklch(0.982 0.003 250); color: oklch(0.30 0.012 255); }
+.r-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px;
+  background: #fff; border-bottom: 1px solid oklch(0.92 0.005 250); }
+.r-logo { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; color: #fff;
+  background: oklch(0.46 0.15 255); }
+.r-headr { display: flex; align-items: center; gap: 8px; }
+.r-seg { display: flex; padding: 2px; border-radius: 9px; background: oklch(0.955 0.004 250); font-size: 11px; font-weight: 640; }
+.r-seg b { padding: 3px 9px; border-radius: 7px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.07); }
+.r-seg i { padding: 3px 9px; font-style: normal; color: oklch(0.55 0.01 255); }
+.r-ghost { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; color: oklch(0.45 0.012 255); }
+
+.r-inner { padding: 16px 16px 24px; display: flex; flex-direction: column; gap: 14px; }
+.r-title h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.022em; color: oklch(0.20 0.015 255); }
+.r-title p { margin: 3px 0 0; font-size: 13px; color: oklch(0.52 0.01 255); }
+
+.r-hero { display: block; padding: 15px; border-radius: 18px; color: #fff; background: oklch(0.46 0.15 255);
+  box-shadow: 0 1px 2px oklch(0.46 0.15 255 / .28), 0 8px 20px oklch(0.46 0.15 255 / .26);
+  position: relative; overflow: hidden; }
+.r-hero::after { content: ""; position: absolute; inset: 0 0 auto; height: 1px; background: rgba(255,255,255,.28); }
+.r-hrow { display: flex; align-items: center; gap: 12px; }
+.r-hicon { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; flex: none; background: rgba(255,255,255,.16); }
+.r-htext { flex: 1; min-width: 0; }
+.r-htext b { display: block; font-size: 17px; font-weight: 700; letter-spacing: -.018em; }
+.r-htext i { display: block; font-style: normal; font-size: 10.5px; opacity: .85; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.r-hpill { flex: none; align-self: flex-start; font-size: 12px; font-weight: 700; padding: 4px 9px; border-radius: 999px; background: rgba(255,255,255,.2); }
+.r-bar { margin-top: 13px; height: 6px; border-radius: 999px; background: rgba(255,255,255,.24); overflow: hidden; }
+.r-bar span { display: block; height: 100%; border-radius: 999px; background: #fff; }
+.r-hfoot { display: flex; justify-content: space-between; font-size: 11.5px; opacity: .9; margin-top: 8px; }
+
+.r-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.r-tile { display: block; padding: 16px 10px 14px; border-radius: 16px; background: #fff; text-align: center;
+  border: 1px solid oklch(0.92 0.005 250); box-shadow: 0 1px 2px rgba(16,20,40,.04), 0 4px 10px rgba(16,20,40,.045); }
+.r-chip { display: grid; place-items: center; width: 54px; height: 54px; margin: 0 auto 9px; border-radius: 16px; }
+.r-chip-b { color: oklch(0.46 0.15 255); background: oklch(0.94 0.03 255); }
+.r-chip-a { color: oklch(0.56 0.14 62); background: oklch(0.95 0.06 90); }
+.r-tile b { display: block; font-size: 14px; font-weight: 660; color: oklch(0.20 0.015 255); letter-spacing: -.01em; }
+.r-tile i { display: block; font-style: normal; font-size: 11px; color: oklch(0.55 0.01 255); margin-top: 2px; }
+
+.r-stat { padding: 13px; border-radius: 16px; background: #fff; text-align: center;
+  border: 1px solid oklch(0.92 0.005 250); box-shadow: 0 1px 2px rgba(16,20,40,.04); }
+.r-stat b { display: block; font-size: 22px; font-weight: 750; letter-spacing: -.03em; color: oklch(0.20 0.015 255); }
+.r-stat i { display: block; font-style: normal; font-size: 10px; letter-spacing: .055em; text-transform: uppercase; color: oklch(0.55 0.01 255); margin-top: 2px; }
+
+.r-sech { display: flex; align-items: baseline; justify-content: space-between; margin-top: 4px; }
+.r-sech h2 { margin: 0; font-size: 12px; font-weight: 720; letter-spacing: .05em; text-transform: uppercase; color: oklch(0.50 0.01 255); }
+.r-sech span { font-size: 12px; font-weight: 600; color: oklch(0.46 0.15 255); }
+
+.r-card { border-radius: 16px; background: #fff; border: 1px solid oklch(0.92 0.005 250);
+  box-shadow: 0 1px 2px rgba(16,20,40,.04); padding: 2px 14px; }
+.r-cat { align-items: center; gap: 10px; padding: 12px 0; min-height: 44px; border-bottom: 1px solid oklch(0.945 0.004 250); }
+.r-cat:last-child { border-bottom: 0; }
+.r-catl { flex: 1; min-width: 0; }
+.r-catn { display: block; font-size: 13px; color: oklch(0.26 0.014 255); }
+.r-cbar { display: block; margin-top: 7px; height: 5px; border-radius: 999px; background: oklch(0.94 0.004 250); overflow: hidden; }
+.r-cbar i { display: block; height: 100%; border-radius: 999px; }
+.r-catv { font-size: 12.5px; font-weight: 680; font-variant-numeric: tabular-nums; color: oklch(0.26 0.014 255); }
+.r-pill-mut { font-size: 10.5px; font-weight: 620; padding: 3px 8px; border-radius: 999px;
+  background: oklch(0.955 0.004 250); color: oklch(0.55 0.01 255); white-space: nowrap; }
+.r-chev { color: oklch(0.82 0.008 250); flex: none; }
+
+.r-tests { display: flex; flex-direction: column; gap: 9px; }
+.r-test { align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; min-height: 56px;
+  border-radius: 14px; background: #fff; border: 1px solid oklch(0.92 0.005 250); box-shadow: 0 1px 2px rgba(16,20,40,.04); }
+.r-tl b { display: block; font-size: 13.5px; font-weight: 640; color: oklch(0.20 0.015 255); }
+.r-tl i { display: block; font-style: normal; font-size: 11px; color: oklch(0.55 0.01 255); margin-top: 2px; }
+.r-tr { display: flex; align-items: center; gap: 8px; }
+.r-score { font-size: 13.5px; font-weight: 720; font-variant-numeric: tabular-nums; color: oklch(0.20 0.015 255); }
+.r-tag { font-size: 10.5px; font-weight: 650; padding: 3px 8px; border-radius: 999px; }
+.r-tag.ok { background: oklch(0.94 0.05 150); color: oklch(0.42 0.12 150); }
+.r-tag.no { background: oklch(0.955 0.004 250); color: oklch(0.50 0.01 255); }
+.c-rowv-sm { font-size: 12.5px; }
+</style>
+
+<h2>Three directions for the student home</h2>
+<p class="subtitle">All three carry the same content and the same 390px structure — only the visual language changes. Rendered with a real mid-journey student (3 of 10 sets passed) because an empty state hides most of a design. Click the one you want and I'll build it.</p>
+
+<div class="stage">
+  <figure>
+    <figcaption class="cap"><span class="tag tag-a">A</span> Aurora — glossy</figcaption>
+    
+<div class="ph ph-a">
+  <div class="a-bg"></div>
+  <div class="a-inner">
+    <header class="a-head">
+      <div class="brand"><span class="a-logo"><svg viewBox="0 0 256 256" fill="currentColor" class="i16" style="" aria-hidden="true"><path d="M96,113.89,107.06,136H84.94ZM232,56V216a8,8,0,0,1-11.58,7.16L192,208.94l-28.42,14.22a8,8,0,0,1-7.16,0L128,208.94,99.58,223.16a8,8,0,0,1-7.16,0L64,208.94,35.58,223.16A8,8,0,0,1,24,216V56A16,16,0,0,1,40,40H216A16,16,0,0,1,232,56ZM135.16,156.42l-32-64a8,8,0,0,0-14.32,0l-32,64a8,8,0,0,0,14.32,7.16L76.94,152h38.12l5.78,11.58a8,8,0,1,0,14.32-7.16ZM208,128a8,8,0,0,0-8-8H184V104a8,8,0,0,0-16,0v16H152a8,8,0,0,0,0,16h16v16a8,8,0,0,0,16,0V136h16A8,8,0,0,0,208,128Z"/></svg></span>TeoriPro</div>
+      <div class="a-headr">
+        <span class="a-seg"><b>EN</b><i>NO</i></span>
+        <span class="a-ghost"><svg viewBox="0 0 256 256" fill="currentColor" class="i18" style="" aria-hidden="true"><path d="M228,128a12,12,0,0,1-12,12H40a12,12,0,0,1,0-24H216A12,12,0,0,1,228,128ZM40,76H216a12,12,0,0,0,0-24H40a12,12,0,0,0,0,24ZM216,180H40a12,12,0,0,0,0,24H216a12,12,0,0,0,0-24Z"/></svg></span>
+      </div>
+    </header>
+
+    <h1 class="a-h1">Hei, Kari</h1>
+    <p class="a-lede">You're 3 sets in. Keep the streak alive.</p>
+
+    <a class="a-hero">
+      <span class="a-sheen"></span>
+      <div class="a-hrow">
+        <span class="a-hicon"><svg viewBox="0 0 256 256" fill="currentColor" class="i30" style="" aria-hidden="true"><path d="M96,113.89,107.06,136H84.94ZM232,56V216a8,8,0,0,1-11.58,7.16L192,208.94l-28.42,14.22a8,8,0,0,1-7.16,0L128,208.94,99.58,223.16a8,8,0,0,1-7.16,0L64,208.94,35.58,223.16A8,8,0,0,1,24,216V56A16,16,0,0,1,40,40H216A16,16,0,0,1,232,56ZM135.16,156.42l-32-64a8,8,0,0,0-14.32,0l-32,64a8,8,0,0,0,14.32,7.16L76.94,152h38.12l5.78,11.58a8,8,0,1,0,14.32-7.16ZM208,128a8,8,0,0,0-8-8H184V104a8,8,0,0,0-16,0v16H152a8,8,0,0,0,0,16h16v16a8,8,0,0,0,16,0V136h16A8,8,0,0,0,208,128Z"/></svg></span>
+        <span class="a-htext">
+          <b>Task sets</b>
+          <i>45 questions · 90 min · pass at 38</i>
+        </span>
+        <span class="a-hchev"><svg viewBox="0 0 256 256" fill="currentColor" class="i16" style="" aria-hidden="true"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"/></svg></span>
+      </div>
+      <div class="a-bar"><span style="width:30%"></span></div>
+      <div class="a-hfoot"><span>3 of 10 passed</span><span>Next up · #4</span></div>
+    </a>
+
+    <div class="a-two">
+      <a class="a-tile">
+        <span class="a-chip a-chip-b"><svg viewBox="0 0 256 256" fill="currentColor" class="i34" style="" aria-hidden="true"><path d="M240,104H229.2L201.42,41.5A16,16,0,0,0,186.8,32H69.2a16,16,0,0,0-14.62,9.5L26.8,104H16a8,8,0,0,0,0,16h8v80a16,16,0,0,0,16,16H64a16,16,0,0,0,16-16v-8h96v8a16,16,0,0,0,16,16h24a16,16,0,0,0,16-16V120h8a8,8,0,0,0,0-16ZM80,152H56a8,8,0,0,1,0-16H80a8,8,0,0,1,0,16Zm120,0H176a8,8,0,0,1,0-16h24a8,8,0,0,1,0,16ZM44.31,104,69.2,48H186.8l24.89,56Z"/></svg></span>
+        <b>Practice</b><i>Your rules</i>
+      </a>
+      <a class="a-tile">
+        <span class="a-chip a-chip-a"><svg viewBox="0 0 256 256" fill="currentColor" class="i34" style="" aria-hidden="true"><path d="M243.15,116.29,139.71,12.85a16.56,16.56,0,0,0-23.42,0L12.85,116.29a16.56,16.56,0,0,0,0,23.42L116.29,243.15h0a16.56,16.56,0,0,0,23.42,0L243.15,139.71a16.56,16.56,0,0,0,0-23.42Zm-69.49,9.37-24,24a8,8,0,0,1-11.32-11.32L148.69,128H112a16,16,0,0,0-16,16v8a8,8,0,0,1-16,0v-8a32,32,0,0,1,32-32h36.69l-10.35-10.34a8,8,0,0,1,11.32-11.32l24,24A8,8,0,0,1,173.66,125.66Z"/></svg></span>
+        <b>Sign test</b><i>574 signs</i>
+      </a>
+    </div>
+
+    <div class="a-two a-stats">
+      <div class="a-stat"><b>76%</b><i>Pass rate</i></div>
+      <div class="a-stat"><b>3</b><i>Sets passed</i></div>
+    </div>
+
+    <h2 class="a-sec">How you're doing</h2>
+    <div class="a-card">
+      <div class="a-cat">
+        <div class="a-catr"><span>Drivers and other road users</span><em>82%</em></div>
+        <div class="a-cbar"><span style="width:82%;background:var(--ok)"></span></div>
+      </div><div class="a-cat">
+        <div class="a-catr"><span>Right of way</span><em>64%</em></div>
+        <div class="a-cbar"><span style="width:64%;background:var(--warn)"></span></div>
+      </div><div class="a-cat">
+        <div class="a-catr"><span>The vehicle</span><em>41%</em></div>
+        <div class="a-cbar"><span style="width:41%;background:var(--bad)"></span></div>
+      </div><div class="a-cat">
+        <div class="a-catr"><span>Signs and road markings</span><em>Not started</em></div>
+        <div class="a-cbar"><span style="width:0%;background:var(--mut)"></span></div>
+      </div>
+    </div>
+
+    <h2 class="a-sec">Previous tests</h2>
+    <div class="a-card a-tests">
+      <div class="a-test">
+        <span class="a-tn">Task set #3<em>3 Sep</em></span>
+        <span class="a-ts passed">41/45</span>
+      </div><div class="a-test">
+        <span class="a-tn">Sign test<em>2 Sep</em></span>
+        <span class="a-ts plain">18/20</span>
+      </div><div class="a-test">
+        <span class="a-tn">Task set #2<em>31 Aug</em></span>
+        <span class="a-ts failed">33/45</span>
+      </div>
+    </div>
+  </div>
+</div>
+    <p class="note"><b>Frosted glass on a soft aurora field.</b> Translucent cards with a bright top edge, colour-tinted shadows, a gradient hero with a specular sweep, glowing progress. Looks expensive and modern; the most "designed" of the three. Costs: backdrop-blur is the one effect that can drop frames on older Androids, so it needs a fallback, and glass over a coloured field takes care to keep AA contrast.</p>
+  </figure>
+
+  <figure>
+    <figcaption class="cap"><span class="tag tag-c">B</span> Cupertino — Apple</figcaption>
+    
+<div class="ph ph-c">
+  <header class="c-head">
+    <div class="c-brand">TeoriPro</div>
+    <div class="c-headr"><span class="c-seg"><b>EN</b><i>NO</i></span><svg viewBox="0 0 256 256" fill="currentColor" class="i20 c-mut" style="" aria-hidden="true"><path d="M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128ZM40,72H216a8,8,0,0,0,0-16H40a8,8,0,0,0,0,16ZM216,184H40a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Z"/></svg></div>
+  </header>
+
+  <div class="c-inner">
+    <h1 class="c-h1">Today</h1>
+
+    <a class="c-hero">
+      <div class="c-hleft">
+        <span class="c-eyebrow">Task sets</span>
+        <b class="c-hbig">3 <span>of 10</span></b>
+        <span class="c-hsub">passed · next up #4</span>
+      </div>
+      <div class="c-hring"><svg viewBox="0 0 80 80" class="c-ring" aria-hidden="true">
+      <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(0,0,0,.07)" stroke-width="8"/>
+      <circle cx="40" cy="40" r="34" fill="none" stroke="var(--ios-blue)" stroke-width="8"
+        stroke-linecap="round" stroke-dasharray="213.62830044410595" stroke-dashoffset="149.53981031087415"
+        transform="rotate(-90 40 40)"/>
+    </svg><span class="c-hpct">30%</span></div>
+    </a>
+
+    <div class="c-two">
+      <a class="c-tile"><svg viewBox="0 0 256 256" fill="currentColor" class="i32 c-blue" style="" aria-hidden="true"><path d="M240,104H229.2L201.42,41.5A16,16,0,0,0,186.8,32H69.2a16,16,0,0,0-14.62,9.5L26.8,104H16a8,8,0,0,0,0,16h8v80a16,16,0,0,0,16,16H64a16,16,0,0,0,16-16v-8h96v8a16,16,0,0,0,16,16h24a16,16,0,0,0,16-16V120h8a8,8,0,0,0,0-16ZM80,152H56a8,8,0,0,1,0-16H80a8,8,0,0,1,0,16Zm120,0H176a8,8,0,0,1,0-16h24a8,8,0,0,1,0,16ZM44.31,104,69.2,48H186.8l24.89,56Z"/></svg><b>Practice</b><i>Your rules</i></a>
+      <a class="c-tile"><svg viewBox="0 0 256 256" fill="currentColor" class="i32 c-orange" style="" aria-hidden="true"><path d="M243.15,116.29,139.71,12.85a16.56,16.56,0,0,0-23.42,0L12.85,116.29a16.56,16.56,0,0,0,0,23.42L116.29,243.15h0a16.56,16.56,0,0,0,23.42,0L243.15,139.71a16.56,16.56,0,0,0,0-23.42Zm-69.49,9.37-24,24a8,8,0,0,1-11.32-11.32L148.69,128H112a16,16,0,0,0-16,16v8a8,8,0,0,1-16,0v-8a32,32,0,0,1,32-32h36.69l-10.35-10.34a8,8,0,0,1,11.32-11.32l24,24A8,8,0,0,1,173.66,125.66Z"/></svg><b>Sign test</b><i>574 signs</i></a>
+    </div>
+
+    <h2 class="c-sec">How you're doing</h2>
+    <div class="c-group">
+      <a class="c-row">
+        <span class="c-rowmain">
+          <span class="c-rowt">Drivers and other road users</span>
+          <span class="c-rowbar"><i style="width:82%;background:var(--ok)"></i></span>
+        </span>
+        <span class="c-rowv ">82%</span>
+        <svg viewBox="0 0 256 256" fill="currentColor" class="i13 c-chev" style="" aria-hidden="true"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"/></svg>
+      </a><a class="c-row">
+        <span class="c-rowmain">
+          <span class="c-rowt">Right of way</span>
+          <span class="c-rowbar"><i style="width:64%;background:var(--warn)"></i></span>
+        </span>
+        <span class="c-rowv ">64%</span>
+        <svg viewBox="0 0 256 256" fill="currentColor" class="i13 c-chev" style="" aria-hidden="true"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"/></svg>
+      </a><a class="c-row">
+        <span class="c-rowmain">
+          <span class="c-rowt">The vehicle</span>
+          <span class="c-rowbar"><i style="width:41%;background:var(--bad)"></i></span>
+        </span>
+        <span class="c-rowv ">41%</span>
+        <svg viewBox="0 0 256 256" fill="currentColor" class="i13 c-chev" style="" aria-hidden="true"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"/></svg>
+      </a><a class="c-row">
+        <span class="c-rowmain">
+          <span class="c-rowt">Signs and road markings</span>
+          <span class="c-rowbar"><i style="width:0%;background:var(--mut)"></i></span>
+        </span>
+        <span class="c-rowv c-mut c-rowv-sm">Not started</span>
+        <svg viewBox="0 0 256 256" fill="currentColor" class="i13 c-chev" style="" aria-hidden="true"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"/></svg>
+      </a>
+    </div>
+
+    <h2 class="c-sec">Previous tests</h2>
+    <div class="c-group">
+      <a class="c-row">
+        <span class="c-rowmain">
+          <span class="c-rowt">Task set #3</span>
+          <span class="c-rowd">3 Sep</span>
+        </span>
+        <span class="c-badge passed">41/45</span>
+        <svg viewBox="0 0 256 256" fill="currentColor" class="i13 c-chev" style="" aria-hidden="true"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"/></svg>
+      </a><a class="c-row">
+        <span class="c-rowmain">
+          <span class="c-rowt">Sign test</span>
+          <span class="c-rowd">2 Sep</span>
+        </span>
+        <span class="c-badge plain">18/20</span>
+        <svg viewBox="0 0 256 256" fill="currentColor" class="i13 c-chev" style="" aria-hidden="true"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"/></svg>
+      </a><a class="c-row">
+        <span class="c-rowmain">
+          <span class="c-rowt">Task set #2</span>
+          <span class="c-rowd">31 Aug</span>
+        </span>
+        <span class="c-badge failed">33/45</span>
+        <svg viewBox="0 0 256 256" fill="currentColor" class="i13 c-chev" style="" aria-hidden="true"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"/></svg>
+      </a>
+    </div>
+  </div>
+</div>
+    <p class="note"><b>iOS Settings and Fitness, not apple.com marketing.</b> Near-white ground, pure-white grouped lists, hairline separators, a big quiet large-title, one blue accent, a progress ring instead of a bar. Almost no shadow — separation comes from whitespace and hairlines. Calmest and most legible; the least "branded", which matters because every school re-themes this build.</p>
+  </figure>
+
+  <figure>
+    <figcaption class="cap"><span class="tag tag-r">C</span> Refined — today, finished</figcaption>
+    
+<div class="ph ph-r">
+  <header class="r-head">
+    <div class="brand"><span class="r-logo"><svg viewBox="0 0 256 256" fill="currentColor" class="i15" style="" aria-hidden="true"><path d="M96,113.89,107.06,136H84.94ZM232,56V216a8,8,0,0,1-11.58,7.16L192,208.94l-28.42,14.22a8,8,0,0,1-7.16,0L128,208.94,99.58,223.16a8,8,0,0,1-7.16,0L64,208.94,35.58,223.16A8,8,0,0,1,24,216V56A16,16,0,0,1,40,40H216A16,16,0,0,1,232,56ZM135.16,156.42l-32-64a8,8,0,0,0-14.32,0l-32,64a8,8,0,0,0,14.32,7.16L76.94,152h38.12l5.78,11.58a8,8,0,1,0,14.32-7.16ZM208,128a8,8,0,0,0-8-8H184V104a8,8,0,0,0-16,0v16H152a8,8,0,0,0,0,16h16v16a8,8,0,0,0,16,0V136h16A8,8,0,0,0,208,128Z"/></svg></span>TeoriPro</div>
+    <div class="r-headr"><span class="r-seg"><b>EN</b><i>NO</i></span><span class="r-ghost"><svg viewBox="0 0 256 256" fill="currentColor" class="i18" style="" aria-hidden="true"><path d="M228,128a12,12,0,0,1-12,12H40a12,12,0,0,1,0-24H216A12,12,0,0,1,228,128ZM40,76H216a12,12,0,0,0,0-24H40a12,12,0,0,0,0,24ZM216,180H40a12,12,0,0,0,0,24H216a12,12,0,0,0,0-24Z"/></svg></span></div>
+  </header>
+
+  <div class="r-inner">
+    <div class="r-title">
+      <h1>Hei, Kari</h1>
+      <p>3 of 10 task sets passed</p>
+    </div>
+
+    <a class="r-hero">
+      <div class="r-hrow">
+        <span class="r-hicon"><svg viewBox="0 0 256 256" fill="currentColor" class="i28" style="" aria-hidden="true"><path d="M96,113.89,107.06,136H84.94ZM232,56V216a8,8,0,0,1-11.58,7.16L192,208.94l-28.42,14.22a8,8,0,0,1-7.16,0L128,208.94,99.58,223.16a8,8,0,0,1-7.16,0L64,208.94,35.58,223.16A8,8,0,0,1,24,216V56A16,16,0,0,1,40,40H216A16,16,0,0,1,232,56ZM135.16,156.42l-32-64a8,8,0,0,0-14.32,0l-32,64a8,8,0,0,0,14.32,7.16L76.94,152h38.12l5.78,11.58a8,8,0,1,0,14.32-7.16ZM208,128a8,8,0,0,0-8-8H184V104a8,8,0,0,0-16,0v16H152a8,8,0,0,0,0,16h16v16a8,8,0,0,0,16,0V136h16A8,8,0,0,0,208,128Z"/></svg></span>
+        <span class="r-htext"><b>Task sets</b><i>45 questions · 90 min · pass at 38</i></span>
+        <span class="r-hpill">30%</span>
+      </div>
+      <div class="r-bar"><span style="width:30%"></span></div>
+      <div class="r-hfoot"><span>3 of 10 passed</span><span>Next up: #4 ›</span></div>
+    </a>
+
+    <div class="r-two">
+      <a class="r-tile">
+        <span class="r-chip r-chip-b"><svg viewBox="0 0 256 256" fill="currentColor" class="i32" style="" aria-hidden="true"><path d="M240,104H229.2L201.42,41.5A16,16,0,0,0,186.8,32H69.2a16,16,0,0,0-14.62,9.5L26.8,104H16a8,8,0,0,0,0,16h8v80a16,16,0,0,0,16,16H64a16,16,0,0,0,16-16v-8h96v8a16,16,0,0,0,16,16h24a16,16,0,0,0,16-16V120h8a8,8,0,0,0,0-16ZM80,152H56a8,8,0,0,1,0-16H80a8,8,0,0,1,0,16Zm120,0H176a8,8,0,0,1,0-16h24a8,8,0,0,1,0,16ZM44.31,104,69.2,48H186.8l24.89,56Z"/></svg></span>
+        <b>Practice</b><i>Your rules</i>
+      </a>
+      <a class="r-tile">
+        <span class="r-chip r-chip-a"><svg viewBox="0 0 256 256" fill="currentColor" class="i32" style="" aria-hidden="true"><path d="M243.15,116.29,139.71,12.85a16.56,16.56,0,0,0-23.42,0L12.85,116.29a16.56,16.56,0,0,0,0,23.42L116.29,243.15h0a16.56,16.56,0,0,0,23.42,0L243.15,139.71a16.56,16.56,0,0,0,0-23.42Zm-69.49,9.37-24,24a8,8,0,0,1-11.32-11.32L148.69,128H112a16,16,0,0,0-16,16v8a8,8,0,0,1-16,0v-8a32,32,0,0,1,32-32h36.69l-10.35-10.34a8,8,0,0,1,11.32-11.32l24,24A8,8,0,0,1,173.66,125.66Z"/></svg></span>
+        <b>Sign test</b><i>574 signs</i>
+      </a>
+    </div>
+
+    <div class="r-two">
+      <div class="r-stat"><b>76%</b><i>Pass rate</i></div>
+      <div class="r-stat"><b>3</b><i>Sets passed</i></div>
+    </div>
+
+    <div class="r-sech"><h2>How you're doing</h2><span>See all</span></div>
+    <div class="r-card">
+      <a class="r-cat">
+        <span class="r-catl">
+          <span class="r-catn">Drivers and other road users</span>
+          <span class="r-cbar"><i style="width:82%;background:var(--ok)"></i></span>
+        </span>
+        <span class="r-catv">82%</span>
+        <svg viewBox="0 0 256 256" fill="currentColor" class="i12 r-chev" style="" aria-hidden="true"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"/></svg>
+      </a><a class="r-cat">
+        <span class="r-catl">
+          <span class="r-catn">Right of way</span>
+          <span class="r-cbar"><i style="width:64%;background:var(--warn)"></i></span>
+        </span>
+        <span class="r-catv">64%</span>
+        <svg viewBox="0 0 256 256" fill="currentColor" class="i12 r-chev" style="" aria-hidden="true"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"/></svg>
+      </a><a class="r-cat">
+        <span class="r-catl">
+          <span class="r-catn">The vehicle</span>
+          <span class="r-cbar"><i style="width:41%;background:var(--bad)"></i></span>
+        </span>
+        <span class="r-catv">41%</span>
+        <svg viewBox="0 0 256 256" fill="currentColor" class="i12 r-chev" style="" aria-hidden="true"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"/></svg>
+      </a><a class="r-cat">
+        <span class="r-catl">
+          <span class="r-catn">Signs and road markings</span>
+          <span class="r-cbar"><i style="width:0%;background:var(--mut)"></i></span>
+        </span>
+        <span class="r-pill-mut">Not started</span>
+        <svg viewBox="0 0 256 256" fill="currentColor" class="i12 r-chev" style="" aria-hidden="true"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"/></svg>
+      </a>
+    </div>
+
+    <div class="r-sech"><h2>My previous tests</h2><span>See all</span></div>
+    <div class="r-tests">
+      <a class="r-test">
+        <span class="r-tl"><b>Task set #3</b><i>3 Sep</i></span>
+        <span class="r-tr">
+          <span class="r-score">41/45</span>
+          <span class="r-tag ok">Passed</span>
+        </span>
+      </a><a class="r-test">
+        <span class="r-tl"><b>Sign test</b><i>2 Sep</i></span>
+        <span class="r-tr">
+          <span class="r-score">18/20</span>
+          
+        </span>
+      </a><a class="r-test">
+        <span class="r-tl"><b>Task set #2</b><i>31 Aug</i></span>
+        <span class="r-tr">
+          <span class="r-score">33/45</span>
+          <span class="r-tag no">Failed</span>
+        </span>
+      </a>
+    </div>
+  </div>
+</div>
+    <p class="note"><b>Same bones, properly finished.</b> Tighter type scale, a percentage pill on the hero, tinted icon chips, the two stat cards, real section headers, tappable category rows with a red→amber→green bar and a neutral "Not started" pill, and status-differentiated test cards. Lowest risk, and it happens to close five spec-09 modernisation requirements that are still open.</p>
+  </figure>
+</div>
+
+<div class="options" style="margin-top:26px">
+  <div class="option" data-choice="aurora" onclick="toggleSelect(this)">
+    <div class="letter">A</div><div class="content"><h3>Aurora — glossy modern</h3><p>Frosted glass, aurora field, gradient hero, glowing progress.</p></div>
+  </div>
+  <div class="option" data-choice="cupertino" onclick="toggleSelect(this)">
+    <div class="letter">B</div><div class="content"><h3>Cupertino — Apple-inspired</h3><p>iOS grouped lists, hairlines, large title, progress ring, one accent.</p></div>
+  </div>
+  <div class="option" data-choice="refined" onclick="toggleSelect(this)">
+    <div class="letter">C</div><div class="content"><h3>Refined — upgrade what exists</h3><p>Same structure, better craft; also closes open spec-09 items.</p></div>
+  </div>
+</div>

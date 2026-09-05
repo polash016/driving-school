@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { agreedSigns, cropRect, discriminationCandidates, normaliseBbox } from "./vision";
+import {
+  agreedSigns,
+  cropRect,
+  discriminationCandidates,
+  normaliseBbox,
+} from "./vision";
 
 /**
  * The parts of the extraction that decide whether a sign survives. Tested without spending a
@@ -22,7 +27,9 @@ describe("agreedSigns", () => {
     // And it drops it however sure the model claimed to be: on this deployment's own model a wrong
     // identification came back at 0.95, so confidence cannot be the thing that decides.
     expect(
-      agreedSigns([[{ code: "362", confidence: 0.99 }], [], []]).map((s) => s.code),
+      agreedSigns([[{ code: "362", confidence: 0.99 }], [], []]).map(
+        (s) => s.code,
+      ),
     ).toEqual([]);
   });
 
@@ -50,7 +57,11 @@ describe("agreedSigns", () => {
   });
 
   it("honours a stricter quorum", () => {
-    const passes = [[{ code: "302", confidence: 1 }], [{ code: "302", confidence: 1 }], []];
+    const passes = [
+      [{ code: "302", confidence: 1 }],
+      [{ code: "302", confidence: 1 }],
+      [],
+    ];
     expect(agreedSigns(passes, 2)).toHaveLength(1);
     expect(agreedSigns(passes, 3)).toHaveLength(0);
   });
@@ -102,7 +113,12 @@ describe("normaliseBbox", () => {
   });
 
   it("unwraps the extra nesting Gemini adds", () => {
-    expect(normaliseBbox([[0.1, 0.2, 0.3, 0.4]])).toEqual({ x: 0.2, y: 0.1, w: 0.4, h: 0.3 });
+    expect(normaliseBbox([[0.1, 0.2, 0.3, 0.4]])).toEqual({
+      x: 0.2,
+      y: 0.1,
+      w: 0.4,
+      h: 0.3,
+    });
   });
 
   it("leaves the requested object form alone", () => {
@@ -118,12 +134,42 @@ describe("normaliseBbox", () => {
 
 describe("discriminationCandidates", () => {
   const registry = [
-    { code: "A1", name: "a1", signClass: "FARE" as const, svgPath: "/signs/A1.png" },
-    { code: "A2", name: "a2", signClass: "FARE" as const, svgPath: "/signs/A2.png" },
-    { code: "A3", name: "a3", signClass: "FARE" as const, svgPath: "/signs/A3.png" },
-    { code: "A4", name: "a4", signClass: "FARE" as const, svgPath: "/signs/A4.png" },
-    { code: "A5", name: "a5", signClass: "FARE" as const, svgPath: "/signs/A5.png" },
-    { code: "B1", name: "b1", signClass: "FORBUD" as const, svgPath: "/signs/B1.png" },
+    {
+      code: "A1",
+      name: "a1",
+      signClass: "FARE" as const,
+      svgPath: "/signs/A1.png",
+    },
+    {
+      code: "A2",
+      name: "a2",
+      signClass: "FARE" as const,
+      svgPath: "/signs/A2.png",
+    },
+    {
+      code: "A3",
+      name: "a3",
+      signClass: "FARE" as const,
+      svgPath: "/signs/A3.png",
+    },
+    {
+      code: "A4",
+      name: "a4",
+      signClass: "FARE" as const,
+      svgPath: "/signs/A4.png",
+    },
+    {
+      code: "A5",
+      name: "a5",
+      signClass: "FARE" as const,
+      svgPath: "/signs/A5.png",
+    },
+    {
+      code: "B1",
+      name: "b1",
+      signClass: "FORBUD" as const,
+      svgPath: "/signs/B1.png",
+    },
   ];
   const claimed = registry[0];
 
@@ -137,12 +183,18 @@ describe("discriminationCandidates", () => {
   });
 
   it("is deterministic for a seed but does not always put the answer first", () => {
-    const a = discriminationCandidates(claimed, registry, "x").map((s) => s.code);
-    expect(discriminationCandidates(claimed, registry, "x").map((s) => s.code)).toEqual(a);
+    const a = discriminationCandidates(claimed, registry, "x").map(
+      (s) => s.code,
+    );
+    expect(
+      discriminationCandidates(claimed, registry, "x").map((s) => s.code),
+    ).toEqual(a);
 
     const positions = new Set(
       ["s1", "s2", "s3", "s4", "s5", "s6"].map((seed) =>
-        discriminationCandidates(claimed, registry, seed).findIndex((s) => s.code === "A1"),
+        discriminationCandidates(claimed, registry, seed).findIndex(
+          (s) => s.code === "A1",
+        ),
       ),
     );
     expect(positions.size).toBeGreaterThan(1);
@@ -150,6 +202,8 @@ describe("discriminationCandidates", () => {
 
   it("copes with a class too small to fill the candidate list", () => {
     const tiny = [claimed, registry[5]];
-    expect(discriminationCandidates(claimed, tiny, "seed").map((s) => s.code)).toEqual(["A1"]);
+    expect(
+      discriminationCandidates(claimed, tiny, "seed").map((s) => s.code),
+    ).toEqual(["A1"]);
   });
 });

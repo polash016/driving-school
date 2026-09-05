@@ -174,7 +174,9 @@ d("taskSetService (integration)", () => {
     await service.publish({ buildId: second.buildId });
 
     const archived = await db.taskSet.count({ where: { status: "ARCHIVED" } });
-    const published = await db.taskSet.count({ where: { status: "PUBLISHED" } });
+    const published = await db.taskSet.count({
+      where: { status: "PUBLISHED" },
+    });
     // Nothing is destroyed: a student's past attempt must stay explainable.
     expect(archived).toBe(first.sets.length);
     expect(published).toBe(second.sets.length);

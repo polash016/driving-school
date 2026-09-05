@@ -43,12 +43,14 @@ export function TaskSetTile({
       // "passed" from a colour.
       aria-label={`${t("openSet", { number: set.number })} — ${t(state === "fresh" ? "notStarted" : state === "attempted" ? "failed" : state)}`}
       className={cn(
-        "relative flex min-h-[4.5rem] flex-col items-center justify-center gap-0.5 rounded-[var(--radius-base)] border px-1.5 py-3 text-center shadow-[var(--shadow-card)] transition-transform duration-150 outline-none active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:active:scale-100",
+        "relative flex min-h-[4.5rem] flex-col items-center justify-center gap-0.5 rounded-[calc(var(--radius-base)+4px)] border px-1.5 py-3 text-center shadow-[var(--shadow-card)] transition-transform duration-150 outline-none active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:active:scale-100",
+        // Passed and in-progress keep their SOLID status colour on purpose: a frosted green is a
+        // weaker signal than a green one, and this tile's whole job is to be scannable at a glance.
         state === "passed" &&
           "border-[var(--status-success)]/45 bg-[var(--status-success-soft)]",
-        state === "inProgress" && "border-primary bg-accent/40",
+        state === "inProgress" && "border-primary bg-accent/60",
         (state === "attempted" || state === "fresh") &&
-          "border-border bg-card hover:border-border-strong",
+          "glass border-[var(--glass-ring)] hover:border-border-strong",
       )}
     >
       {set.passed ? (
@@ -64,7 +66,7 @@ export function TaskSetTile({
         className={cn(
           "text-lg font-bold tracking-tight tabular-nums",
           state === "passed"
-            ? "text-[var(--status-success)]"
+            ? "text-[var(--status-success-strong)]"
             : "text-foreground",
         )}
       >
@@ -78,7 +80,7 @@ export function TaskSetTile({
           <span
             className={
               set.passed
-                ? "text-[var(--status-success)]"
+                ? "text-[var(--status-success-strong)]"
                 : "text-muted-foreground"
             }
           >

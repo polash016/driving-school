@@ -6,7 +6,10 @@ import { aiJson } from "@/server/ai/client";
 import { imageQuestionPrompt } from "@/server/ai/prompts";
 import { AUDIT, auditLog } from "@/server/audit";
 import type { SessionUser } from "@/server/authz";
-import { contextSheetSchema, type ContextSheet } from "@/server/contracts/image-pipeline";
+import {
+  contextSheetSchema,
+  type ContextSheet,
+} from "@/server/contracts/image-pipeline";
 import { search } from "@/server/services/kb/search";
 import { checkItemQuality } from "@/server/services/question-bank/validation";
 import {
@@ -57,7 +60,10 @@ const TOPIC_FOR_CLASS: Record<SignClass, string> = {
 /** A picture with no identified sign is still a traffic situation. */
 const FALLBACK_TOPIC = "right-of-way";
 
-const optionSchema = z.object({ key: z.string().min(1).max(2), text: z.string().min(1).max(300) });
+const optionSchema = z.object({
+  key: z.string().min(1).max(2),
+  text: z.string().min(1).max(300),
+});
 const localizedSchema = z.object({
   stem: z.string().min(10).max(400),
   options: z.array(optionSchema).min(3).max(4),
@@ -68,12 +74,18 @@ const candidateSchema = z.object({
   nb: localizedSchema,
   correctOptionKey: z.string().min(1).max(2),
   difficulty: z.number().int().min(1).max(5),
-  citations: z.array(z.object({ sourceCode: z.string().min(1), ref: z.string().min(1) })).min(1),
+  citations: z
+    .array(z.object({ sourceCode: z.string().min(1), ref: z.string().min(1) }))
+    .min(1),
   testsPoint: z.string().min(3).max(200).optional(),
 });
 const responseSchema = z.union([
   z.object({ questions: z.array(candidateSchema).min(1).max(10) }),
-  z.array(candidateSchema).min(1).max(10).transform((questions) => ({ questions })),
+  z
+    .array(candidateSchema)
+    .min(1)
+    .max(10)
+    .transform((questions) => ({ questions })),
 ]);
 
 export interface ImageGenerationOutcome {
@@ -107,7 +119,11 @@ function difficultyBriefFor(count: number): string {
 export async function generateImageQuestions(
   db: PrismaClient,
   actor: SessionUser,
-  input: { imageAssetId: string; count: number; licenseClassId?: string | null },
+  input: {
+    imageAssetId: string;
+    count: number;
+    licenseClassId?: string | null;
+  },
 ): Promise<ImageGenerationOutcome> {
   const image = await db.imageAsset.findFirst({
     where: { id: input.imageAssetId, deletedAt: null },
@@ -150,7 +166,8 @@ export async function generateImageQuestions(
     throw new AiPipelineError({
       imageAssetId: image.id,
       found: retrieval.hits.length,
-      reason: "not enough regulation text to ground a question about this picture",
+      reason:
+        "not enough regulation text to ground a question about this picture",
     });
   }
   const kbExcerpts = retrieval.hits
@@ -204,8 +221,12 @@ export async function generateImageQuestions(
         situationSummary: sheet.situationSummary,
         signList,
         sceneFacts: [
-          sheet.roadMarkings.length ? `Road markings: ${sheet.roadMarkings.join(", ")}` : "",
-          sheet.actors.length ? `Other road users: ${sheet.actors.join(", ")}` : "",
+          sheet.roadMarkings.length
+            ? `Road markings: ${sheet.roadMarkings.join(", ")}`
+            : "",
+          sheet.actors.length
+            ? `Other road users: ${sheet.actors.join(", ")}`
+            : "",
           `Conditions: ${sheet.conditions.lighting}, ${sheet.conditions.weather}, ${sheet.conditions.roadType}`,
         ]
           .filter(Boolean)
@@ -260,8 +281,16 @@ export async function generateImageQuestions(
 
   for (const [index, candidate] of result.data.questions.entries()) {
     const content = {
-      en: { stem: candidate.en.stem, options: candidate.en.options, explanation: candidate.en.explanation },
-      nb: { stem: candidate.nb.stem, options: candidate.nb.options, explanation: candidate.nb.explanation },
+      en: {
+        stem: candidate.en.stem,
+        options: candidate.en.options,
+        explanation: candidate.en.explanation,
+      },
+      nb: {
+        stem: candidate.nb.stem,
+        options: candidate.nb.options,
+        explanation: candidate.nb.explanation,
+      },
     };
 
     const quality = checkItemQuality({
@@ -270,7 +299,11 @@ export async function generateImageQuestions(
       legalCitations: candidate.citations,
     });
     if (!quality.passed) {
-      await refuse(candidate, quality.errors.map((issue) => issue.code), "GATE");
+      await refuse(
+        candidate,
+        quality.errors.map((issue) => issue.code),
+        "GATE",
+      );
       continue;
     }
 
@@ -285,7 +318,11 @@ export async function generateImageQuestions(
     // THE check. A wrong answer key is the failure that teaches a learner the wrong rule while
     // marking them correct, and it is the one no schema, citation or duplicate check can find.
     const cited = retrieval.hits
-      .filter((hit) => candidate.citations.some((c) => c.sourceCode === hit.sourceCode && c.ref === hit.ref))
+      .filter((hit) =>
+        candidate.citations.some(
+          (c) => c.sourceCode === hit.sourceCode && c.ref === hit.ref,
+        ),
+      )
       .map((hit) => hit.text)
       .join("\n\n");
     const blind = await verifyAnswerBlind({
@@ -293,7 +330,9 @@ export async function generateImageQuestions(
       options: candidate.en.options,
       correctOptionKey: candidate.correctOptionKey,
       situationSummary: sheet.situationSummary,
-      signNames: signs.map((sign) => (sign.name as { en?: string }).en ?? sign.code),
+      signNames: signs.map(
+        (sign) => (sign.name as { en?: string }).en ?? sign.code,
+      ),
       legalText: cited || kbExcerpts,
       seed: `${batch.id}:${index}`,
     });
@@ -313,22 +352,37 @@ export async function generateImageQuestions(
 
     // The stem must not contain its own answer, whether by naming the sign or describing it.
     const correctText =
-      candidate.en.options.find((option) => option.key === candidate.correctOptionKey)?.text ?? "";
-    const leak = await checkStemDoesNotLeakAnswer(candidate.en.stem, correctText);
+      candidate.en.options.find(
+        (option) => option.key === candidate.correctOptionKey,
+      )?.text ?? "";
+    const leak = await checkStemDoesNotLeakAnswer(
+      candidate.en.stem,
+      correctText,
+    );
     if (!leak.ok) {
-      await refuse(candidate, ["ANSWER_IN_STEM", leak.similarity.toFixed(2)], "GATE");
+      await refuse(
+        candidate,
+        ["ANSWER_IN_STEM", leak.similarity.toFixed(2)],
+        "GATE",
+      );
       continue;
     }
 
     // Two options meaning the same thing make the question ungradeable.
     const distinct = await checkDistractorDistinctness(candidate.en.options);
     if (!distinct.ok) {
-      await refuse(candidate, ["AMBIGUOUS_DISTRACTOR", `${distinct.collidingKeys?.join("/")}`], "GATE");
+      await refuse(
+        candidate,
+        ["AMBIGUOUS_DISTRACTOR", `${distinct.collidingKeys?.join("/")}`],
+        "GATE",
+      );
       continue;
     }
 
     const embedding = embeddings[index];
-    if (keptEmbeddings.some((kept) => cosine(kept, embedding) >= REPEAT_THRESHOLD)) {
+    if (
+      keptEmbeddings.some((kept) => cosine(kept, embedding) >= REPEAT_THRESHOLD)
+    ) {
       duplicates++;
       await refuse(candidate, ["DUPLICATE_IN_BATCH"], "DUPLICATE");
       continue;
@@ -360,14 +414,23 @@ export async function generateImageQuestions(
       },
       select: { id: true },
     });
-    await storeStemEmbedding(db, created.id, embedding, verdict.conceptGroupId ?? null);
+    await storeStemEmbedding(
+      db,
+      created.id,
+      embedding,
+      verdict.conceptGroupId ?? null,
+    );
     keptEmbeddings.push(embedding);
     accepted++;
   }
 
   await db.generationBatch.update({
     where: { id: batch.id },
-    data: { status: "READY", modelVersion: result.modelVersion, promptVersion: result.promptVersion },
+    data: {
+      status: "READY",
+      modelVersion: result.modelVersion,
+      promptVersion: result.promptVersion,
+    },
     select: { id: true },
   });
   await db.imageAsset.update({
@@ -381,11 +444,24 @@ export async function generateImageQuestions(
     action: AUDIT.questionsGenerated,
     entityType: "GenerationBatch",
     entityId: batch.id,
-    meta: { imageAssetId: image.id, accepted, answerDisputed, sceneMismatched, factsVerified },
+    meta: {
+      imageAssetId: image.id,
+      accepted,
+      answerDisputed,
+      sceneMismatched,
+      factsVerified,
+    },
   });
 
   logger.info(
-    { batchId: batch.id, accepted, answerDisputed, sceneMismatched, duplicates, factsVerified },
+    {
+      batchId: batch.id,
+      accepted,
+      answerDisputed,
+      sceneMismatched,
+      duplicates,
+      factsVerified,
+    },
     "image questions generated",
   );
 

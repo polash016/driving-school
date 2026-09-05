@@ -160,14 +160,19 @@ export async function bulkApproveTranslations(
 
   const result = await db.translation.updateMany({
     where: { id: { in: targets.map((row) => row.id) } },
-    data: { status: "APPROVED", reviewedById: actor.id, reviewedAt: new Date() },
+    data: {
+      status: "APPROVED",
+      reviewedById: actor.id,
+      reviewedAt: new Date(),
+    },
   });
 
   // Push approved questions out to the variants students are actually served.
   const masterIds = targets
     .filter((row) => row.entity === "MASTER_ITEM")
     .map((row) => row.entityId);
-  if (masterIds.length > 0) await deriveVariantTranslations(db, input.locale, masterIds);
+  if (masterIds.length > 0)
+    await deriveVariantTranslations(db, input.locale, masterIds);
   if (targets.some((row) => row.entity === "UI_MESSAGE")) {
     await invalidateMessages(input.locale);
   }
@@ -177,7 +182,11 @@ export async function bulkApproveTranslations(
     action: AUDIT.translationApproved,
     entityType: "Language",
     entityId: input.locale,
-    meta: { bulk: true, approved: result.count, skippedBecauseFlagged: skipped },
+    meta: {
+      bulk: true,
+      approved: result.count,
+      skippedBecauseFlagged: skipped,
+    },
   });
   return { approved: result.count, skipped };
 }

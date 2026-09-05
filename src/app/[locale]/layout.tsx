@@ -63,6 +63,10 @@ export default async function LocaleLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full`}
     >
       <body className="flex min-h-full flex-col">
+        {/* The aurora field (spec-18): one fixed layer behind everything, painted once. Hidden by
+            [data-surface="plain"] on admin, where a blurred field under a data table is cost
+            without benefit. */}
+        <div className="aurora-field" aria-hidden />
         <ThemeProvider>
           <NextIntlClientProvider>
             <a

@@ -354,7 +354,7 @@ export function QuestionTable({
                       className={cn(
                         "rounded-full px-2 py-0.5 text-xs font-medium",
                         row.status === "APPROVED" &&
-                          "bg-[var(--status-success-soft)] text-[var(--status-success)]",
+                          "bg-[var(--status-success-soft)] text-[var(--status-success-strong)]",
                         row.status === "RETIRED" &&
                           "bg-muted text-muted-foreground",
                         row.status === "IN_REVIEW" &&

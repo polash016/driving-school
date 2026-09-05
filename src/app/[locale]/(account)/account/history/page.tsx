@@ -74,8 +74,8 @@ export default async function HistoryPage({
                         className={cn(
                           "rounded-full px-2.5 py-1 text-xs font-medium",
                           attempt.passed
-                            ? "bg-[var(--status-success-soft)] text-[var(--status-success)]"
-                            : "bg-destructive/10 text-destructive",
+                            ? "bg-[var(--status-success-soft)] text-[var(--status-success-strong)]"
+                            : "bg-[var(--status-danger-soft)] text-[var(--status-danger-strong)]",
                         )}
                       >
                         {attempt.passed ? t("passed") : t("notPassed")}
@@ -103,7 +103,7 @@ export default async function HistoryPage({
                         </Link>
                         <span className="flex items-center gap-2 text-xs text-muted-foreground">
                           {attempt.countsTowardGuarantee ? (
-                            <span className="rounded-full bg-[var(--status-success-soft)] px-2 py-0.5 font-medium text-[var(--status-success)]">
+                            <span className="rounded-full bg-[var(--status-success-soft)] px-2 py-0.5 font-medium text-[var(--status-success-strong)]">
                               {t("countsTowardGuarantee")}
                             </span>
                           ) : (

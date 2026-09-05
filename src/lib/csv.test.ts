@@ -10,7 +10,8 @@ describe("CSV parsing", () => {
   });
 
   it("handles quoted fields, embedded separators, newlines and escaped quotes", () => {
-    const csv = 'name,note\n"Nordmann, Kari","line1\nline2"\n"He said ""hi""",x';
+    const csv =
+      'name,note\n"Nordmann, Kari","line1\nline2"\n"He said ""hi""",x';
     expect(parseCsv(csv)).toEqual([
       ["name", "note"],
       ["Nordmann, Kari", "line1\nline2"],
@@ -52,8 +53,8 @@ describe("CSV parsing", () => {
   });
 
   it("keeps æøå intact", () => {
-    expect(parseCsvRecords("email,firstName\nase@example.no,Åse Øystein")).toEqual([
-      { email: "ase@example.no", firstname: "Åse Øystein" },
-    ]);
+    expect(
+      parseCsvRecords("email,firstName\nase@example.no,Åse Øystein"),
+    ).toEqual([{ email: "ase@example.no", firstname: "Åse Øystein" }]);
   });
 });

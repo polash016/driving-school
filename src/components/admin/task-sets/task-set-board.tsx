@@ -94,7 +94,7 @@ export function TaskSetBoard({
               </p>
             </div>
             {build.published ? (
-              <span className="rounded-full bg-[var(--status-success-soft)] px-3 py-1 text-xs font-semibold text-[var(--status-success)]">
+              <span className="rounded-full bg-[var(--status-success-soft)] px-3 py-1 text-xs font-semibold text-[var(--status-success-strong)]">
                 {t("published")}
               </span>
             ) : (
@@ -159,7 +159,9 @@ function SetRow({ set }: { set: TaskSetSummary }) {
       </td>
       <td className="py-2 text-xs">
         {set.composition.warnings.length === 0 ? (
-          <span className="text-[var(--status-success)]">{t("balanced")}</span>
+          <span className="text-[var(--status-success-strong)]">
+            {t("balanced")}
+          </span>
         ) : (
           <span className="text-[var(--status-warning-fg)]">
             {set.composition.warnings

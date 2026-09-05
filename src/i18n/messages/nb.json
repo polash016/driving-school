@@ -59,7 +59,12 @@
     "practice": "Øving",
     "practiceSub": "Dine regler",
     "signTestSub": "{count} skilt",
-    "previousTests": "Mine tidligere prøver"
+    "previousTests": "Mine tidligere prøver",
+    "greeting": "Hei, {name}",
+    "greetingAnon": "Hei",
+    "greetingProgress": "{passed} av {total} oppgavesett bestått",
+    "statPassRate": "Beståttandel",
+    "statSetsPassed": "Sett bestått"
   },
   "errors": {
     "validation": "Noe av informasjonen du oppga er ikke gyldig. Sjekk og prøv igjen.",

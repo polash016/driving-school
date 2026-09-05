@@ -111,7 +111,8 @@ export async function planRun(
   // Clear out translations whose source has since been renamed or deleted. They cannot be served,
   // cannot be reviewed, and would otherwise sit in the queue for ever.
   const pruned = await pruneOrphans(db, locale, all);
-  if (pruned > 0) logger.info({ locale, pruned }, "removed orphaned translations");
+  if (pruned > 0)
+    logger.info({ locale, pruned }, "removed orphaned translations");
 
   const pending = await pendingUnits(db, locale, all);
 

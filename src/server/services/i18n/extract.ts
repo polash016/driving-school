@@ -91,7 +91,9 @@ export function extractMessages(glossaryVersion: number): TranslationUnit[] {
   const flat = flattenMessages(BASE_MESSAGES as Messages);
   return Object.entries(flat)
     .filter(([key]) => !STAFF_ONLY_NAMESPACES.includes(key.split(".")[0]))
-    .map(([key, text]) => unit("UI_MESSAGE", key, { text }, undefined, key, glossaryVersion));
+    .map(([key, text]) =>
+      unit("UI_MESSAGE", key, { text }, undefined, key, glossaryVersion),
+    );
 }
 
 /**
@@ -307,7 +309,9 @@ export async function pruneOrphans(
   locale: string,
   currentUnits: Array<{ entity: TranslatableEntity; entityId: string }>,
 ): Promise<number> {
-  const live = new Set(currentUnits.map((unit) => `${unit.entity}:${unit.entityId}`));
+  const live = new Set(
+    currentUnits.map((unit) => `${unit.entity}:${unit.entityId}`),
+  );
   const existing = await db.translation.findMany({
     where: { locale, entity: { not: "ITEM_VARIANT" } },
     select: { id: true, entity: true, entityId: true },
@@ -318,6 +322,8 @@ export async function pruneOrphans(
     .map((row) => row.id);
   if (orphans.length === 0) return 0;
 
-  const result = await db.translation.deleteMany({ where: { id: { in: orphans } } });
+  const result = await db.translation.deleteMany({
+    where: { id: { in: orphans } },
+  });
   return result.count;
 }

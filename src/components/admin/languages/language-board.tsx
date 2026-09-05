@@ -116,7 +116,7 @@ export function LanguageBoard({
                         className={cn(
                           "rounded-full px-2 py-0.5",
                           language.studentVisible
-                            ? "bg-[var(--status-success-soft)] text-[var(--status-success)]"
+                            ? "bg-[var(--status-success-soft)] text-[var(--status-success-strong)]"
                             : "bg-muted text-muted-foreground",
                         )}
                       >

@@ -68,7 +68,7 @@ export default async function AttemptPaperPage({
                 "text-[length:var(--font-size-stat)] font-semibold leading-none",
                 result.passed === false
                   ? "text-destructive"
-                  : "text-[var(--status-success)]",
+                  : "text-[var(--status-success-strong)]",
               )}
             >
               {result.correctCount}/{result.questionCount}
@@ -117,7 +117,7 @@ export default async function AttemptPaperPage({
               className={cn(
                 "rounded-full px-2 py-0.5 font-medium",
                 summary.countsTowardGuarantee
-                  ? "bg-[var(--status-success-soft)] text-[var(--status-success)]"
+                  ? "bg-[var(--status-success-soft)] text-[var(--status-success-strong)]"
                   : "bg-muted text-muted-foreground",
               )}
             >

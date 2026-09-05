@@ -61,7 +61,7 @@ export function TaskSetSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="mx-auto max-h-[85vh] gap-0 overflow-y-auto rounded-t-[calc(var(--radius-base)+6px)] sm:max-w-md"
+        className="mx-auto max-h-[85vh] gap-0 overflow-y-auto rounded-t-[calc(var(--radius-base)+12px)] backdrop-blur-[var(--glass-blur)] sm:max-w-md"
       >
         <SheetHeader className="gap-1.5 pb-2">
           <div className="flex items-start justify-between gap-3 pr-8">
@@ -171,7 +171,7 @@ export function TaskSetSheet({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[var(--radius-control)] bg-muted px-2 py-2.5 text-center">
+    <div className="rounded-[var(--radius-base)] bg-muted/70 px-2 py-2.5 text-center ring-1 ring-[var(--glass-ring)]">
       <dd className="text-[0.95rem] font-bold tabular-nums text-foreground">
         {value}
       </dd>
@@ -196,7 +196,7 @@ function AttemptChip({ attempt }: { attempt: TaskSetAttempt }) {
     <span
       className={
         attempt.passed
-          ? "shrink-0 rounded-full bg-[var(--status-success-soft)] px-2 py-0.5 text-[0.65rem] font-semibold text-[var(--status-success)]"
+          ? "shrink-0 rounded-full bg-[var(--status-success-soft)] px-2 py-0.5 text-[0.65rem] font-semibold text-[var(--status-success-strong)]"
           : "shrink-0 rounded-full bg-muted px-2 py-0.5 text-[0.65rem] font-semibold text-muted-foreground"
       }
     >

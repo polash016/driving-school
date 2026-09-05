@@ -119,7 +119,9 @@ d("the coverage gate", () => {
     expect(coverage.ready).toBe(0);
     expect(coverage.percent).toBe(0);
     expect(coverage.complete).toBe(false);
-    expect(coverage.byEntity.some((entry) => entry.entity === "UI_MESSAGE")).toBe(true);
+    expect(
+      coverage.byEntity.some((entry) => entry.entity === "UI_MESSAGE"),
+    ).toBe(true);
   });
 
   it("counts only what a student can actually see", async () => {

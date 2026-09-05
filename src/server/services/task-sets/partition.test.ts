@@ -49,9 +49,9 @@ describe("partitionBank", () => {
   it("spreads topics rather than filling a slice from one topic", () => {
     const result = partitionBank(bank(300), OPTIONS);
     for (const slice of result.slices) {
-      expect(
-        Object.keys(slice.composition.topicCounts).length,
-      ).toBeGreaterThan(1);
+      expect(Object.keys(slice.composition.topicCounts).length).toBeGreaterThan(
+        1,
+      );
     }
   });
 
@@ -149,10 +149,13 @@ describe("partitionBank", () => {
     expect(result.slices.length).toBeGreaterThan(1);
     for (const slice of result.slices) {
       // No slice may be a single-topic set…
-      expect(Object.keys(slice.composition.topicCounts).length).toBeGreaterThan(1);
+      expect(Object.keys(slice.composition.topicCounts).length).toBeGreaterThan(
+        1,
+      );
       expect(slice.composition.warnings).not.toContain("SINGLE_TOPIC");
       // …and each must carry a real share of the non-dominant material.
-      const nonSign = slice.masterItemIds.length - (slice.composition.topicCounts.signs ?? 0);
+      const nonSign =
+        slice.masterItemIds.length - (slice.composition.topicCounts.signs ?? 0);
       expect(nonSign).toBeGreaterThan(5);
     }
   });

@@ -246,7 +246,10 @@ export async function taskSetAttemptsAction(
 ): Promise<ActionResult<TaskSetAttempt[]>> {
   const user = await requireUser();
   try {
-    return { ok: true, data: await taskSetService.attemptsFor(user.id, taskSetId) };
+    return {
+      ok: true,
+      data: await taskSetService.attemptsFor(user.id, taskSetId),
+    };
   } catch (error) {
     return toActionError(error);
   }

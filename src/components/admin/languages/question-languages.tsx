@@ -61,7 +61,7 @@ export async function QuestionLanguages({
                       className={cn(
                         "ms-1.5 rounded-full px-1.5 py-0.5 text-[0.625rem]",
                         translation.status === "APPROVED"
-                          ? "bg-[var(--status-success-soft)] text-[var(--status-success)]"
+                          ? "bg-[var(--status-success-soft)] text-[var(--status-success-strong)]"
                           : "bg-muted text-muted-foreground",
                       )}
                     >

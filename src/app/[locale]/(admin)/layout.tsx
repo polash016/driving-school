@@ -33,7 +33,10 @@ export default async function AdminLayout({
   ] as const;
 
   return (
-    <div className="flex flex-1 flex-col">
+    // data-surface="plain" opts admin out of the Aurora glass (spec-18 §2): these screens are
+    // dense with tables, where a translucent surface is noise and a blurred layer under a long
+    // grid is the most expensive thing on the page for the least benefit.
+    <div data-surface="plain" className="flex flex-1 flex-col bg-background">
       <nav
         aria-label={t("admin")}
         className="border-b border-border bg-card/60"

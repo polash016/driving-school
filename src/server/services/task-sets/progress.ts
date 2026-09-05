@@ -45,7 +45,7 @@ export function nextProgress(
     bestCorrect: beatsBest ? run.correctCount : (current?.bestCorrect ?? null),
     bestOutOf: beatsBest ? run.outOf : (current?.bestOutOf ?? null),
     // Set once, never cleared, and it records WHEN the set was cleared — not the best run.
-    passedAt: (current?.passedAt ?? null) ?? (run.passed ? run.at : null),
+    passedAt: current?.passedAt ?? (run.passed ? run.at : null),
     lastAttemptId: run.attemptId,
     lastAttemptAt: run.at,
   };

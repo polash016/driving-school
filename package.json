@@ -27,7 +27,8 @@
     "signs:extract": "tsx scripts/extract-signs.ts",
     "signs:enrich": "tsx scripts/enrich-signs.ts",
     "signs:questions": "tsx scripts/seed-sign-questions.ts",
-    "tasksets:build": "tsx scripts/build-task-sets.ts"
+    "tasksets:build": "tsx scripts/build-task-sets.ts",
+    "dev:seed-progress": "tsx scripts/seed-student-progress.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1116.0",

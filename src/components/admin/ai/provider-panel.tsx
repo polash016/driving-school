@@ -158,7 +158,7 @@ export function AiProviderPanel({
                           className={cn(
                             "text-xs",
                             provider.lastCheckOk
-                              ? "text-[var(--status-success)]"
+                              ? "text-[var(--status-success-strong)]"
                               : "text-destructive",
                           )}
                         >

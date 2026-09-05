@@ -18,7 +18,11 @@ export async function SiteHeader({ locale }: { locale: string }) {
   }));
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur">
+    <header
+      className="sticky top-0 z-40 border-b border-[var(--glass-ring)] bg-[var(--surface-glass)] backdrop-blur-[var(--glass-blur)] backdrop-saturate-[var(--glass-saturate)]"
+      // Sticky and translucent: the aurora field scrolls beneath it, which is what keeps the top
+      // of the page from reading as a solid bar clamped over the design (spec-18).
+    >
       <div className="mx-auto flex h-14 w-full max-w-md items-center justify-between gap-2 px-4 md:max-w-5xl">
         <Link
           href="/"

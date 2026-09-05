@@ -40,7 +40,7 @@ export const blindAnswerCheckPrompt: PromptTemplate<{
       "OPTIONS:",
       ...options.map((option, index) => `  ${index + 1}. ${option}`),
       "",
-      'Return STRICT JSON { choice, quote, unanswerable, sceneSupported } where:',
+      "Return STRICT JSON { choice, quote, unanswerable, sceneSupported } where:",
       "  choice         — the number of the single correct option.",
       "  quote          — the sentence from the regulation text that makes it correct, copied verbatim.",
       "  unanswerable   — true if the regulation text above does not settle it, or if more than one option is defensible, or if none is.",

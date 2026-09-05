@@ -44,7 +44,8 @@ function verifierPicks(text: string, extra: Record<string, unknown> = {}) {
   aiJson.mockImplementation(async (opts: { vars: { options: string[] } }) => ({
     data: {
       choice: opts.vars.options.findIndex((o) => o === text) + 1,
-      quote: "kjørende har vikeplikt for trafikk i begge retninger på kryssende veg",
+      quote:
+        "kjørende har vikeplikt for trafikk i begge retninger på kryssende veg",
       unanswerable: false,
       ...extra,
     },
@@ -82,7 +83,9 @@ describe("verifyAnswerBlind", () => {
     const sent = JSON.stringify(vars);
     expect(sent).not.toContain("correctOptionKey");
     // Options travel as bare strings — no a/b/c/d keys the verifier could align with a key.
-    expect(vars.options).toEqual(expect.arrayContaining([base.options[0].text]));
+    expect(vars.options).toEqual(
+      expect.arrayContaining([base.options[0].text]),
+    );
     expect(sent).not.toMatch(/"key"/);
   });
 
@@ -99,15 +102,19 @@ describe("verifyAnswerBlind", () => {
 
   it("refuses agreement backed by a quote that is not in the cited text", async () => {
     // Agreeing for a reason it invented is not evidence the rule supports the answer.
-    aiJson.mockImplementation(async (opts: { vars: { options: string[] } }) => ({
-      data: {
-        choice: opts.vars.options.findIndex((o) => o === base.options[0].text) + 1,
-        quote: "drivers must always yield to vehicles approaching from the left at all times",
-        unanswerable: false,
-      },
-      modelVersion: "stub-model",
-      promptVersion: "1.0.0",
-    }));
+    aiJson.mockImplementation(
+      async (opts: { vars: { options: string[] } }) => ({
+        data: {
+          choice:
+            opts.vars.options.findIndex((o) => o === base.options[0].text) + 1,
+          quote:
+            "drivers must always yield to vehicles approaching from the left at all times",
+          unanswerable: false,
+        },
+        modelVersion: "stub-model",
+        promptVersion: "1.0.0",
+      }),
+    );
     const result = await verifyAnswerBlind(base);
     expect(result.verified).toBe(false);
     expect(result.reason).toContain("not in the cited text");
@@ -125,15 +132,20 @@ describe("verifyAnswerBlind", () => {
   });
 
   it("accepts a choice returned as a string, as some models do", async () => {
-    aiJson.mockImplementation(async (opts: { vars: { options: string[] } }) => ({
-      data: {
-        choice: String(opts.vars.options.findIndex((o) => o === base.options[0].text) + 1),
-        quote: "kjørende har vikeplikt for trafikk i begge retninger på kryssende veg",
-        unanswerable: false,
-      },
-      modelVersion: "stub-model",
-      promptVersion: "1.0.0",
-    }));
+    aiJson.mockImplementation(
+      async (opts: { vars: { options: string[] } }) => ({
+        data: {
+          choice: String(
+            opts.vars.options.findIndex((o) => o === base.options[0].text) + 1,
+          ),
+          quote:
+            "kjørende har vikeplikt for trafikk i begge retninger på kryssende veg",
+          unanswerable: false,
+        },
+        modelVersion: "stub-model",
+        promptVersion: "1.0.0",
+      }),
+    );
     expect((await verifyAnswerBlind(base)).verified).toBe(true);
   });
 
@@ -150,7 +162,9 @@ describe("verifyAnswerBlind", () => {
     verifierPicks("Give way to traffic on the crossing road");
     await verifyAnswerBlind(base);
     await verifyAnswerBlind(base);
-    expect(aiJson.mock.calls[0][0].vars.options).toEqual(aiJson.mock.calls[1][0].vars.options);
+    expect(aiJson.mock.calls[0][0].vars.options).toEqual(
+      aiJson.mock.calls[1][0].vars.options,
+    );
   });
 });
 
@@ -187,7 +201,12 @@ describe("scene fit", () => {
     // give-way sign and a no-entry sign. The regulation section covers ALL priority signs, so the
     // law checked out perfectly while the picture showed something else.
     aiJson.mockResolvedValue({
-      data: { choice: 1, quote: "", unanswerable: false, sceneSupported: false },
+      data: {
+        choice: 1,
+        quote: "",
+        unanswerable: false,
+        sceneSupported: false,
+      },
       modelVersion: "stub-model",
       promptVersion: "1.0.0",
     });
@@ -206,7 +225,10 @@ describe("scene fit", () => {
 
 describe("checkStemDoesNotLeakAnswer", () => {
   it("refuses a stem that paraphrases its own correct option", async () => {
-    aiEmbed.mockResolvedValue([[1, 0], [1, 0]]);
+    aiEmbed.mockResolvedValue([
+      [1, 0],
+      [1, 0],
+    ]);
     const result = await checkStemDoesNotLeakAnswer(
       "One of them indicates that drivers must give way to traffic in both directions.",
       "That drivers have a duty to give way to traffic in both directions on the crossing road.",
@@ -215,8 +237,18 @@ describe("checkStemDoesNotLeakAnswer", () => {
   });
 
   it("passes a stem that asks rather than tells", async () => {
-    aiEmbed.mockResolvedValue([[1, 0], [0, 1]]);
-    expect((await checkStemDoesNotLeakAnswer("What must you do at this sign?", "Give way")).ok).toBe(true);
+    aiEmbed.mockResolvedValue([
+      [1, 0],
+      [0, 1],
+    ]);
+    expect(
+      (
+        await checkStemDoesNotLeakAnswer(
+          "What must you do at this sign?",
+          "Give way",
+        )
+      ).ok,
+    ).toBe(true);
   });
 });
 
@@ -238,18 +270,31 @@ describe("checkStemHidesTheSign", () => {
   });
 
   it("refuses a stem naming the sign by its code", () => {
-    expect(checkStemHidesTheSign("What does sign 302 require of you?", signs).ok).toBe(false);
+    expect(
+      checkStemHidesTheSign("What does sign 302 require of you?", signs).ok,
+    ).toBe(false);
   });
 
   it("allows a question that merely uses the words in a normal sentence", () => {
     // "Must you give way" is the question a driver actually faces; only the sign's NAME used to
     // label the sign is a give-away.
-    expect(checkStemHidesTheSign("Must you give way to traffic from the right here?", signs).ok).toBe(true);
-    expect(checkStemHidesTheSign("Are you allowed to enter this road?", signs).ok).toBe(true);
+    expect(
+      checkStemHidesTheSign(
+        "Must you give way to traffic from the right here?",
+        signs,
+      ).ok,
+    ).toBe(true);
+    expect(
+      checkStemHidesTheSign("Are you allowed to enter this road?", signs).ok,
+    ).toBe(true);
   });
 
   it("allows the wording the prompt asks for", () => {
-    expect(checkStemHidesTheSign("What does the sign on the right mean?", signs).ok).toBe(true);
-    expect(checkStemHidesTheSign("What must you do at this sign?", signs).ok).toBe(true);
+    expect(
+      checkStemHidesTheSign("What does the sign on the right mean?", signs).ok,
+    ).toBe(true);
+    expect(
+      checkStemHidesTheSign("What must you do at this sign?", signs).ok,
+    ).toBe(true);
   });
 });

@@ -14,9 +14,10 @@ export async function RecentTests({
 }: {
   attempts: AttemptSummary[];
 }) {
-  const [t, tHistory, format] = await Promise.all([
+  const [t, tHistory, tTaskSets, format] = await Promise.all([
     getTranslations("home"),
     getTranslations("history"),
+    getTranslations("taskSets"),
     getFormatter(),
   ]);
   if (attempts.length === 0) return null;
@@ -57,7 +58,13 @@ export async function RecentTests({
               >
                 <span className="min-w-0 space-y-0.5">
                   <span className="block truncate text-sm font-medium text-foreground">
-                    {tHistory(`kind.${attempt.kind}`)}
+                    {/* A task set is known by its NUMBER — five rows all reading "Task set" is
+                        the one label a student cannot tell apart. */}
+                    {attempt.taskSetNumber !== null
+                      ? tTaskSets("setNumber", {
+                          number: attempt.taskSetNumber,
+                        })
+                      : tHistory(`kind.${attempt.kind}`)}
                   </span>
                   <span className="block text-xs text-muted-foreground">
                     {format.dateTime(attempt.startedAt, {
@@ -86,8 +93,8 @@ export async function RecentTests({
                           className={cn(
                             "rounded-full px-2 py-0.5 text-[0.6875rem] font-medium",
                             attempt.passed
-                              ? "bg-[var(--status-success-soft)] text-[var(--status-success)]"
-                              : "bg-destructive/10 text-destructive",
+                              ? "bg-[var(--status-success-soft)] text-[var(--status-success-strong)]"
+                              : "bg-[var(--status-danger-soft)] text-[var(--status-danger-strong)]",
                           )}
                         >
                           {attempt.passed

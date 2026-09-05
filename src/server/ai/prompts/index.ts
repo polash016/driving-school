@@ -166,7 +166,9 @@ export const imageQuestionPrompt: PromptTemplate<{
       "",
       "SCENE (settled fact — do not reinterpret):",
       situationSummary,
-      signList ? `Signs present: ${signList}` : "No traffic signs were identified in this picture.",
+      signList
+        ? `Signs present: ${signList}`
+        : "No traffic signs were identified in this picture.",
       sceneFacts,
       "",
       "REGULATION TEXT — the ONLY source for what is correct:",
@@ -179,7 +181,9 @@ export const imageQuestionPrompt: PromptTemplate<{
       "- be complete in BOTH English (en) and Norwegian Bokmål (nb), with the same option keys in the same order and an explanation in each language.",
       "",
       difficultyBrief,
-      avoidStems ? `\nALREADY ASKED — do not rewrite these:\n${avoidStems}` : "",
+      avoidStems
+        ? `\nALREADY ASKED — do not rewrite these:\n${avoidStems}`
+        : "",
       rejectionLessons,
       "",
       "Return STRICT JSON in exactly this shape and nothing else:",
@@ -207,7 +211,8 @@ export const imageQuestionPrompt: PromptTemplate<{
               },
               correctOptionKey: "a",
               difficulty: 3,
-              testsPoint: "one short phrase naming the specific rule this question tests",
+              testsPoint:
+                "one short phrase naming the specific rule this question tests",
               citations: [{ sourceCode: "skiltforskriften", ref: "§ 6" }],
             },
           ],

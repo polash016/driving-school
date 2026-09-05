@@ -74,12 +74,19 @@ export function parseCsv(input: string, delimiter?: string): string[][] {
 export function parseCsvRecords(input: string): Record<string, string>[] {
   const rows = parseCsv(input);
   if (rows.length === 0) return [];
-  const headers = rows[0].map((h) => h.trim().toLowerCase().replace(/[^a-z0-9]/g, ""));
-  return rows.slice(1).map((row) =>
-    Object.fromEntries(
-      headers.map((header, index) => [header, (row[index] ?? "").trim()]),
-    ),
+  const headers = rows[0].map((h) =>
+    h
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, ""),
   );
+  return rows
+    .slice(1)
+    .map((row) =>
+      Object.fromEntries(
+        headers.map((header, index) => [header, (row[index] ?? "").trim()]),
+      ),
+    );
 }
 
 /**
@@ -91,7 +98,9 @@ export function toCsv(
   headers?: string[],
   delimiter = ",",
 ): string {
-  const columns = headers ?? [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  const columns = headers ?? [
+    ...new Set(rows.flatMap((row) => Object.keys(row))),
+  ];
   const escape = (value: string | number | null | undefined): string => {
     const text = value === null || value === undefined ? "" : String(value);
     return /["\n\r]|^\s|\s$/.test(text) || text.includes(delimiter)
@@ -101,6 +110,8 @@ export function toCsv(
 
   return [
     columns.join(delimiter),
-    ...rows.map((row) => columns.map((column) => escape(row[column])).join(delimiter)),
+    ...rows.map((row) =>
+      columns.map((column) => escape(row[column])).join(delimiter),
+    ),
   ].join("\r\n");
 }

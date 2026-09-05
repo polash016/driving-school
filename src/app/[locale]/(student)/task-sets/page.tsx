@@ -30,14 +30,14 @@ export default async function TaskSetsPage({
   return (
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-5 px-4 py-6">
       <header className="space-y-1.5">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+        <h1 className="text-[1.55rem] font-bold tracking-[-0.026em] text-foreground">
           {t("title")}
         </h1>
         <p className="text-sm/relaxed text-muted-foreground">{t("subtitle")}</p>
       </header>
 
       {board.totalCount > 0 ? (
-        <section className="space-y-2 rounded-[var(--radius-base)] border border-border bg-card p-4 shadow-[var(--shadow-card)]">
+        <section className="glass space-y-2 rounded-[calc(var(--radius-base)+6px)] p-4">
           <div
             className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
             role="progressbar"

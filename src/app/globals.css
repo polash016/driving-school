@@ -13,9 +13,9 @@
 .dark {
   --background: var(--surface-page);
   --foreground: var(--text-default);
-  --card: var(--surface-card);
+  --card: var(--surface-glass);
   --card-foreground: var(--text-default);
-  --popover: var(--surface-raised);
+  --popover: var(--surface-glass-strong);
   --popover-foreground: var(--text-default);
   --primary: var(--brand-primary);
   --primary-foreground: var(--brand-primary-fg);
@@ -59,12 +59,14 @@
   --color-success: var(--status-success);
   --color-success-foreground: var(--status-success-fg);
   --color-success-soft: var(--status-success-soft);
+  --color-success-strong: var(--status-success-strong);
   --color-warning: var(--status-warning);
   --color-warning-foreground: var(--status-warning-fg);
   --color-warning-soft: var(--status-warning-soft);
   --color-danger: var(--status-danger);
   --color-danger-foreground: var(--status-danger-fg);
   --color-danger-soft: var(--status-danger-soft);
+  --color-danger-strong: var(--status-danger-strong);
   --color-brand-accent: var(--brand-accent);
   --color-brand-accent-foreground: var(--brand-accent-fg);
 
@@ -78,6 +80,7 @@
 
   --shadow-card: var(--shadow-card);
   --shadow-raised: var(--shadow-raised);
+  --shadow-hero: var(--shadow-hero);
 }
 
 @layer base {
@@ -90,6 +93,76 @@
   body {
     @apply bg-background text-foreground antialiased;
   }
+
+  /*
+   * The aurora field (spec-18). ONE fixed layer behind everything, painted once — never per card.
+   * Fixed rather than scrolling so the blooms stay put while content moves over them, which is what
+   * makes the glass read as glass.
+   */
+  .aurora-field {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: var(--aurora-field);
+    background-color: var(--surface-page);
+  }
+
+  /*
+   * Frosted surface. Applied by Card and by anything else that sits on the field.
+   *
+   * The blur is the single most expensive thing in this design, so it is opt-in per surface and
+   * capped — see spec-18 §4. It is never animated.
+   */
+  .glass {
+    background-color: var(--surface-glass);
+    /*
+     * The 1px edge is part of THIS box-shadow rather than a `ring-*` utility.
+     *
+     * Tailwind's ring utilities compose into `box-shadow`, and a utility beats a base-layer rule —
+     * so `ring-1` alongside this silently erased the card's shadow and highlight, leaving every
+     * surface flat. One declaration owns all three layers, and nothing can half-override it.
+     */
+    box-shadow:
+      0 0 0 1px var(--glass-ring),
+      var(--glass-highlight),
+      var(--shadow-card);
+  }
+
+  /*
+   * Hover LIFTS rather than tints. A grey wash under a frosted surface reads as the card getting
+   * dirty; a deeper shadow reads as it coming toward you, which is what glass should do.
+   */
+  .glass-lift {
+    transition:
+      box-shadow 0.2s ease,
+      transform 0.2s ease;
+  }
+  .glass-lift:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 0 0 1px var(--glass-ring),
+      var(--glass-highlight),
+      var(--shadow-card-hover);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .glass-lift {
+      transition: none;
+    }
+    .glass-lift:hover {
+      transform: none;
+    }
+  }
+  @supports (backdrop-filter: blur(1px)) {
+    .glass {
+      backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    }
+  }
+  /* A blurred layer with nothing behind it costs the same and buys nothing. */
+  [data-surface="plain"] .glass {
+    backdrop-filter: none;
+  }
+
   /* WCAG: always-visible focus for keyboard users */
   :focus-visible {
     outline: 2px solid var(--focus-ring);

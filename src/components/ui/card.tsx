@@ -2,6 +2,15 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * The app's surface (spec-18).
+ *
+ * `glass` supplies the fill, the blur and the specular top edge from tokens, so `bg-card` and
+ * `shadow-card` are deliberately NOT set here — they would win over the token-driven ones. The
+ * bright 1px edge replaced `ring-foreground/5`: a dark hairline reads as grime on a frosted sheet,
+ * a bright one reads as its edge. It lives INSIDE `glass`'s box-shadow, because a `ring-*` utility
+ * would overwrite that shadow entirely.
+ */
 function Card({
   className,
   size = "default",
@@ -12,7 +21,7 @@ function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-lg bg-card py-(--card-spacing) text-sm/relaxed text-card-foreground shadow-card ring-1 ring-foreground/5 [--card-spacing:--spacing(4)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-lg *:[img:last-child]:rounded-lg",
+        "group/card glass flex flex-col gap-(--card-spacing) overflow-hidden rounded-lg py-(--card-spacing) text-sm/relaxed text-card-foreground [--card-spacing:--spacing(4)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-lg *:[img:last-child]:rounded-lg",
         className,
       )}
       {...props}

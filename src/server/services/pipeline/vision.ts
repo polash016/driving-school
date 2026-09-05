@@ -2,8 +2,14 @@ import sharp from "sharp";
 import type { PrismaClient, SignClass } from "@prisma/client";
 import { z } from "zod";
 import { aiJson } from "@/server/ai/client";
-import { sceneDetectionPrompt, signDiscriminationPrompt } from "@/server/ai/prompts/vision";
-import { contextSheetSchema, type ContextSheet } from "@/server/contracts/image-pipeline";
+import {
+  sceneDetectionPrompt,
+  signDiscriminationPrompt,
+} from "@/server/ai/prompts/vision";
+import {
+  contextSheetSchema,
+  type ContextSheet,
+} from "@/server/contracts/image-pipeline";
 import { createRng, shuffle } from "@/server/services/quiz/rng";
 import { logger } from "@/lib/logger";
 import { NotFoundError } from "@/lib/errors";
@@ -69,8 +75,13 @@ const boxObjectSchema = z.object({
  * frame), so only a value ABOVE 1 can mean the thousandths grid.
  */
 export function normaliseBbox(value: unknown): unknown {
-  const flat = Array.isArray(value) && Array.isArray(value[0]) ? value[0] : value;
-  if (Array.isArray(flat) && flat.length === 4 && flat.every((n) => typeof n === "number")) {
+  const flat =
+    Array.isArray(value) && Array.isArray(value[0]) ? value[0] : value;
+  if (
+    Array.isArray(flat) &&
+    flat.length === 4 &&
+    flat.every((n) => typeof n === "number")
+  ) {
     const numbers = flat as number[];
     const scale = numbers.some((n) => n > 1) ? 1000 : 1;
     const [y, x, h, w] = numbers.map((n) => n / scale);
@@ -125,7 +136,12 @@ export interface ExtractionResult {
   unresolved: string[];
 }
 
-type RegistrySign = { code: string; name: string; signClass: SignClass; svgPath: string };
+type RegistrySign = {
+  code: string;
+  name: string;
+  signClass: SignClass;
+  svgPath: string;
+};
 
 function dataUri(bytes: Buffer, mime = "image/png"): string {
   return `data:${mime};base64,${bytes.toString("base64")}`;
@@ -147,7 +163,10 @@ export function cropRect(
   const left = Math.max(0, Math.round((bbox.x - padX) * width));
   const top = Math.max(0, Math.round((bbox.y - padY) * height));
   const right = Math.min(width, Math.round((bbox.x + bbox.w + padX) * width));
-  const bottom = Math.min(height, Math.round((bbox.y + bbox.h + padY) * height));
+  const bottom = Math.min(
+    height,
+    Math.round((bbox.y + bbox.h + padY) * height),
+  );
   const cropWidth = right - left;
   const cropHeight = bottom - top;
   if (cropWidth < MIN_CROP_PX || cropHeight < MIN_CROP_PX) return null;
@@ -161,7 +180,11 @@ export function cropRect(
  * averaged for display only — it never decides anything.
  */
 export function agreedSigns(
-  passes: { code: string; confidence: number; bbox?: z.infer<typeof boxObjectSchema> }[][],
+  passes: {
+    code: string;
+    confidence: number;
+    bbox?: z.infer<typeof boxObjectSchema>;
+  }[][],
   quorum = QUORUM,
 ): {
   code: string;
@@ -171,7 +194,11 @@ export function agreedSigns(
 }[] {
   const seen = new Map<
     string,
-    { confidences: number[]; bbox?: z.infer<typeof boxObjectSchema>; passes: number }
+    {
+      confidences: number[];
+      bbox?: z.infer<typeof boxObjectSchema>;
+      passes: number;
+    }
   >();
 
   for (const pass of passes) {
@@ -191,7 +218,8 @@ export function agreedSigns(
     .map(([code, entry]) => ({
       code,
       confidence:
-        entry.confidences.reduce((sum, value) => sum + value, 0) / entry.confidences.length,
+        entry.confidences.reduce((sum, value) => sum + value, 0) /
+        entry.confidences.length,
       bbox: entry.bbox,
       agreement: entry.passes,
     }));
@@ -204,9 +232,13 @@ export function discriminationCandidates(
   seed: string,
 ): RegistrySign[] {
   const sameClass = registry.filter(
-    (sign) => sign.signClass === claimed.signClass && sign.code !== claimed.code,
+    (sign) =>
+      sign.signClass === claimed.signClass && sign.code !== claimed.code,
   );
-  const others = shuffle(createRng(seed), sameClass).slice(0, CANDIDATE_COUNT - 1);
+  const others = shuffle(createRng(seed), sameClass).slice(
+    0,
+    CANDIDATE_COUNT - 1,
+  );
   // Shuffled again so the right answer is not always first — position is a tell models pick up on.
   return shuffle(createRng(`${seed}:order`), [claimed, ...others]);
 }
@@ -243,14 +275,20 @@ export async function extractContextSheet(
 
   const { body: bytes } = await storage.get(image.storagePath);
   const meta = await sharp(bytes).metadata();
-  const photo = { type: "image_url" as const, image_url: { url: dataUri(bytes, "image/jpeg") } };
+  const photo = {
+    type: "image_url" as const,
+    image_url: { url: dataUri(bytes, "image/jpeg") },
+  };
 
   // ── Pass 1, three times ──────────────────────────────────────────────────
   // The catalogue order is shuffled per pass. Without it the three runs share the same positional
   // bias and "agreement" would mean the model repeated itself, not that it was independently sure.
   const passes: z.infer<typeof detectionSchema>[] = [];
   for (let pass = 0; pass < PASSES; pass++) {
-    const catalogue = shuffle(createRng(`${image.id}:catalogue:${pass}`), registry)
+    const catalogue = shuffle(
+      createRng(`${image.id}:catalogue:${pass}`),
+      registry,
+    )
       .map((sign) => `${sign.code} · ${sign.name}`)
       .join("\n");
     const result = await aiJson({
@@ -273,7 +311,9 @@ export async function extractContextSheet(
   const unresolved: string[] = [];
 
   // Anything one pass saw and the others did not is worth telling the admin about.
-  for (const code of new Set(passes.flatMap((pass) => pass.signs.map((sign) => sign.code)))) {
+  for (const code of new Set(
+    passes.flatMap((pass) => pass.signs.map((sign) => sign.code)),
+  )) {
     if (!agreed.some((sign) => sign.code === code)) {
       unresolved.push(`${code} — seen in only one of ${PASSES} readings`);
     }
@@ -286,8 +326,13 @@ export async function extractContextSheet(
     if (!candidate.bbox || !meta.width || !meta.height) {
       // No box means nothing to crop; the claim stands on agreement alone and is flagged so the
       // admin knows it was never visually re-checked.
-      confirmed.push({ signCode: candidate.code, confidence: candidate.confidence });
-      unresolved.push(`${candidate.code} — no region reported, not visually re-checked`);
+      confirmed.push({
+        signCode: candidate.code,
+        confidence: candidate.confidence,
+      });
+      unresolved.push(
+        `${candidate.code} — no region reported, not visually re-checked`,
+      );
       continue;
     }
     const rect = cropRect(candidate.bbox, meta.width, meta.height);
@@ -296,8 +341,16 @@ export async function extractContextSheet(
       continue;
     }
 
-    const crop = await sharp(bytes).extract(rect).resize(320, 320, { fit: "inside" }).png().toBuffer();
-    const candidates = discriminationCandidates(claimed, registry, `${image.id}:${candidate.code}`);
+    const crop = await sharp(bytes)
+      .extract(rect)
+      .resize(320, 320, { fit: "inside" })
+      .png()
+      .toBuffer();
+    const candidates = discriminationCandidates(
+      claimed,
+      registry,
+      `${image.id}:${candidate.code}`,
+    );
     const graphics = await Promise.all(
       candidates.map(async (sign) => ({
         type: "image_url" as const,
@@ -310,7 +363,12 @@ export async function extractContextSheet(
     const verdict = await aiJson({
       task: "vision",
       prompt: signDiscriminationPrompt,
-      vars: { candidates: candidates.map((sign) => ({ code: sign.code, name: sign.name })) },
+      vars: {
+        candidates: candidates.map((sign) => ({
+          code: sign.code,
+          name: sign.name,
+        })),
+      },
       schema: discriminationSchema,
       userContent: [
         { type: "text", text: "Cropped region:" },
@@ -335,9 +393,13 @@ export async function extractContextSheet(
         confidence: candidate.confidence,
         bbox: candidate.bbox,
       });
-      unresolved.push(`${candidate.code} → ${verdict.data.code} on re-check: ${verdict.data.reason}`);
+      unresolved.push(
+        `${candidate.code} → ${verdict.data.code} on re-check: ${verdict.data.reason}`,
+      );
     } else {
-      unresolved.push(`${candidate.code} — rejected on re-check: ${verdict.data.reason}`);
+      unresolved.push(
+        `${candidate.code} — rejected on re-check: ${verdict.data.reason}`,
+      );
     }
   }
 
@@ -357,12 +419,20 @@ export async function extractContextSheet(
   const settled = unresolved.length === 0 && confirmed.length > 0;
   await db.imageAsset.update({
     where: { id: image.id },
-    data: { aiContextSheet: sheet, status: settled ? "IN_REVIEW" : "NEEDS_HUMAN_ID" },
+    data: {
+      aiContextSheet: sheet,
+      status: settled ? "IN_REVIEW" : "NEEDS_HUMAN_ID",
+    },
     select: { id: true },
   });
 
   logger.info(
-    { imageAssetId: image.id, confirmed: confirmed.length, unresolved: unresolved.length, settled },
+    {
+      imageAssetId: image.id,
+      confirmed: confirmed.length,
+      unresolved: unresolved.length,
+      settled,
+    },
     "context sheet extracted",
   );
   return { sheet, settled, unresolved };

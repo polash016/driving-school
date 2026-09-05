@@ -29,14 +29,27 @@ export async function TaskSetHero({
   return (
     <Link
       href="/task-sets"
-      className="block rounded-[calc(var(--radius-base)+2px)] bg-primary p-4 text-primary-foreground shadow-[var(--shadow-card)] transition-transform duration-150 outline-none active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:active:scale-100"
+      className="relative block overflow-hidden rounded-[calc(var(--radius-base)+6px)] p-4 text-white shadow-[var(--shadow-hero)] transition-transform duration-150 outline-none active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:active:scale-100"
+      style={{ backgroundImage: "var(--gradient-hero)" }}
     >
-      <div className="flex items-center gap-3">
-        <span className="grid size-14 shrink-0 place-items-center rounded-[var(--radius-base)] bg-white/15">
+      {/* A single STATIC specular sweep — never animated (spec-18 §4). It is what separates a
+          glossy card from a flat coloured one, and it costs one paint. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-[-10%] top-[-40%] h-[150%]"
+        style={{ backgroundImage: "var(--gradient-sheen)" }}
+      />
+      {/* The specular top edge, matching every glass surface on the page. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/35"
+      />
+      <div className="relative flex items-center gap-3">
+        <span className="grid size-[3.25rem] shrink-0 place-items-center rounded-[1.05rem] border border-white/25 bg-white/[0.18] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
           <ExamIcon weight="fill" className="size-8" aria-hidden />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-lg font-semibold tracking-tight">
+          <span className="block text-[1.15rem] font-bold tracking-[-0.02em]">
             {t("heroTitle")}
           </span>
           <span className="block text-xs/relaxed opacity-85">
@@ -55,7 +68,7 @@ export async function TaskSetHero({
       {board.totalCount > 0 ? (
         <>
           <span
-            className="mt-3 block h-1.5 w-full overflow-hidden rounded-full bg-white/25"
+            className="relative mt-3.5 block h-[7px] w-full overflow-hidden rounded-full bg-white/[0.22] shadow-[inset_0_1px_2px_oklch(0_0_0/0.14)]"
             role="progressbar"
             aria-valuenow={percent}
             aria-valuemin={0}
@@ -66,11 +79,11 @@ export async function TaskSetHero({
             })}
           >
             <span
-              className="block h-full rounded-full bg-white transition-[width] duration-500 motion-reduce:transition-none"
+              className="block h-full rounded-full bg-gradient-to-r from-white/75 to-white shadow-[0_0_10px_oklch(1_0_0/0.7)] transition-[width] duration-500 motion-reduce:transition-none"
               style={{ width: `${percent}%` }}
             />
           </span>
-          <span className="mt-2 flex justify-between text-xs opacity-90">
+          <span className="relative mt-2 flex justify-between text-xs opacity-90">
             <span>
               {t("progress", {
                 passed: board.passedCount,
