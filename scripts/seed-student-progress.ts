@@ -79,19 +79,34 @@ async function main(): Promise<void> {
       where: { userId: user.id },
       select: { id: true },
     });
-    // Submitted attempts are trigger-protected — that is the point of them (spec-04b). Suspend the
-    // triggers for THIS transaction only, so a concurrent process is never left without them.
-    await db.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(
-        "SET LOCAL session_replication_role = 'replica'",
-      );
-      await tx.examAttemptQuestion.deleteMany({
-        where: { attemptId: { in: attempts.map((a) => a.id) } },
+    // Submitted attempts are trigger-protected — that is the point of them (spec-04b). Suspending
+    // the triggers needs superuser, which the PRODUCTION role deliberately is not. So this is
+    // attempted, and a refusal is reported as the expected outcome it is rather than crashing with
+    // a raw Postgres error: seeding then continues additively, which is still perfectly useful.
+    try {
+      await db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(
+          "SET LOCAL session_replication_role = 'replica'",
+        );
+        await tx.examAttemptQuestion.deleteMany({
+          where: { attemptId: { in: attempts.map((a) => a.id) } },
+        });
+        await tx.taskSetProgress.deleteMany({ where: { userId: user.id } });
+        await tx.examAttempt.deleteMany({ where: { userId: user.id } });
       });
-      await tx.taskSetProgress.deleteMany({ where: { userId: user.id } });
-      await tx.examAttempt.deleteMany({ where: { userId: user.id } });
-    });
-    console.log(`reset: removed ${attempts.length} attempts`);
+      console.log(`reset: removed ${attempts.length} attempts`);
+    } catch (error) {
+      const insufficientPrivilege =
+        typeof error === "object" &&
+        error !== null &&
+        JSON.stringify(error).includes("session_replication_role");
+      if (!insufficientPrivilege) throw error;
+      console.log(
+        `reset: SKIPPED — this database role cannot suspend the attempt-immutability triggers\n` +
+          `       (that protection is working as designed). Seeding ${attempts.length} existing\n` +
+          `       attempt(s) additively instead.`,
+      );
+    }
   }
 
   const rootSlug = await rootSlugByTopicId();
