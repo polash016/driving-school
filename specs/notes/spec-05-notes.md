@@ -397,3 +397,85 @@ their answers are ungraded until submission, and grading them for this panel wou
 about a live exam in front of the student. The panel fills as soon as a test is handed in.
 
 Totals: **273 unit/integration**, **24 e2e**, all green.
+
+---
+
+## Defect — 2026-09-06 · the OpenAI-compatible adapter could not talk to OmniRoute
+
+"Test connection" in **/admin/ai** failed for every OpenAI-compatible provider pointed at the
+school's own OmniRoute gateway (`https://ai.dsit.app/v1`, model `oc/nemotron-3.5-lightning-free`),
+showing this as the provider's `lastCheckError`:
+
+```
+Unexpected token 'd', "data: {"id"... is not valid JSON
+```
+
+### Root cause: the gateway streams unless told not to
+
+The key, the base URL and the model were all correct. `openAiCompatibleAdapter.chat` never sent a
+`stream` field, and **OmniRoute streams when `stream` is absent** — so a plain `/chat/completions`
+call came back as Server-Sent Events:
+
+```
+HTTP/2 200
+content-type: text/event-stream
+
+data: {"id":"gen-…","object":"chat.completion.chunk","choices":[{"delta":{"content":"Here"}}]}
+data: [DONE]
+```
+
+**HTTP 200 is what made this hard to see.** The adapter's guard is `if (!response.ok)`, so nothing
+classified it as a provider failure; execution fell through to `response.json()`, which threw a bare
+`SyntaxError` on the SSE body. `testProvider` catches everything and writes `caught.message` into
+`lastCheckError`, so the raw parser message became the admin-facing error. Measured against the live
+endpoint with the identical payload:
+
+| Request                 | content-type        | Outcome                          |
+| ----------------------- | ------------------- | -------------------------------- |
+| `stream` omitted (ours) | `text/event-stream` | `response.json()` throws         |
+| `"stream": false` added | `application/json`  | normal `chat.completion`, parses |
+
+### Fix
+
+`stream: false` is now sent explicitly on every chat call — never omitted. It is correct and
+harmless for every other OpenAI-compatible provider, and it pre-empts the same defect on
+OpenRouter, which defaults to streaming in the same way.
+
+A `readJson` helper replaces the two bare `response.json()` calls so an unparseable 200 can never
+again surface as `Unexpected token`. The admin now gets a message naming the cause:
+
+```
+expected a JSON completion but the endpoint returned text/event-stream: data: {"id":"gen-…
+```
+
+That message _is_ the entire output of the "Test connection" button, so it has to say something an
+admin can act on — a proxy sign-in page or an HTML error page reads the same way now.
+
+### Verified
+
+`openai-compatible.test.ts` — three tests, all of which fail against the old adapter reproducing the
+exact production error, and pass against the new one: the request carries `stream: false`, `ping`
+succeeds against a gateway that streams by default, and a non-JSON body raises a `ProviderError`
+rather than a parser crash.
+
+Then end-to-end through the **real adapter against the live endpoint**, not a mock:
+
+```
+✓ ping succeeds through the real adapter
+✓ chat returns text                       → "hello"
+```
+
+```
+pnpm test    # 438 passed (45 files) — three consecutive clean runs
+pnpm exec tsc --noEmit && pnpm exec eslint && pnpm build     # all clean
+```
+
+### Note for whoever configures the routes
+
+`oc/nemotron-3.5-lightning-free` is a **reasoning** model and OmniRoute counts reasoning tokens
+against `max_tokens`. Measured on a trivial JSON prompt: **236 of 244 completion tokens were
+reasoning**, and a run at `max_tokens: 1500` still stopped on `finish_reason: length` with the
+content truncated mid-object at `{"ok": 1.0`. It is fine for the connection test and for prose, but
+the tasks that set `json: true` (VALIDATION, GENERATION) should point at a non-reasoning model or
+carry a much larger budget. Model suitability, not an adapter defect — recorded here so it is not
+rediscovered as one.

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   classify,
+  ProviderError,
   type ChatRequest,
   type ChatResponse,
   type EmbedRequest,
@@ -39,6 +40,27 @@ function endpoint(credentials: ProviderCredentials, path: string): string {
   return `${base}${path}`;
 }
 
+/**
+ * `response.json()` throws a bare SyntaxError on anything that is not JSON, and that string
+ * ("Unexpected token 'd'") is what the admin screen ends up showing. A gateway streaming by
+ * default, a proxy sign-in page, an HTML error page: all answer 200 with an unparseable body,
+ * so say which one it was instead.
+ */
+async function readJson(response: Response): Promise<unknown> {
+  const body = await response.text();
+  try {
+    return JSON.parse(body);
+  } catch {
+    const contentType =
+      response.headers.get("content-type") ?? "no content-type";
+    throw new ProviderError(
+      `expected a JSON completion but the endpoint returned ${contentType}: ${body.slice(0, 160)}`,
+      response.status,
+      false,
+    );
+  }
+}
+
 export const openAiCompatibleAdapter: ProviderAdapter = {
   kind: "OPENAI_COMPATIBLE",
 
@@ -52,6 +74,9 @@ export const openAiCompatibleAdapter: ProviderAdapter = {
       body: JSON.stringify({
         model: request.model,
         messages: request.messages,
+        // Explicit, never omitted: OmniRoute (and OpenRouter) stream when `stream` is absent,
+        // which answers 200 with text/event-stream that no JSON parser can read.
+        stream: false,
         temperature: request.temperature ?? 0.4,
         max_tokens: request.maxTokens ?? 4096,
         ...(request.json ? { response_format: { type: "json_object" } } : {}),
@@ -59,7 +84,7 @@ export const openAiCompatibleAdapter: ProviderAdapter = {
     });
 
     if (!response.ok) throw classify(response.status, await response.text());
-    const parsed = chatSchema.parse(await response.json());
+    const parsed = chatSchema.parse(await readJson(response));
 
     return {
       text: parsed.choices[0].message.content,
@@ -80,7 +105,7 @@ export const openAiCompatibleAdapter: ProviderAdapter = {
     });
     if (!response.ok) throw classify(response.status, await response.text());
     return embedSchema
-      .parse(await response.json())
+      .parse(await readJson(response))
       .data.map((row) => row.embedding);
   },
 
