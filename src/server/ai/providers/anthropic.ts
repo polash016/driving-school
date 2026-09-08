@@ -1,6 +1,9 @@
 import { z } from "zod";
+import { schoolConfig } from "../../../../config/school.config";
 import {
   classify,
+  fetchWithDeadline,
+  readJson,
   type ChatRequest,
   type ChatResponse,
   type ProviderAdapter,
@@ -38,49 +41,54 @@ export const anthropicAdapter: ProviderAdapter = {
     const user = request.messages.filter(
       (message) => message.role !== "system",
     );
+    const timeoutMs = request.timeoutMs ?? schoolConfig.ai.requestTimeoutMs;
 
-    const response = await fetch(`${base}/messages`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": credentials.apiKey,
-        "anthropic-version": API_VERSION,
-      },
-      body: JSON.stringify({
-        model: request.model,
-        max_tokens: request.maxTokens ?? 4096,
-        temperature: request.temperature ?? 0.4,
-        ...(system && typeof system.content === "string"
-          ? { system: system.content }
-          : {}),
-        messages: user.map((message) => ({
-          role: "user",
-          content:
-            typeof message.content === "string"
-              ? message.content
-              : message.content.map((part) =>
-                  part.type === "text"
-                    ? { type: "text", text: part.text }
-                    : {
-                        type: "image",
-                        source: {
-                          type: "base64",
-                          media_type: part.image_url.url.slice(
-                            5,
-                            part.image_url.url.indexOf(";"),
-                          ),
-                          data: part.image_url.url.slice(
-                            part.image_url.url.indexOf(",") + 1,
-                          ),
+    const response = await fetchWithDeadline(
+      `${base}/messages`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": credentials.apiKey,
+          "anthropic-version": API_VERSION,
+        },
+        body: JSON.stringify({
+          model: request.model,
+          max_tokens: request.maxTokens ?? 4096,
+          temperature: request.temperature ?? 0.4,
+          ...(system && typeof system.content === "string"
+            ? { system: system.content }
+            : {}),
+          messages: user.map((message) => ({
+            role: "user",
+            content:
+              typeof message.content === "string"
+                ? message.content
+                : message.content.map((part) =>
+                    part.type === "text"
+                      ? { type: "text", text: part.text }
+                      : {
+                          type: "image",
+                          source: {
+                            type: "base64",
+                            media_type: part.image_url.url.slice(
+                              5,
+                              part.image_url.url.indexOf(";"),
+                            ),
+                            data: part.image_url.url.slice(
+                              part.image_url.url.indexOf(",") + 1,
+                            ),
+                          },
                         },
-                      },
-                ),
-        })),
-      }),
-    });
+                  ),
+          })),
+        }),
+      },
+      { timeoutMs, ...(request.signal ? { signal: request.signal } : {}) },
+    );
 
     if (!response.ok) throw classify(response.status, await response.text());
-    const parsed = responseSchema.parse(await response.json());
+    const parsed = responseSchema.parse(await readJson(response, timeoutMs));
 
     return {
       text: parsed.content.map((block) => block.text ?? "").join(""),
@@ -90,11 +98,12 @@ export const anthropicAdapter: ProviderAdapter = {
     };
   },
 
-  async ping(credentials, model): Promise<void> {
+  async ping(credentials, model, options): Promise<void> {
     await this.chat(credentials, {
       model,
       messages: [{ role: "user", content: "ping" }],
       maxTokens: 1,
+      timeoutMs: options?.timeoutMs ?? schoolConfig.ai.pingTimeoutMs,
     });
   },
 };

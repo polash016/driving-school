@@ -92,4 +92,41 @@ describe("openai-compatible adapter", () => {
         error.message.includes("<html>gateway</html>"),
     );
   });
+
+  it("gives up on a provider that never answers, within the request deadline", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise<Response>((_, reject) =>
+            init.signal?.addEventListener("abort", () =>
+              reject(init.signal!.reason),
+            ),
+          ),
+      ),
+    );
+    await expect(
+      openAiCompatibleAdapter.chat(CREDENTIALS, {
+        model: "m",
+        messages: [{ role: "user", content: "ping" }],
+        timeoutMs: 100,
+      }),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof ProviderError && e.status === 504 && e.retryable,
+    );
+  });
+
+  it("sends the configured default deadline when the request carries none", async () => {
+    const fetchMock = vi.fn(async (_u: string, init: RequestInit) => {
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+      return new Response(JSON.stringify(COMPLETION), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await openAiCompatibleAdapter.chat(CREDENTIALS, {
+      model: "m",
+      messages: [{ role: "user", content: "x" }],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
