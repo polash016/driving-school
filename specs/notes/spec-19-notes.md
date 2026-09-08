@@ -502,3 +502,89 @@ and nothing else.
 Structural companion: the partition also requires `qaFlags.length > 0 || status === "MACHINE"`, so
 a future `NEEDS_REVIEW` writer that forgets to attach a flag cannot be auto-approved by a vacuously
 true `[].every()`.
+
+---
+
+## Amendment A — throughput (verified 2026-09-09)
+
+### Where the 94 seconds went
+
+Instrumented from the worker's own `ai call` log lines on the live Spanish run (38 calls / 19
+batches, cadence 96 s):
+
+| Call                                        | Route                          | avg        | p95   | Share   |
+| ------------------------------------------- | ------------------------------ | ---------- | ----- | ------- |
+| Back-translation QA (`task: validation`)    | Teori2 / ollama gemma4-fast    | **82.8 s** | 117 s | **88%** |
+| … its fallback after a Cloudflare HTML page | Teori2 / gemma4:e4b-it-qat     | 240 s      | —     | —       |
+| Translation (`task: translation`)           | Gemini / gemini-3.5-flash-lite | **3.6 s**  | 4.5 s | 4%      |
+| Embeddings                                  | Gemini                         | ~0.6 s     | —     | <1%     |
+
+The model translated 5 questions in 3.6 s. The 94 s was _verifying_ that translation on the
+self-hosted box — a second full generation, serial.
+
+**Step 0 (routing only, no code): `VALIDATION` → Gemini flash-lite, the two Ollama validation routes
+removed.** The live run picked it up within one batch: **3.2 → 37 units/min**, an 11× improvement
+before a line of code changed. Measured after: 12 consecutive validation calls at 3.4-3.9 s, batch
+cadence 8-9 s.
+
+### The 77% "held for review" was not a quality problem
+
+62 of 64 flags were `QA_UNAVAILABLE` — the semantic check could not run because there was **no
+`EMBEDDING` route** (added mid-run at 10:29 UTC; `gemini-embedding-001`, 1536 dims in ~600 ms).
+Post-fix the real flag rate is ~7%, almost all `ANSWER_PERMUTED`. See the amendment-B note below and
+the `embedding-route-required` memory: this single missing route also explains the stalled KB
+embedding coverage, since `aiEmbed` serves both.
+
+### What the code change bought
+
+`BATCH_SIZE = 5` used ~15% of the output window; batches were strictly serial; `unitsFor` re-read the
+whole 529-question bank every batch to keep five; no adapter read `finish_reason`, so an oversized
+batch failed three times at full cost.
+
+- Batch size, output cap and slot count are `schoolConfig.ai.*` (20 / 8192 / 3). 8192 not 16384:
+  Gemini 2.0 Flash-Lite rejects anything larger with a non-retryable 400.
+- `ProviderTruncatedError` in all three adapters, rethrown unwrapped by `withFallback` so the runner
+  halves its batch instead of burning three attempts. A single-unit truncation is a real failure —
+  that is what stops an infinite re-queue.
+- A 429 is now waited out on the **same** route (5/10/20/40 s, capped at 60 s) rather than routed
+  around. This was found the hard way: at 37 units/min the run hit Gemini's per-minute quota within
+  ten minutes — 83 embedding + 33 translation 429s, and the immediate FAILED→QUEUED sweep burned
+  **190 units to SKIPPED in one minute**. A probe 90 s later succeeded, proving the quota is
+  per-minute and the right answer is to wait.
+- Embeddings chunk at 100 (Google's `batchEmbedContents` cap) — without it a 20-unit question batch
+  is 200 texts and 400s, which `semanticCheck` would have recorded as `QA_UNAVAILABLE` on all 20.
+- `extractAll` takes `ids`, so a batch reads its own units instead of ~690 KB of bank.
+- Advisory findings (`LENGTH_OUTLIER`) no longer force the expensive semantic pass; they stay in
+  `qaFlags` for the reviewer.
+
+### What the adversarial audit found, and why it was worth running
+
+A spec-compliance review passed the parallel runner. A separate adversarial concurrency audit did
+not, and it was right. Seven findings, all confirmed in the source before being fixed:
+
+- **The lease keepalive swallowed its own failures.** Under connection-pool pressure the lease could
+  lapse while the runner kept working: another runner claims the same jobs and translates them again
+  (double provider spend), while the first still writes `Translation` rows — nulling
+  `reviewedById`/`reviewedAt`/`reviewNote` and resetting `repairAttempts`. Now two consecutive
+  keepalive failures fence the runner, and the store is gated _between the model call and the write_,
+  not merely before the call — the window that matters, since batches run 30-540 s and the keepalive
+  ticks every 30 s. **Measured red: 8 model calls unfenced against 2 fenced.**
+- **A run could finalise `COMPLETED` with retryable `FAILED` jobs**, stamp `Language.lastSyncedAt`
+  and mail "your language is ready" with units untranslated and uncounted — `remaining` counted only
+  `QUEUED`/`RUNNING`. Both it and `progressOf` now count `FAILED` with attempts to spare.
+- `unitsFor` sat outside the `try`, so one pool timeout failed the entire run.
+- The budget leaked on every failure path, and could double-release: a bounded slice could translate
+  35 units against `maxUnits: 25`, or deliver 5 of 25 during an outage.
+- The batch size halved what a slot _won_ rather than the configured size, so contention could pin it
+  at 1 for a whole run; recovery now converges instead of oscillating.
+- Four terminal job writes lacked the lease guard `retireExhausted` has.
+
+**Verdict after the fixes: safe unattended at `translationParallelSlots: 3`, conditional on
+`connection_limit=12&pool_timeout=20` on the worker's `DATABASE_URL`** — the production host has 2
+vCPUs, so Prisma's default pool is 5, and 3 slots plus the keepalive plus `extractAll`'s fan-out
+needs more. Verified at deploy: `max_connections` 100, 27 in use.
+
+```
+pnpm test    # 601 passed (64 files) — i18n dir 176, integration suites RAN
+pnpm exec tsc --noEmit && pnpm exec eslint && pnpm build     # all clean
+```
