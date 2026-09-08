@@ -634,7 +634,8 @@
         "runActive": "A background run is already in progress for this language.",
         "runNotRunning": "That run is not running.",
         "runNotPaused": "That run is not paused.",
-        "runFinished": "That run has already finished."
+        "runFinished": "That run has already finished.",
+        "runEnqueued": "The background worker owns this run — pause it there instead."
       },
       "inEveryLanguage": "This question in every language",
       "field": "Field",

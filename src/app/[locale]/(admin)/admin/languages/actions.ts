@@ -2,7 +2,9 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { ConflictError } from "@/lib/errors";
 import { requireUser } from "@/server/auth/require-user";
+import type { SessionUser } from "@/server/authz";
 import type { ActionResult } from "@/server/contracts/common";
 import { db } from "@/server/db";
 import { toActionError } from "@/server/http/action-result";
@@ -10,6 +12,14 @@ import {
   createLanguage,
   updateLanguage,
 } from "@/server/services/i18n/languages";
+import {
+  requestCancel,
+  requestPause,
+  resumeRun,
+  runDetail,
+  startBackgroundRun,
+  type RunDetail,
+} from "@/server/services/i18n/run-control";
 import {
   bulkApproveTranslations,
   editTranslation,
@@ -144,6 +154,12 @@ export async function runSliceAction(
   const user = await requireUser("ADMIN");
   try {
     const runId = String(formData.get("runId") ?? "");
+    const run = await db.translationRun.findUnique({
+      where: { id: runId },
+      select: { enqueuedAt: true },
+    });
+    if (run?.enqueuedAt)
+      throw new ConflictError({ runId }, "admin.languages.errors.runEnqueued");
     const progress = await executeRun(db, runId, {
       leaseOwner: `admin-${user.id.slice(0, 8)}-${randomUUID().slice(0, 6)}`,
       maxUnits: Number(formData.get("maxUnits") ?? 25),
@@ -224,6 +240,76 @@ export async function editTranslationAction(
     });
     revalidatePath(`/admin/languages/${formData.get("code") ?? ""}`);
     return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export interface StartOutcome {
+  runId: string;
+  plannedUnits: number;
+  estimatedUsd: number;
+}
+
+/** Plan AND enqueue in one act — the worker picks it up on its next poll. */
+export async function startBackgroundRunAction(
+  _prev: ActionResult<StartOutcome> | undefined,
+  formData: FormData,
+): Promise<ActionResult<StartOutcome>> {
+  const user = await requireUser("ADMIN");
+  try {
+    const only = optionalString(formData, "only");
+    const plan = await startBackgroundRun(db, user, {
+      locale: String(formData.get("code") ?? ""),
+      ...(only ? { only: [only as TranslatableEntity] } : {}),
+    });
+    revalidatePath("/admin/languages");
+    revalidatePath(`/admin/languages/${plan.locale}`);
+    return {
+      ok: true,
+      data: {
+        runId: plan.runId,
+        plannedUnits: plan.plannedUnits,
+        estimatedUsd: plan.estimatedUsd,
+      },
+    };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+function runControl(fn: (actor: SessionUser, runId: string) => Promise<void>) {
+  return async (
+    _prev: ActionResult | undefined,
+    formData: FormData,
+  ): Promise<ActionResult> => {
+    const user = await requireUser("ADMIN");
+    try {
+      await fn(user, String(formData.get("runId") ?? ""));
+      revalidatePath("/admin/languages");
+      return { ok: true };
+    } catch (error) {
+      return toActionError(error);
+    }
+  };
+}
+export const pauseRunAction = runControl((actor, runId) =>
+  requestPause(db, actor, runId),
+);
+export const resumeRunAction = runControl((actor, runId) =>
+  resumeRun(db, actor, runId),
+);
+export const cancelRunAction = runControl((actor, runId) =>
+  requestCancel(db, actor, runId),
+);
+
+/** Read-only, no revalidation: polled every 3 s by the progress panel. */
+export async function runDetailAction(
+  runId: string,
+): Promise<ActionResult<RunDetail>> {
+  await requireUser("ADMIN");
+  try {
+    return { ok: true, data: await runDetail(db, runId) };
   } catch (error) {
     return toActionError(error);
   }

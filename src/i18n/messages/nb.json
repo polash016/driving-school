@@ -634,7 +634,8 @@
         "runActive": "En bakgrunnskjøring pågår allerede for dette språket.",
         "runNotRunning": "Den kjøringen kjører ikke.",
         "runNotPaused": "Den kjøringen er ikke satt på pause.",
-        "runFinished": "Den kjøringen er allerede ferdig."
+        "runFinished": "Den kjøringen er allerede ferdig.",
+        "runEnqueued": "Bakgrunnsarbeideren eier denne kjøringen — sett den på pause der i stedet."
       },
       "inEveryLanguage": "Dette spørsmålet på alle språk",
       "field": "Felt",
