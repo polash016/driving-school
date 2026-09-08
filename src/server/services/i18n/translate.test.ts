@@ -113,6 +113,34 @@ interface ModelUnit {
   en: Record<string, string>;
 }
 
+interface GatewayEnvelope {
+  data: { units: Array<Record<string, unknown>> };
+  modelVersion: string;
+  promptVersion: string;
+  usage: { promptTokens: number; completionTokens: number };
+  providerLabel: string;
+}
+
+/**
+ * The five-field shape every `aiJson` call returns, whichever task asked and whatever built its
+ * `units` — the one thing that differs by task is which prompt version comes back.
+ */
+function gatewayEnvelope(
+  task: string,
+  units: Array<Record<string, unknown>>,
+): GatewayEnvelope {
+  return {
+    data: { units },
+    modelVersion: "stub-model",
+    promptVersion:
+      task === "validation"
+        ? "qa.backTranslation@1.0.0"
+        : "translation.units@1.0.0",
+    usage: { promptTokens: 100, completionTokens: 100 },
+    providerLabel: "stub",
+  };
+}
+
 /**
  * Translate by prefixing — keeps every number, citation and placeholder intact (so the
  * deterministic gate passes) while never being byte-identical to the source (which would trip
@@ -138,16 +166,7 @@ function stubTranslation(flagged: string[] = []) {
             : {}),
         };
       });
-      return {
-        data: { units },
-        modelVersion: "stub-model",
-        promptVersion:
-          opts.task === "validation"
-            ? "qa.backTranslation@1.0.0"
-            : "translation.units@1.0.0",
-        usage: { promptTokens: 100, completionTokens: 100 },
-        providerLabel: "stub",
-      };
+      return gatewayEnvelope(opts.task, units);
     },
   );
   aiEmbed.mockImplementation(async (texts: string[]) =>
@@ -285,49 +304,26 @@ describe("translateBatch semantic-check sampling", () => {
     flagged: string[] = [],
   ) {
     aiJson.mockImplementation(
-      async (opts: {
-        task: string;
-        vars: { unitsJson: string };
-      }): Promise<{
-        data: { units: Array<Record<string, unknown>> };
-        modelVersion: string;
-        promptVersion: string;
-        usage: { promptTokens: number; completionTokens: number };
-        providerLabel: string;
-      }> => {
+      async (opts: { task: string; vars: { unitsJson: string } }) => {
         const items = JSON.parse(opts.vars.unitsJson) as Array<{
           id: string;
           value?: Record<string, string>;
           en?: Record<string, string>;
         }>;
         if (opts.task === "translation") {
-          return {
-            data: {
-              units: items.map((item) => ({
-                id: item.id,
-                value: byId[item.id] ?? item.en,
-                ...(flagged.includes(item.id)
-                  ? { issue: "two options would read the same" }
-                  : {}),
-              })),
-            },
-            modelVersion: "stub-model",
-            promptVersion: "translation.units@1.0.0",
-            usage: { promptTokens: 100, completionTokens: 100 },
-            providerLabel: "stub",
-          };
+          const units = items.map((item) => ({
+            id: item.id,
+            value: byId[item.id] ?? item.en,
+            ...(flagged.includes(item.id)
+              ? { issue: "two options would read the same" }
+              : {}),
+          }));
+          return gatewayEnvelope(opts.task, units);
         }
         // The back-translation: echo the translated value straight back. What it says does not
         // matter to these tests — only that the call happened.
-        return {
-          data: {
-            units: items.map((item) => ({ id: item.id, value: item.value })),
-          },
-          modelVersion: "stub-model",
-          promptVersion: "qa.backTranslation@1.0.0",
-          usage: { promptTokens: 100, completionTokens: 100 },
-          providerLabel: "stub",
-        };
+        const units = items.map((item) => ({ id: item.id, value: item.value }));
+        return gatewayEnvelope(opts.task, units);
       },
     );
     aiEmbed.mockImplementation(async (texts: string[]) =>

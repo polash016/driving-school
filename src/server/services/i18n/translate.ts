@@ -76,12 +76,6 @@ export interface TranslatedUnit {
   providerLabel: string | null;
   promptTokens: number;
   completionTokens: number;
-  /**
-   * Transient: whether a BLOCKING finding or the model's own doubt requires the semantic pass
-   * regardless of the language's sample rate. Never written by `storeTranslations` — it exists
-   * only to steer the sampling filter below, not to be persisted.
-   */
-  forceQa?: boolean;
 }
 
 /** Strip the payload down to the keys the source actually had, so nothing invented sneaks in. */
@@ -237,6 +231,10 @@ export async function translateBatch(
   );
 
   const fresh: TranslatedUnit[] = [];
+  // Entity ids whose finding forces the semantic pass regardless of the sample rate — local to
+  // this call, never attached to a `TranslatedUnit`, so there is nothing here for
+  // `storeTranslations` to accidentally persist.
+  const forced = new Set<string>();
   for (const unit of pending) {
     const entry = byId.get(unit.entityId);
     if (!entry) {
@@ -259,11 +257,9 @@ export async function translateBatch(
     const flags = allCodes(check);
     // The model saying it could not translate faithfully is worth more than any check we wrote.
     if (entry.issue) flags.push("MODEL_FLAGGED");
-    // Only a BLOCKING finding (or the model's own doubt) is worth spending a back-translation on
-    // for certain. An advisory finding like LENGTH_OUTLIER stays in qaFlags below either way — it
-    // still forces the sample if the language's qaSampleRate happens to land on it — but it does
-    // not, on its own, override the sample rate.
-    const forceQa = blockingCodes(check).length > 0 || Boolean(entry.issue);
+    if (blockingCodes(check).length > 0 || entry.issue) {
+      forced.add(unit.entityId);
+    }
 
     fresh.push({
       unit,
@@ -282,7 +278,6 @@ export async function translateBatch(
       providerLabel: response.providerLabel,
       promptTokens: perUnitPrompt,
       completionTokens: perUnitCompletion,
-      forceQa,
     });
   }
 
@@ -292,7 +287,7 @@ export async function translateBatch(
   //    bulk-approve guard, but they do not spend a back-translation on their own.
   const sampled = fresh.filter(
     (candidate, position) =>
-      candidate.forceQa === true ||
+      forced.has(candidate.unit.entityId) ||
       language.qaSampleRate >= 1 ||
       position / Math.max(1, fresh.length) < language.qaSampleRate,
   );
