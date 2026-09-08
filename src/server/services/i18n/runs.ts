@@ -846,9 +846,10 @@ async function unitsFor(
   const all = await extractAll(db, {
     glossaryVersion: language.glossaryVersion,
     only: [entity],
+    ids,
   });
   const wanted = new Set(ids);
-  return all.filter((unit) => wanted.has(unit.entityId));
+  return all.filter((unit) => wanted.has(unit.entityId)); // keep the guard: the source may have moved since planning
 }
 
 export async function progressOf(

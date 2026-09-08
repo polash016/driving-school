@@ -87,10 +87,14 @@ function unit(
 const STAFF_ONLY_NAMESPACES = ["admin"];
 
 /** Every student-facing UI message key. */
-export function extractMessages(glossaryVersion: number): TranslationUnit[] {
+export function extractMessages(
+  glossaryVersion: number,
+  ids?: string[],
+): TranslationUnit[] {
   const flat = flattenMessages(BASE_MESSAGES as Messages);
   return Object.entries(flat)
     .filter(([key]) => !STAFF_ONLY_NAMESPACES.includes(key.split(".")[0]))
+    .filter(([key]) => (ids ? ids.includes(key) : true))
     .map(([key, text]) =>
       unit("UI_MESSAGE", key, { text }, undefined, key, glossaryVersion),
     );
@@ -106,6 +110,7 @@ export function extractMessages(glossaryVersion: number): TranslationUnit[] {
 export async function extractMasterItems(
   db: PrismaClient,
   glossaryVersion: number,
+  ids?: string[],
 ): Promise<TranslationUnit[]> {
   const items = await db.masterItem.findMany({
     where: {
@@ -115,6 +120,7 @@ export async function extractMasterItems(
       // tokens through an AI round trip. None exist today (0 of 139), and the coverage report
       // names any that appear rather than letting them fail quietly.
       parameterSlots: { equals: Prisma.DbNull },
+      ...(ids ? { id: { in: ids } } : {}),
     },
     select: { id: true, content: true, correctOptionKey: true },
   });
@@ -143,9 +149,10 @@ export async function extractMasterItems(
 export async function extractTopics(
   db: PrismaClient,
   glossaryVersion: number,
+  ids?: string[],
 ): Promise<TranslationUnit[]> {
   const topics = await db.topic.findMany({
-    where: { deletedAt: null },
+    where: { deletedAt: null, ...(ids ? { id: { in: ids } } : {}) },
     select: { id: true, slug: true, name: true, description: true },
   });
   return topics.map((topic) => {
@@ -173,8 +180,10 @@ export async function extractTopics(
 export async function extractLicenseClasses(
   db: PrismaClient,
   glossaryVersion: number,
+  ids?: string[],
 ): Promise<TranslationUnit[]> {
   const classes = await db.licenseClass.findMany({
+    where: { ...(ids ? { id: { in: ids } } : {}) },
     select: { id: true, code: true, name: true },
   });
   return classes.map((licenseClass) => {
@@ -193,8 +202,10 @@ export async function extractLicenseClasses(
 export async function extractSigns(
   db: PrismaClient,
   glossaryVersion: number,
+  ids?: string[],
 ): Promise<TranslationUnit[]> {
   const signs = await db.sign.findMany({
+    where: { ...(ids ? { id: { in: ids } } : {}) },
     select: { id: true, code: true, name: true, meaning: true },
   });
   return signs.map((sign) => {
@@ -221,8 +232,10 @@ export async function extractSigns(
 export async function extractKbSources(
   db: PrismaClient,
   glossaryVersion: number,
+  ids?: string[],
 ): Promise<TranslationUnit[]> {
   const sources = await db.kbSource.findMany({
+    where: { ...(ids ? { code: { in: ids } } : {}) },
     select: { code: true, name: true },
   });
   return sources.map((source) =>
@@ -241,6 +254,10 @@ export interface ExtractOptions {
   glossaryVersion: number;
   /** Limit to one kind — the "translate just the UI" path in the admin screen. */
   only?: TranslatableEntity[];
+  /** Restrict to these entityIds (per-entity primary key, or message key / KbSource.code).
+   * The runner extracts per batch; without this every batch re-read the whole bank to keep a
+   * handful of ids. */
+  ids?: string[];
 }
 
 /** Every translatable unit in the system, hashed and ready to be compared with what exists. */
@@ -250,17 +267,20 @@ export async function extractAll(
 ): Promise<TranslationUnit[]> {
   const wanted = (entity: TranslatableEntity) =>
     !options.only || options.only.includes(entity);
+  const { ids } = options;
   const groups = await Promise.all([
-    wanted("UI_MESSAGE") ? extractMessages(options.glossaryVersion) : [],
+    wanted("UI_MESSAGE") ? extractMessages(options.glossaryVersion, ids) : [],
     wanted("MASTER_ITEM")
-      ? extractMasterItems(db, options.glossaryVersion)
+      ? extractMasterItems(db, options.glossaryVersion, ids)
       : [],
-    wanted("TOPIC") ? extractTopics(db, options.glossaryVersion) : [],
+    wanted("TOPIC") ? extractTopics(db, options.glossaryVersion, ids) : [],
     wanted("LICENSE_CLASS")
-      ? extractLicenseClasses(db, options.glossaryVersion)
+      ? extractLicenseClasses(db, options.glossaryVersion, ids)
       : [],
-    wanted("SIGN") ? extractSigns(db, options.glossaryVersion) : [],
-    wanted("KB_SOURCE") ? extractKbSources(db, options.glossaryVersion) : [],
+    wanted("SIGN") ? extractSigns(db, options.glossaryVersion, ids) : [],
+    wanted("KB_SOURCE")
+      ? extractKbSources(db, options.glossaryVersion, ids)
+      : [],
   ]);
   return groups.flat();
 }
