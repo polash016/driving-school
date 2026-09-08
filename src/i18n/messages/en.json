@@ -531,7 +531,8 @@
         "GENERATION": "Question writing",
         "VALIDATION": "Checking",
         "EMBEDDING": "Search indexing",
-        "IMAGE": "Image creation"
+        "IMAGE": "Image creation",
+        "TRANSLATION": "Translation"
       }
     },
     "security": {

@@ -531,7 +531,8 @@
         "GENERATION": "Spørsmålsskriving",
         "VALIDATION": "Kontroll",
         "EMBEDDING": "Søkeindeksering",
-        "IMAGE": "Bildegenerering"
+        "IMAGE": "Bildegenerering",
+        "TRANSLATION": "Oversettelse"
       }
     },
     "security": {

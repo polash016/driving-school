@@ -113,7 +113,10 @@ export const openAiCompatibleAdapter: ProviderAdapter = {
     await this.chat(credentials, {
       model,
       messages: [{ role: "user", content: "ping" }],
-      maxTokens: 1,
+      // No maxTokens: a 1-token cap makes self-hosted Ollama behind OmniRoute 502 on roughly
+      // half of all calls (measured 11/24 vs 24/24 at the 4096 default, interleaved to rule out
+      // warm-up), so the health check was failing on a healthy provider. The model stops on its
+      // own after "Hi" — the cap is a ceiling, not a target, so the default costs nothing here.
     });
   },
 };
