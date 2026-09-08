@@ -297,9 +297,123 @@ language card grows **"Repair {count} flagged in background"** — shown only wh
 database (above), not by clicking it in a browser — a live repair execution needs the AI gateway,
 which phase 3's sample-first dry run is the right place to exercise end to end.
 
-### Still outstanding
+## Phase 3 — readiness, notifications, sample run
 
-- **Phase 3** — the publish-readiness checklist, run emails (`notifyRunEvent`, including reporting
-  the `stalled` and `exhausted` decisions to a human), and the sample-first dry run.
-- **Not yet deployed.** The branch is unmerged, and `f87b19f` (the streaming fix) is still unpushed,
-  so production runs neither.
+### ✅ Coverage stops being a percentage and names what blocks publishing
+
+`languageCoverage` returns `blockers[]`, a **partition** of `total − ready`: every unit that is not
+servable lands in exactly one bucket — UNTRANSLATED, FAILED, FLAGGED, AWAITING_APPROVAL — and the sum
+is always the shortfall the percentage describes. `complete` is now _derived_ from that list
+(`total > 0 && blockers.length === 0`) rather than computed separately, so the checklist and the
+publish gate cannot drift: a language showing an empty checklist is one the gate will let through,
+by construction rather than by agreement. Asserted both in a pure test and against a real 1305-unit
+extraction.
+
+Two bucket rules that took care to get right:
+
+- **FAILED is a subset of "no fresh row", never a status.** A unit the machine gave up on in one run
+  and translated in the next has a fresh row and is not counted twice.
+- **Cancelled and superseded jobs are not failures.** A cancel marks every remaining job SKIPPED and
+  a re-plan supersedes them; calling those "gave up after 3 tries" would put a failure notice beside
+  a unit nobody ever tried. `error: { notIn: ["cancelled", "superseded"] }`.
+
+Verified in the browser on a language seeded with all four blockers at once (1296/1305 ready):
+
+```
+/en  Blocking publication: 3 untranslated · 2 gave up after 3 tries · 2 held by a check
+                           · 2 awaiting approval
+/no  Hindrer publisering:  3 uoversatt · 2 oppgitt etter 3 forsøk · 2 holdt av en kontroll
+                           · 2 venter på godkjenning
+```
+
+Each line filtered to exactly its own rows in both locales — including the FLAGGED link showing the
+REJECTED row that the default queue omits, and the UNTRANSLATED link correctly including a unit whose
+job was SKIPPED with `error: "cancelled"` rather than mis-filing it as a failure. UNTRANSLATED and
+FAILED units have no `Translation` row at all, so the review queue cannot list them; that is why
+`untranslatedUnits` and its own section exist, and it is what makes "each links to exactly those
+rows" true rather than approximately true.
+
+The gate moves with the list: with everything blocking, the Show toggle measured `disabled: true`;
+filled to 1305/1305 the checklist collapsed to "Nothing blocks publishing — every unit is servable."
+and the toggle measured `disabled: false`. A checklist link measured 44×197 px with a visible focus
+ring, and `?blocker=NONSENSE` falls back to the normal queue rather than erroring.
+
+### ✅ Nobody has to watch the page for hours
+
+`notifyRunEvent` mails the admin who started the run, in their own language; when nobody started it
+— a CLI run, or a repair the worker chained itself — every live ADMIN is told instead. Four outcomes:
+finished, failed, repair exhausted (units that survived three attempts and now need a human), and
+repair stalled (it fixed nothing, usually because the provider is down).
+
+Two silences are deliberate: a SAMPLE reports nothing, and a run whose decision was `planned` reports
+nothing either — the chained repair run will report when _it_ finishes, and mailing here as well
+would tell the same admin twice about one piece of work.
+
+Asserted through the in-memory `capturedMail()` sink, which `vitest.config.ts` wires up for every
+test. The link is built per recipient, so a Norwegian admin gets `/no/admin/languages/<code>` whatever
+the run's own locale was.
+
+### ✅ Five units before three thousand
+
+`planSampleRun` picks ~5 pending units **round-robin across entity kinds**, so a sample shows a
+question, a topic, a sign and a message rather than five UI strings, and renders them beside their
+source. A sample is not a sync: `Language.lastSyncedAt` stays null, no `translationRunFinished` audit
+row is written, and `maybePlanRepair` returns `none` so it never chains a repair — all asserted.
+
+`sampleResults` joins through the run's own `TranslationJob` rows rather than `Translation.runId`,
+because `storeTranslations` overwrites `runId` on every upsert and a later sync touching a sampled
+unit would otherwise detach it from the sample that produced it.
+
+### Final gate
+
+```
+pnpm test    # 505 passed (56 files) — three consecutive clean runs
+pnpm exec tsc --noEmit && pnpm exec eslint && pnpm build     # all clean
+```
+
+### Known gaps, stated plainly
+
+- **The sample panel and the repair button were never clicked in a browser.** Both compile (`pnpm
+build` covers every admin route), both are covered by integration tests, and the readiness
+  checklist and progress panel _were_ driven in a real browser in both locales — but these two were
+  not. Executing either end to end spends real AI budget.
+- **The lease keepalive timer is never fired in a test.** `KEEPALIVE_MS` is 30 s and every test
+  finishes in milliseconds; what is covered is the shape of the guarded write and the `lostLease`
+  consequence, not the timer itself.
+- **Head-of-line blocking is reachable.** `findClaimableRun` takes the single oldest claimable run;
+  if that run's locale is busy (an admin's 25-unit slice holding the lease, say), `executeRun`
+  returns `localeBusy` and the tick idles rather than trying the next language's run. It is bounded
+  rather than permanent — the blocking run finishes — but with several languages queued a short slice
+  can delay an unrelated language by its own duration. The fix is for the claim to skip locales that
+  already hold a live lease; it is out of the approved plan's scope and worth a follow-up decision.
+- **`storeRepairs` nulls `reviewNote`** along with the other review provenance. In practice a
+  `NEEDS_REVIEW` row never carries a note — both `reviewTranslation` and `editTranslation` move the
+  row to APPROVED/REJECTED when they write one — so nothing observable is lost, but it is the one
+  place repair discards human-written words.
+
+## Deployment
+
+Not yet deployed. The branch is unmerged, and `f87b19f` (the OmniRoute streaming fix) is still
+unpushed, so production is running neither.
+
+The deploy adds a second pm2 app. `ecosystem.config.cjs` is committed here and the VPS keeps its own
+copy, so the two are reconciled by hand on the first deploy rather than silently overwritten:
+
+```bash
+git push origin spec-19-translation-automation      # then merge to main
+# on the VPS, as ai-dev:
+cd ~/applications/driving-school
+cp ecosystem.config.cjs ecosystem.config.cjs.pre-spec19   # keep the hand-edited original
+git pull
+pnpm install
+pnpm prisma generate            # pnpm skips postinstall when the lockfile is unchanged
+pnpm prisma migrate deploy
+pnpm build
+diff ecosystem.config.cjs.pre-spec19 ecosystem.config.cjs # reconcile before reloading
+pm2 startOrReload ecosystem.config.cjs --update-env
+pm2 save
+pm2 logs teoripro-i18n-worker --lines 20
+```
+
+Then confirm the board's chip reads **Background worker online**. `tsx` is a devDependency, so the
+VPS install must keep devDependencies or the worker cannot start.
