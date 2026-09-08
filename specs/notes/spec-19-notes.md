@@ -1,12 +1,11 @@
 # Spec 19 — Unattended Translation & Publish Readiness · verification evidence
 
-**Status: phase 1 of 3 complete.** The request deadline (phase 0) and the background worker, run
-controls and live progress (phase 1) are implemented and verified (2026-09-09). Auto-repair
-(phase 2) and readiness/notifications/sample (phase 3) are the remaining work; see
-`specs/plans/spec-19-plan.md`.
+**Status: phase 2 of 3 complete.** The request deadline (phase 0), the background worker, run
+controls and live progress (phase 1), and auto-repair (phase 2) are implemented and verified.
+Readiness/notifications/sample (phase 3) is the remaining work; see `specs/plans/spec-19-plan.md`.
 
 ```
-pnpm test    # 472 passed (51 files)
+pnpm test    # 486 passed (54 files)
 pnpm exec tsc --noEmit && pnpm exec eslint     # clean
 ```
 
@@ -133,7 +132,8 @@ Two corrections were made to the plan during implementation, both recorded in `D
   rather than the flag's value: `executeRun(..., { maxUnits: 0 })` returns `notClaimed` while paused
   and `budget` (i.e. claimed) the moment resume lands.
 - **`workerTick` now guards `afterRun` on the success path** as it already did on the failure path.
-  It is inert today — `defaultAfterRun` only logs — but once `afterRun` sends mail (task 21), a
+  It was inert at the time — `defaultAfterRun` only logged; it now plans the repair chain too — but
+  once `afterRun` sends mail (task 21), a
   transport failure on a run that completed cleanly would have been logged as "run failed", had a
   `FAILED` status attempted over it, and been reported twice.
 
@@ -199,10 +199,107 @@ a board-level component that has no locale, so it could not compile as written);
 renders with `format.dateTime`, not `format.relativeTime`, which threw `IntlError:
 ENVIRONMENT_FALLBACK` on every render and disagreed between SSR and hydration.
 
+## Phase 2 — auto-repair
+
+A translation that fails a QA check is stored `NEEDS_REVIEW`, and `NEEDS_REVIEW` is served under no
+policy, never counts towards coverage, and is deliberately refused by bulk approve. So before this,
+the flagged pile could only be cleared one unit at a time by a human. Phase 2 removes that wall by
+making the machine fix its own mistakes — never by lowering the bar.
+
+### ✅ The bar did not move — bulk approve still refuses flagged rows
+
+The invariant the whole spec is built to protect, and the first thing to check after building
+something whose whole purpose is to shrink the flagged pile. Against the real database, with a
+clean `MACHINE` row and a `NEEDS_REVIEW` row that has spent **all three** repair attempts — the
+strongest possible temptation to wave through, and exactly the row a human has to read:
+
+```
+✓ still refuses a flagged unit, even one the machine has given up on
+    bulkApproveTranslations → { approved: 1, skipped: 1 }
+    flagged row after:  status NEEDS_REVIEW · qaFlags ["NUMBER_DRIFT"] · repairAttempts 3
+                        reviewedById null · reviewedAt null      ← untouched in every respect
+✓ has no opt-out from refusing flagged units
+    includeFlagged is z.literal(false): the refusal is on the `includeFlagged` path itself,
+    not incidental to some other rule
+```
+
+The plan's snippet for the second test used `{ locale: "x", includeFlagged: true }`, which throws —
+but on `locale`'s `min(2)`, so it would have passed without ever exercising `includeFlagged`. The
+fixture uses a valid locale and asserts the issue path, so the test proves what it claims.
+
+### ✅ Three safety rules, each with a test
+
+1. **Never overwrite a human.** A repair run is planned from exactly the rows a reviewer is working
+   through, so `storeRepairs` writes conditionally — `updateMany` guarded on the row still being
+   `NEEDS_REVIEW` on the same `sourceHash` — rather than upserting the way `storeTranslations`
+   does. `count === 0` means a human approved, edited or rejected it while the batch was in the
+   model: that unit is reported superseded, its job is SKIPPED, and nothing is written, remembered
+   included.
+2. **Scrutiny goes up, never down.** `repairSlice` calls `repairBatch` with `qaSampleRate: 1`, so
+   every repaired unit is re-QA'd whatever the language's sampling says. A repair that passes the
+   structural gate and still means something else is precisely what a second attempt produces.
+3. **The budget must bind.** Three attempts, persisted on the row (not the job) so the ceiling
+   survives across runs — and charged only where one was actually spent. Units whose only flags are
+   infrastructure (`QA_UNAVAILABLE`) or advisory (`LENGTH_OUTLIER`) are re-QA'd on the existing
+   value and never re-translated: their text was never the problem, and without that rule one
+   provider outage would burn every flagged unit's whole quality budget.
+
+### ✅ A repair that fixes nothing does not plan another
+
+The failure mode this exists for: the AI provider is down, so every repair batch fails, its jobs
+exhaust `MAX_ATTEMPTS` and go SKIPPED, and the run still reaches COMPLETED with `translatedUnits: 0`
+— while the same `NEEDS_REVIEW` rows are still candidates with their `repairAttempts` untouched,
+because `storeRepairs` never ran to charge one. Nothing about the world changed, so the worker would
+plan the identical run, and again: a tight plan/fail/plan loop spamming audit rows and mail and
+burning the recovery window. `maybePlanRepair` therefore returns `stalled` when the finishing run is
+a REPAIR whose `translatedUnits - flaggedUnits <= 0`, and the admin's button is the way back in.
+
+The decision is pure — `RepairPorts` injects the three database reads — so all four branches are
+unit-tested with no Postgres:
+
+```
+✓ chains a repair after a sync that left flagged units
+✓ does not chain when a repair made no progress (provider down), and reports it
+✓ reports exhaustion once nothing is under the ceiling but flagged rows remain
+✓ is a no-op for samples and failed runs
+```
+
+And run against the real database on a throwaway language seeded with four flagged topics — three
+under the ceiling, one already at three attempts:
+
+```
+candidates under the ceiling: 3
+manual REPAIR run: {"kind":"REPAIR","status":"PENDING","plannedUnits":3,"enqueuedAt":"…","jobs":3}
+second run refused: ConflictError                      ← the live-run guard the button relies on
+after SYNC:                         {"action":"planned","runId":"cmtsf8xwv…","planned":3}
+after a REPAIR that fixed nothing:  {"action":"stalled"}
+REPAIR runs now on this locale: 1 (1 = the chain, not 2)   ← the loop really is broken
+everything at the ceiling:          {"action":"exhausted","remaining":4}
+```
+
+`repairCandidates` needs its own planner rather than reusing `pendingUnits`, which deliberately will
+not return these: a `NEEDS_REVIEW` row whose hash still matches its source is not stale, so a SYNC
+skips it for ever. It also excludes `ITEM_VARIANT` — `extractAll` has no branch for variants (they
+are derived from their master), so a repair job for one could only fail three times and end SKIPPED.
+A row whose source has since moved is left to SYNC: re-translating from new source is a fresh
+translation with a fresh budget, not a second attempt at the old one.
+
+### ✅ Two ways in
+
+The worker chains a repair after every SYNC / FULL / SINGLE_ENTITY / REPAIR that completes
+(`defaultAfterRun` → `maybePlanRepair`); `notifyRunEvent` is task 21 and the seam is marked. And the
+language card grows **"Repair {count} flagged in background"** — shown only when
+`coverage.flagged > 0` and no run is live — which routes `kind: "REPAIR"` through
+`startBackgroundRun` to `planRepairRun`. Both catalogues carry the string
+("Reparer {count} merkede i bakgrunnen"); parity is test-enforced.
+
+**Known gap:** the button was verified by driving the action and the planner against the dev
+database (above), not by clicking it in a browser — a live repair execution needs the AI gateway,
+which phase 3's sample-first dry run is the right place to exercise end to end.
+
 ### Still outstanding
 
-- **Phase 2 — auto-repair.** The flagged pile is still cleared one unit at a time; nothing plans a
-  `REPAIR` run yet and `repairSlice` is a deliberate throwing stub.
-- **Phase 3** — the publish-readiness checklist, run emails, and the sample-first dry run.
+- **Phase 3** — the publish-readiness checklist, run emails (`notifyRunEvent`, including reporting
+  the `stalled` and `exhausted` decisions to a human), and the sample-first dry run.
 - **Not yet deployed.** The branch is unmerged, and `f87b19f` (the streaming fix) is still unpushed,
   so production runs neither.
