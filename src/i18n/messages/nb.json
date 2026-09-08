@@ -630,7 +630,11 @@
         "alreadyExists": "Det språket er allerede lagt til.",
         "builtInExists": "Engelsk og norsk er innebygd og kan ikke legges til på nytt.",
         "notComplete": "Dette språket er ikke ferdig oversatt, så elevene kan ikke se det.",
-        "editRejected": "Rettelsen besto ikke kontrollene — en alternativnøkkel, et tall eller en plassholder stemmer ikke med kilden."
+        "editRejected": "Rettelsen besto ikke kontrollene — en alternativnøkkel, et tall eller en plassholder stemmer ikke med kilden.",
+        "runActive": "En bakgrunnskjøring pågår allerede for dette språket.",
+        "runNotRunning": "Den kjøringen kjører ikke.",
+        "runNotPaused": "Den kjøringen er ikke satt på pause.",
+        "runFinished": "Den kjøringen er allerede ferdig."
       },
       "inEveryLanguage": "Dette spørsmålet på alle språk",
       "field": "Felt",

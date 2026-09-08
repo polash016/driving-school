@@ -630,7 +630,11 @@
         "alreadyExists": "That language has already been added.",
         "builtInExists": "English and Norwegian are built in and cannot be added again.",
         "notComplete": "This language is not fully translated yet, so students cannot see it.",
-        "editRejected": "That correction did not pass the checks — an option key, a number or a placeholder does not match the source."
+        "editRejected": "That correction did not pass the checks — an option key, a number or a placeholder does not match the source.",
+        "runActive": "A background run is already in progress for this language.",
+        "runNotRunning": "That run is not running.",
+        "runNotPaused": "That run is not paused.",
+        "runFinished": "That run has already finished."
       },
       "inEveryLanguage": "This question in every language",
       "field": "Field",
