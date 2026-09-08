@@ -82,6 +82,17 @@ const SCRIPT_RANGES: Record<string, RegExp> = {
   ko: /[가-힯]/,
 };
 
+/**
+ * Locales whose script costs 2–3× the tokens per character; the runner starts them at half a batch.
+ *
+ * Derived from `SCRIPT_RANGES` rather than listed again: the two questions ("is this script
+ * checkable?" and "is this script expensive?") have the same answer for every language we serve,
+ * and a second list would drift the first time one is added.
+ */
+export function isNonLatinScript(locale: string): boolean {
+  return SCRIPT_RANGES[locale.split("-")[0]] !== undefined;
+}
+
 function multiset(values: string[]): Map<string, number> {
   const out = new Map<string, number>();
   for (const value of values) out.set(value, (out.get(value) ?? 0) + 1);

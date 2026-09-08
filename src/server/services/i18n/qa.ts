@@ -152,6 +152,8 @@ export async function semanticCheck(input: {
       },
       schema: backTranslationSchema,
       temperature: 0,
+      // Not the translation cap: a back-translation is INTO English, so its output is
+      // English-sized whatever script the source is in and never needs to shrink with the batch.
       maxTokens: 8192,
       ...(input.signal ? { signal: input.signal } : {}),
     });

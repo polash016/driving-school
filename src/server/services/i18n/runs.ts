@@ -3,14 +3,15 @@ import type {
   TranslatableEntity,
   TranslationRunKind,
 } from "@prisma/client";
+import { schoolConfig } from "../../../../config/school.config";
 import { logger } from "@/lib/logger";
+import { ProviderTruncatedError } from "@/server/ai/providers/types";
 import { AUDIT, auditLog } from "@/server/audit";
 import { extractAll, pendingUnits, pruneOrphans } from "./extract";
 import { invalidateMessages } from "./catalogue";
 import { repairBatch, repairContextFor, storeRepairs } from "./repair";
-import { batchRate, ESTIMATED_USD_PER_1K_TOKENS, ewmaRate } from "./run-math";
+import { ESTIMATED_USD_PER_1K_TOKENS, RunRateMeter } from "./run-math";
 import {
-  BATCH_SIZE,
   recentRejections,
   storeTranslations,
   translateBatch,
@@ -19,6 +20,7 @@ import {
   type TranslatedUnit,
 } from "./translate";
 import type { TranslationUnit } from "./units";
+import { isNonLatinScript } from "./validation";
 
 /**
  * The translation runner (spec-15).
@@ -294,6 +296,41 @@ function leaseUntil(from = Date.now()): Date {
 }
 
 /**
+ * How much one stop reason outranks another.
+ *
+ * With several batches in flight, two slots can stop for different reasons in the same tick — one
+ * on the budget, one on an admin's cancel. The run has exactly one outcome, so the reasons form a
+ * latch: a stronger reason may replace a weaker one, never the reverse. Rank order is "how final
+ * is this": `finished` is the absence of a reason, `budget` and `paused` leave the run resumable,
+ * and `lostLease` outranks everything because a runner that no longer owns the row must not write
+ * an outcome onto it at all.
+ */
+const STOP_RANK: Record<StopReason, number> = {
+  finished: 0,
+  budget: 1,
+  paused: 2,
+  aborted: 3,
+  cancelled: 4,
+  lostLease: 5,
+  notClaimed: 6,
+  localeBusy: 6,
+};
+
+/**
+ * Where a language starts before truncation has taught the runner anything.
+ *
+ * Non-Latin scripts cost 2–3× the tokens per character, so the same 20 units that fit the output
+ * window in Spanish overflow it in Arabic. Start those at half and let a truncation halve again —
+ * paying for one overflowed call per language rather than one per batch.
+ */
+function initialBatchSize(language: LanguagePolicy): number {
+  const base = schoolConfig.ai.translationBatchSize;
+  return isNonLatinScript(language.code)
+    ? Math.max(1, Math.ceil(base / 2))
+    : base;
+}
+
+/**
  * Jobs that have spent every attempt: SKIPPED, and charged to the run's failure counter once.
  *
  * Counting at the moment of failure instead would charge the same unit on every attempt — a
@@ -306,9 +343,19 @@ async function retireExhausted(
   runId: string,
   leaseOwner: string,
 ): Promise<number> {
+  // The `run: { leaseOwner }` filter is the pair to the guard on the counter below, and it is
+  // load-bearing: the job update used to be unguarded, so a lease lost between the two statements
+  // flipped jobs to SKIPPED that no runner would ever count — and the new owner could not recover
+  // them either, because its own sweep matches `state: "FAILED"`. Both statements now stand or
+  // fall on the same predicate, so a runner that has already lost the lease retires nothing.
   // Index: TranslationJob[runId, state, entity].
   const retired = await db.translationJob.updateMany({
-    where: { runId, state: "FAILED", attempts: { gte: MAX_ATTEMPTS } },
+    where: {
+      runId,
+      state: "FAILED",
+      attempts: { gte: MAX_ATTEMPTS },
+      run: { leaseOwner },
+    },
     data: { state: "SKIPPED" },
   });
   if (retired.count === 0) return 0;
@@ -352,6 +399,10 @@ export async function executeRun(
     onProgress?: (progress: RunProgress) => void;
     /** Worker shutdown. Checked between batches and threaded into every provider call. */
     signal?: AbortSignal;
+    /** Units per model call. Defaults to the language-aware size; halves on truncation. */
+    batchSize?: number;
+    /** Batches in flight at once. Defaults to `schoolConfig.ai.translationParallelSlots`. */
+    parallelSlots?: number;
   },
 ): Promise<RunProgress> {
   const now = new Date();
@@ -369,6 +420,8 @@ export async function executeRun(
       flaggedUnits: true,
       failedUnits: true,
       memoryHits: true,
+      // Seeds the rate meter, so a resumed run keeps the throughput it had already measured.
+      rateUnitsPerMin: true,
     },
   });
 
@@ -421,11 +474,25 @@ export async function executeRun(
   // Once per run, not once per batch: a rejection recorded mid-run reaches the prompt on the NEXT
   // run, which is when `pendingUnits` re-plans the rejected unit anyway.
   const rejections = await recentRejections(db, run.locale);
+
+  const slots =
+    options.parallelSlots ?? schoolConfig.ai.translationParallelSlots;
+  // Shared across slots on purpose: truncation is a fact about the language and the prompt shape,
+  // so a batch that overflows the output window in one slot overflows it in every other.
+  let batchSize = options.batchSize ?? initialBatchSize(language);
   const budget = options.maxUnits ?? Number.POSITIVE_INFINITY;
+  /** Units claimed against the budget. Moved synchronously, so no two slots can spend the same. */
+  let reserved = 0;
+  const meter = new RunRateMeter(run.rateUnitsPerMin, slots);
   const translatedMasterIds: string[] = [];
-  let processed = 0;
-  let lostLease = false;
-  let stopReason: StopReason = "finished";
+
+  // A stop is a ranked latch shared by every slot: each of these reasons ends the RUN, not just
+  // the slot that noticed it, and a stronger reason may replace a weaker one but never the reverse.
+  const stop = { reason: null as StopReason | null };
+  const requestStop = (reason: StopReason): void => {
+    if (stop.reason === null || STOP_RANK[reason] > STOP_RANK[stop.reason])
+      stop.reason = reason;
+  };
 
   // Progress for the log line is built from these rather than re-read: `progressOf` is two queries,
   // and it was paying them after every single batch. The terminal returns still read the row, so
@@ -438,7 +505,7 @@ export async function executeRun(
   };
   const snapshot = (reason: StopReason): RunProgress => ({
     runId,
-    // Per-batch only: the run is claimed and the loop is still going, by definition. Terminal
+    // Per-batch only: the run is claimed and the slots are still going, by definition. Terminal
     // reads go through progressOf, which reports the real status and counts outstanding jobs.
     status: "RUNNING",
     planned: run.plannedUnits,
@@ -460,40 +527,74 @@ export async function executeRun(
         data: { leaseExpiresAt: leaseUntil(), heartbeatAt: new Date() },
       })
       .then((result) => {
-        if (result.count === 0) lostLease = true;
+        if (result.count === 0) requestStop("lostLease");
       })
       .catch((error: unknown) =>
         logger.warn({ error, runId }, "lease keepalive failed"),
       );
   }, KEEPALIVE_MS);
 
-  try {
+  interface SlotJob {
+    id: string;
+    entity: TranslatableEntity;
+    entityId: string;
+  }
+  type Claim =
+    | { kind: "budget" }
+    | { kind: "empty" }
+    | { kind: "contended" }
+    | { kind: "batch"; entity: TranslatableEntity; batch: SlotJob[] };
+
+  // Every slot takes work from the same head of the queue, so the claim step alone is serialized
+  // in-process. Without it each slot's `findMany` returns the same rows, all but one wins nothing
+  // and pays a wasted round trip, and — worse — a reservation handed back after the last slot has
+  // already stopped on the budget silently under-delivers the slice. The model call, which is all
+  // of the latency, stays parallel; the lock only ever holds three fast queries.
+  let claimLock: Promise<unknown> = Promise.resolve();
+  const underClaimLock = <T>(work: () => Promise<T>): Promise<T> => {
+    const next = claimLock.then(work, work);
+    claimLock = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  };
+
+  const runSlot = async (slot: number): Promise<void> => {
+    // Per slot, not per runner. The claim stamps this token and the read-back asks for exactly the
+    // rows carrying it, so two slots inside one process can never read back each other's batch.
+    // Every RUN-ROW write below keeps the bare lease owner: guarding those on the token would make
+    // a slot trip `lostLease` against its own siblings.
+    const claimToken = `${options.leaseOwner}#${slot}`;
+
+    /** Hand a batch back untouched — not the unit's fault, so not charged an attempt. */
+    const requeue = (batch: SlotJob[]) =>
+      db.translationJob.updateMany({
+        where: {
+          runId,
+          id: { in: batch.map((job) => job.id) },
+          state: "RUNNING",
+          claimedBy: claimToken,
+        },
+        data: {
+          state: "QUEUED",
+          startedAt: null,
+          claimedBy: null,
+          attempts: { decrement: 1 },
+        },
+      });
+
     for (;;) {
-      if (lostLease) {
-        stopReason = "lostLease";
-        break;
-      }
-      if (options.signal?.aborted) {
-        stopReason = "aborted";
-        break;
-      }
-      if (processed >= budget) {
-        stopReason = "budget";
-        break;
-      }
+      if (stop.reason !== null) return;
+      if (options.signal?.aborted) return requestStop("aborted");
+      if (reserved >= budget) return requestStop("budget");
 
       const flags = await db.translationRun.findUniqueOrThrow({
         where: { id: runId },
         select: { pauseRequested: true, cancelRequested: true },
       });
-      if (flags.cancelRequested) {
-        stopReason = "cancelled";
-        break;
-      }
-      if (flags.pauseRequested) {
-        stopReason = "paused";
-        break;
-      }
+      if (flags.cancelRequested) return requestStop("cancelled");
+      if (flags.pauseRequested) return requestStop("paused");
 
       // A batch that failed on a provider outage is worth another go; one that has failed three
       // times is a real problem with that unit, and is left alone so the run can finish.
@@ -503,44 +604,68 @@ export async function executeRun(
         data: { state: "QUEUED", error: null },
       });
       counters.failed += await retireExhausted(db, runId, options.leaseOwner);
+      // Those two sweeps are round trips of their own; a sibling may have stopped the run inside
+      // them, and claiming after that would leave a batch RUNNING that nobody finishes.
+      if (stop.reason !== null) return;
 
-      // One entity kind at a time, so a batch shares a prompt shape.
-      // Index: TranslationJob[runId, state, entity].
-      const jobs = await db.translationJob.findMany({
-        where: { runId, state: "QUEUED" },
-        orderBy: [{ entity: "asc" }, { id: "asc" }],
-        take: Math.min(BATCH_SIZE, budget - processed),
-        select: { id: true, entity: true, entityId: true },
-      });
-      if (jobs.length === 0) {
-        stopReason = "finished";
-        break;
-      }
+      const claim = await underClaimLock(async (): Promise<Claim> => {
+        const take = Math.min(batchSize, budget - reserved);
+        if (take <= 0) return { kind: "budget" };
+        // Reserved before the first await in this block, so two slots cannot both spend it.
+        reserved += take;
 
-      const entity = jobs[0].entity;
-      const wanted = jobs
-        .filter((job) => job.entity === entity)
-        .map((job) => job.id);
-      await db.translationJob.updateMany({
-        where: { id: { in: wanted }, state: "QUEUED" },
-        data: {
-          state: "RUNNING",
-          startedAt: new Date(),
-          attempts: { increment: 1 },
-          claimedBy: options.leaseOwner,
-        },
+        // One entity kind at a time, so a batch shares a prompt shape.
+        // Index: TranslationJob[runId, state, entity].
+        const jobs = await db.translationJob.findMany({
+          where: { runId, state: "QUEUED" },
+          orderBy: [{ entity: "asc" }, { id: "asc" }],
+          take,
+          select: { id: true, entity: true, entityId: true },
+        });
+        if (jobs.length === 0) {
+          reserved -= take;
+          return { kind: "empty" };
+        }
+
+        const entity = jobs[0].entity;
+        const wanted = jobs
+          .filter((job) => job.entity === entity)
+          .map((job) => job.id);
+        await db.translationJob.updateMany({
+          where: { id: { in: wanted }, state: "QUEUED" },
+          data: {
+            state: "RUNNING",
+            startedAt: new Date(),
+            attempts: { increment: 1 },
+            claimedBy: claimToken,
+          },
+        });
+        // Exactly what THIS slot won — another runner in another process may have taken part of
+        // the batch, and the tail of it may be a different entity kind. Prisma has no
+        // `updateManyAndReturn` here, which is why the claim stamps an owner and we read it back.
+        const batch = await db.translationJob.findMany({
+          where: {
+            id: { in: wanted },
+            state: "RUNNING",
+            claimedBy: claimToken,
+          },
+          select: { id: true, entity: true, entityId: true },
+        });
+        // Give back everything that was never ours to take.
+        reserved -= take - batch.length;
+        return batch.length === 0
+          ? { kind: "contended" }
+          : { kind: "batch", entity, batch };
       });
-      // Exactly what THIS runner won — another runner may have taken part of the batch. Prisma has
-      // no `updateManyAndReturn` here, which is why the claim stamps an owner and we read it back.
-      const batch = await db.translationJob.findMany({
-        where: {
-          id: { in: wanted },
-          state: "RUNNING",
-          claimedBy: options.leaseOwner,
-        },
-        select: { id: true, entity: true, entityId: true },
-      });
-      if (batch.length === 0) continue;
+
+      if (claim.kind === "budget") return requestStop("budget");
+      // An empty queue stops THIS slot and no other. Latching it would stop a sibling that still
+      // has a failed batch of its own to re-queue and retry, and the run would then finish
+      // COMPLETED with those units silently left FAILED and unattempted.
+      if (claim.kind === "empty") return;
+      // Another runner won the rows out from under us. Not a stop — go round and take the next.
+      if (claim.kind === "contended") continue;
+      const { entity, batch } = claim;
 
       // Re-extract just this slice, so the source is read fresh rather than trusted from plan time.
       const units = await unitsFor(
@@ -601,7 +726,7 @@ export async function executeRun(
             runId,
             entityId: { in: [...doneIds] },
             state: "RUNNING",
-            claimedBy: options.leaseOwner,
+            claimedBy: claimToken,
           },
           data: { state: "DONE", finishedAt: new Date() },
         });
@@ -611,7 +736,7 @@ export async function executeRun(
               runId,
               entityId: { in: [...superseded] },
               state: "RUNNING",
-              claimedBy: options.leaseOwner,
+              claimedBy: claimToken,
             },
             data: {
               state: "SKIPPED",
@@ -626,7 +751,7 @@ export async function executeRun(
             runId,
             id: { in: batch.map((job) => job.id) },
             state: "RUNNING",
-            claimedBy: options.leaseOwner,
+            claimedBy: claimToken,
           },
           data: {
             state: "FAILED",
@@ -636,10 +761,15 @@ export async function executeRun(
         });
 
         const modelUnits = translated.length - memoryHits;
-        const previous = await db.translationRun.findUniqueOrThrow({
-          where: { id: runId },
-          select: { rateUnitsPerMin: true },
-        });
+        // One shared meter, not a per-batch EWMA: with several batches in flight each one only
+        // ever observes its own slot's speed, so folding them in one at a time would report an
+        // ETA `slots` times too pessimistic. It also replaces a read-modify-write of
+        // `rateUnitsPerMin` that was a second query on every batch — and a lost update between
+        // slots the moment there was more than one.
+        const rate =
+          modelUnits > 0
+            ? meter.observe(modelUnits, batchStarted, Date.now())
+            : null;
         const updated = await db.translationRun.updateMany({
           where: { id: runId, leaseOwner: options.leaseOwner },
           data: {
@@ -654,19 +784,13 @@ export async function executeRun(
             leaseExpiresAt: leaseUntil(),
             heartbeatAt: new Date(),
             // A batch served entirely from memory says nothing about how fast the model is.
-            ...(modelUnits > 0
-              ? {
-                  rateUnitsPerMin: ewmaRate(
-                    previous.rateUnitsPerMin,
-                    batchRate(modelUnits, batchStarted, Date.now()),
-                  ),
-                  modelBatches: { increment: 1 },
-                }
+            ...(rate !== null
+              ? { rateUnitsPerMin: rate, modelBatches: { increment: 1 } }
               : {}),
           },
         });
         if (updated.count === 0) {
-          lostLease = true;
+          requestStop("lostLease");
         } else {
           // Only what the row actually took: a runner that has lost the lease wrote nothing, and
           // its counters must not report progress the database does not have.
@@ -674,26 +798,27 @@ export async function executeRun(
           counters.flagged += flagged;
           counters.memoryHits += memoryHits;
         }
-        processed += batch.length;
       } catch (error) {
         if (options.signal?.aborted) {
           // A deploy is not the unit's fault: hand the batch back without charging an attempt.
-          await db.translationJob.updateMany({
-            where: {
-              runId,
-              id: { in: batch.map((job) => job.id) },
-              state: "RUNNING",
-              claimedBy: options.leaseOwner,
-            },
-            data: {
-              state: "QUEUED",
-              startedAt: null,
-              claimedBy: null,
-              attempts: { decrement: 1 },
-            },
-          });
-          stopReason = "aborted";
-          break;
+          await requeue(batch);
+          return requestStop("aborted");
+        }
+        if (error instanceof ProviderTruncatedError && batch.length > 1) {
+          // Not the unit's fault either — the batch was too large for the output window, which is
+          // a property of the language, so the halving is shared: one that truncates at 20
+          // truncates on every batch. The units go back uncharged and unreserved, and this slot
+          // takes the smaller batch on its next pass. A truncation at ONE unit falls through to
+          // the ordinary FAILED path below, which is what stops an endless re-queue.
+          const next = Math.max(1, Math.floor(batch.length / 2));
+          if (next < batchSize) batchSize = next;
+          reserved -= batch.length;
+          logger.warn(
+            { runId, entity, from: batch.length, to: batchSize },
+            "output truncated — halving batch size",
+          );
+          await requeue(batch);
+          continue;
         }
         // One bad batch must not end a run of three thousand. Record it and carry on.
         logger.error({ error, runId, entity }, "translation batch failed");
@@ -702,7 +827,7 @@ export async function executeRun(
             runId,
             id: { in: batch.map((job) => job.id) },
             state: "RUNNING",
-            claimedBy: options.leaseOwner,
+            claimedBy: claimToken,
           },
           data: {
             state: "FAILED",
@@ -721,15 +846,27 @@ export async function executeRun(
             heartbeatAt: new Date(),
           },
         });
-        if (updated.count === 0) lostLease = true;
-        processed += batch.length;
+        if (updated.count === 0) requestStop("lostLease");
       }
 
-      options.onProgress?.(snapshot(stopReason));
+      options.onProgress?.(snapshot(stop.reason ?? "finished"));
     }
+  };
+
+  try {
+    // `allSettled`, not `all`: a slot throwing on an unexpected database error must not let this
+    // function return — clearing the keepalive and finalising the run — while its siblings are
+    // still mid-batch. Every slot lands first, then the first real failure is rethrown.
+    const settled = await Promise.allSettled(
+      Array.from({ length: slots }, (_, slot) => runSlot(slot)),
+    );
+    const failure = settled.find((result) => result.status === "rejected");
+    if (failure) throw failure.reason;
   } finally {
     clearInterval(keepalive);
   }
+
+  const stopReason: StopReason = stop.reason ?? "finished";
 
   // The loop retires exhausted jobs at the top of each pass, which the last failure of a run
   // never reaches: it stops on the budget, a pause, or an empty queue instead. Once more here, so

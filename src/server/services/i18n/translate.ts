@@ -1,5 +1,6 @@
 import type { PrismaClient, TranslationStatus } from "@prisma/client";
 import { z } from "zod";
+import { schoolConfig } from "../../../../config/school.config";
 import { logger } from "@/lib/logger";
 import { aiJson } from "@/server/ai/client";
 import {
@@ -27,9 +28,6 @@ import { allCodes, blockingCodes, checkTranslation } from "./validation";
  * approval policy. Failing towards "a human looks at it" is the only safe direction here: the
  * alternative is a question that reads fine and marks wrong.
  */
-
-/** Units per model call. Small enough that one malformed object does not cost the batch. */
-export const BATCH_SIZE = 5;
 
 /** The shape every translation call — fresh or repair — must come back in. */
 export const translationResponseSchema = z.object({
@@ -218,7 +216,7 @@ export async function translateBatch(
     },
     schema: translationResponseSchema,
     temperature: 0.2,
-    maxTokens: 8192,
+    maxTokens: schoolConfig.ai.translationMaxTokens,
     ...(options.signal ? { signal: options.signal } : {}),
   });
 
@@ -349,7 +347,7 @@ export async function storeTranslations(
   if (translated.length === 0) return;
   // One array transaction, not a write per unit: it holds one connection for the batch instead
   // of one per unit, which matters once the runner runs several batches concurrently (3 slots ×
-  // BATCH_SIZE writes would queue past a small default pool — physical CPUs × 2 + 1, so 5 on a
+  // a batch's worth of writes would queue past a small default pool — physical CPUs × 2 + 1, so 5 on a
   // 2-vCPU host — and time out at `pool_timeout`). It also lands all-or-nothing, so the DONE
   // marking the runner does next can never be true of a half-written batch.
   const upserts = translated.map((item) =>

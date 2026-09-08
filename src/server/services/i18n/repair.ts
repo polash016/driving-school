@@ -1,4 +1,5 @@
 import type { PrismaClient, TranslatableEntity } from "@prisma/client";
+import { schoolConfig } from "../../../../config/school.config";
 import { logger } from "@/lib/logger";
 import { aiJson } from "@/server/ai/client";
 import {
@@ -391,7 +392,7 @@ export async function repairBatch(
         },
         schema: translationResponseSchema,
         temperature: 0,
-        maxTokens: 8192,
+        maxTokens: schoolConfig.ai.translationMaxTokens,
         ...(options.signal ? { signal: options.signal } : {}),
       });
 
