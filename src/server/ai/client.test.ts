@@ -209,7 +209,7 @@ describe("rate limits", () => {
     chat1.mockRejectedValueOnce(new ProviderError("quota", 429, true));
     const controller = new AbortController();
 
-    const promise = aiJson({
+    const pending = aiJson({
       task: "translation",
       prompt,
       vars: {},
@@ -217,16 +217,41 @@ describe("rate limits", () => {
       signal: controller.signal,
     });
 
-    // Let the rejection and the sleep() registration run before aborting.
-    await Promise.resolve();
-    await Promise.resolve();
+    // Walk the microtask queue until withFallback has actually scheduled the back-off timer —
+    // aiJson -> withFallback -> candidatesFor is a dynamic import plus an awaited resolveRoutes(),
+    // and only after the rejected chat1 call does sleep() register its setTimeout.
+    for (let i = 0; i < 50 && vi.getTimerCount() === 0; i++)
+      await Promise.resolve();
+    expect(vi.getTimerCount()).toBe(1);
+
     controller.abort();
 
-    await expect(promise).rejects.toMatchObject({
-      name: "ProviderError",
-      retryable: true,
+    await expect(pending).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof ProviderError && e.retryable && /aborted/.test(e.message),
+    );
+    expect(vi.getTimerCount()).toBe(0); // onAbort cleared the timer — nothing dangling
+    expect(chat2).not.toHaveBeenCalled();
+  });
+
+  it("an already-aborted signal rejects before any wait", async () => {
+    chat1.mockRejectedValueOnce(new ProviderError("quota", 429, true));
+    const controller = new AbortController();
+    controller.abort();
+
+    const pending = aiJson({
+      task: "translation",
+      prompt,
+      vars: {},
+      schema: z.object({ ok: z.boolean() }),
+      signal: controller.signal,
     });
-    await expect(promise).rejects.toThrow(/aborted/);
+
+    await expect(pending).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof ProviderError && e.retryable && /aborted/.test(e.message),
+    );
+    expect(vi.getTimerCount()).toBe(0);
     expect(chat2).not.toHaveBeenCalled();
   });
 });
