@@ -7,6 +7,7 @@ import {
   planRunAction,
   runSliceAction,
   startBackgroundRunAction,
+  startRepairRunAction,
   updateLanguageAction,
   type PlanOutcome,
   type StartOutcome,
@@ -83,10 +84,25 @@ export function LanguageBoard({
     ActionResult<StartOutcome> | undefined,
     FormData
   >(startBackgroundRunAction, undefined);
+  const [repairState, repairAction] = useActionState<
+    ActionResult<StartOutcome> | undefined,
+    FormData
+  >(startRepairRunAction, undefined);
 
-  const error = [addState, updateState, planState, runState, startState].find(
-    (state) => state?.ok === false,
-  );
+  const error = [
+    addState,
+    updateState,
+    planState,
+    runState,
+    startState,
+    repairState,
+  ].find((state) => state?.ok === false);
+  // Both actions enqueue a background run, so both report it the same way.
+  const queued = startState?.ok
+    ? startState.data
+    : repairState?.ok
+      ? repairState.data
+      : null;
 
   return (
     <div className="space-y-5">
@@ -94,11 +110,11 @@ export function LanguageBoard({
         <FormAlert>{tErrors(error.messageKey)}</FormAlert>
       ) : null}
 
-      {startState?.ok ? (
+      {queued ? (
         <FormAlert tone="success">
           {t("startQueued", {
-            count: startState.data.plannedUnits,
-            cost: startState.data.estimatedUsd.toFixed(2),
+            count: queued.plannedUnits,
+            cost: queued.estimatedUsd.toFixed(2),
           })}
         </FormAlert>
       ) : null}
@@ -233,6 +249,28 @@ export function LanguageBoard({
                           <SubmitButton
                             className="h-9"
                             label={t("startBackground")}
+                            pendingLabel={t("starting")}
+                          />
+                        </form>
+                      ) : null}
+
+                      {/* The way back in when the repair chain stopped: a repair that fixed
+                          nothing does not plan another, so an admin restarts it by hand. Only
+                          offered when there is something flagged to repair. */}
+                      {!isRunLive(language.latestRun) &&
+                      language.coverage.flagged > 0 ? (
+                        <form action={repairAction}>
+                          <input
+                            type="hidden"
+                            name="code"
+                            value={language.code}
+                          />
+                          <SubmitButton
+                            className="h-9"
+                            variant="outline"
+                            label={t("repairFlagged", {
+                              count: language.coverage.flagged,
+                            })}
                             pendingLabel={t("starting")}
                           />
                         </form>

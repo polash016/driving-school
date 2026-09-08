@@ -575,6 +575,7 @@
       "starting": "Starting…",
       "startQueued": "Queued: {count} unit(s), roughly ${cost}. The worker picks it up on its next check.",
       "startBackgroundNote": "The worker takes it from here — you can close this page.",
+      "repairFlagged": "Repair {count} flagged in background",
       "workerOfflineNote": "No worker is online; the run waits until one starts, or translate 25 now.",
       "workerOnline": "Background worker online",
       "workerOffline": "Background worker offline",

@@ -278,6 +278,38 @@ export async function startBackgroundRunAction(
   }
 }
 
+/**
+ * Re-translate what QA flagged, in the background.
+ *
+ * The worker chains a repair after every run of its own accord; this is the way back in when that
+ * chain stopped — a repair that fixed nothing (the provider was down) deliberately does not plan
+ * another, so somebody has to say "try again" once it is back.
+ */
+export async function startRepairRunAction(
+  _prev: ActionResult<StartOutcome> | undefined,
+  formData: FormData,
+): Promise<ActionResult<StartOutcome>> {
+  const user = await requireUser("ADMIN");
+  try {
+    const plan = await startBackgroundRun(db, user, {
+      locale: String(formData.get("code") ?? ""),
+      kind: "REPAIR",
+    });
+    revalidatePath("/admin/languages");
+    revalidatePath(`/admin/languages/${plan.locale}`);
+    return {
+      ok: true,
+      data: {
+        runId: plan.runId,
+        plannedUnits: plan.plannedUnits,
+        estimatedUsd: plan.estimatedUsd,
+      },
+    };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
 function runControl(fn: (actor: SessionUser, runId: string) => Promise<void>) {
   return async (
     _prev: ActionResult | undefined,

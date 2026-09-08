@@ -575,6 +575,7 @@
       "starting": "Starter…",
       "startQueued": "Lagt i kø: {count} enhet(er), omtrent ${cost}. Arbeideren tar den ved neste sjekk.",
       "startBackgroundNote": "Arbeideren tar det herfra — du kan lukke siden.",
+      "repairFlagged": "Reparer {count} merkede i bakgrunnen",
       "workerOfflineNote": "Ingen arbeider er pålogget; kjøringen venter til en starter, eller oversett 25 nå.",
       "workerOnline": "Bakgrunnsarbeider pålogget",
       "workerOffline": "Bakgrunnsarbeider frakoblet",

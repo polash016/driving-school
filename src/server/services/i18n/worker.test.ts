@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { RunProgress } from "./runs";
-import { backoffMs, runWorker, workerTick, type WorkerDeps } from "./worker";
+import {
+  backoffMs,
+  maybePlanRepair,
+  runWorker,
+  workerTick,
+  type WorkerDeps,
+} from "./worker";
 
 /**
  * The worker loop, with no process, no database and no clock (spec-19).
@@ -241,5 +247,68 @@ describe("afterRun failures", () => {
       expect.objectContaining({ runId: "r1" }),
       "afterRun failed",
     );
+  });
+});
+
+describe("maybePlanRepair", () => {
+  const base = {
+    id: "r1",
+    locale: "es",
+    kind: "SYNC" as const,
+    status: "COMPLETED",
+    startedById: "u1",
+    translatedUnits: 10,
+    flaggedUnits: 2,
+    failedUnits: 0,
+    error: null,
+  };
+
+  it("chains a repair after a sync that left flagged units", async () => {
+    const plan = vi.fn(async () => ({ runId: "r2", plannedUnits: 2 }));
+    expect(
+      await maybePlanRepair(base, {
+        candidates: async () => 2,
+        exhausted: async () => 0,
+        plan,
+      }),
+    ).toEqual({ action: "planned", runId: "r2", planned: 2 });
+  });
+
+  // The anti-hot-loop rule. Provider down: every batch fails, the jobs go SKIPPED, the run still
+  // reaches COMPLETED, and because storeRepairs never ran the same rows are still candidates with
+  // their repairAttempts untouched. Planning again would plan the identical run, for ever.
+  it("does not chain when a repair made no progress (provider down), and reports it", async () => {
+    const plan = vi.fn();
+    expect(
+      await maybePlanRepair(
+        { ...base, kind: "REPAIR", translatedUnits: 2, flaggedUnits: 2 },
+        { candidates: async () => 2, exhausted: async () => 0, plan },
+      ),
+    ).toEqual({ action: "stalled" });
+    expect(plan).not.toHaveBeenCalled();
+  });
+
+  it("reports exhaustion once nothing is under the ceiling but flagged rows remain", async () => {
+    expect(
+      await maybePlanRepair(
+        { ...base, kind: "REPAIR", flaggedUnits: 1 },
+        { candidates: async () => 0, exhausted: async () => 4, plan: vi.fn() },
+      ),
+    ).toEqual({ action: "exhausted", remaining: 4 });
+  });
+
+  it("is a no-op for samples and failed runs", async () => {
+    expect(
+      await maybePlanRepair(
+        { ...base, kind: "SAMPLE" },
+        { candidates: async () => 5, exhausted: async () => 0, plan: vi.fn() },
+      ),
+    ).toEqual({ action: "none" });
+    expect(
+      await maybePlanRepair(
+        { ...base, status: "FAILED" },
+        { candidates: async () => 5, exhausted: async () => 0, plan: vi.fn() },
+      ),
+    ).toEqual({ action: "none" });
   });
 });

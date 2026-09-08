@@ -1,4 +1,7 @@
 import type { PrismaClient, TranslationRunKind } from "@prisma/client";
+// Runtime import, and safe: repair.ts reaches back to runs.ts with `import type` only, and nothing
+// in either module's runtime graph imports the worker. No cycle.
+import { MAX_REPAIR_ATTEMPTS, planRepairRun, repairCandidates } from "./repair";
 import type { RunProgress } from "./runs";
 
 /**
@@ -179,22 +182,95 @@ export async function workerTick(
   }
 }
 
+export type RepairDecision =
+  | { action: "none" }
+  | { action: "planned"; runId: string; planned: number }
+  | { action: "exhausted"; remaining: number }
+  | { action: "stalled" };
+
+/** The database work `maybePlanRepair` needs, injected so the decision itself stays pure. */
+export interface RepairPorts {
+  candidates: () => Promise<number>;
+  exhausted: () => Promise<number>;
+  plan: () => Promise<{ runId: string; plannedUnits: number }>;
+}
+
 /**
- * What happens when a run reaches a terminal or paused state.
+ * After a run completes: repair what QA flagged, but never hot-loop. A repair that fixed nothing
+ * (provider down, or nothing fixable) stops the chain; the admin re-enqueues once it is.
  *
- * A placeholder on purpose: repair chaining is Task 17 and the mails themselves are Task 21. The
- * seam is here now so the worker never has to grow a direct dependency on either — it hands the
- * finished row over and stops caring what is done with it.
+ * That guard is the whole point. When the provider is down every repair batch fails, its jobs
+ * exhaust their attempts and go SKIPPED, and the run still reaches COMPLETED — with
+ * `translatedUnits: 0` and the same NEEDS_REVIEW rows still candidates, because `storeRepairs`
+ * never ran and so never charged a `repairAttempts`. Nothing about the world changed, so planning
+ * again would plan the identical run, and again, spamming audit rows and mail and burning the
+ * recovery window in a tight loop. `translatedUnits - flaggedUnits <= 0` — no unit came back
+ * clean — is exactly "this attempt moved nothing", and it ends the chain.
+ */
+export async function maybePlanRepair(
+  run: FinishedRun,
+  ports: RepairPorts,
+): Promise<RepairDecision> {
+  if (run.status !== "COMPLETED") return { action: "none" };
+  if (!["SYNC", "FULL", "SINGLE_ENTITY", "REPAIR"].includes(run.kind))
+    return { action: "none" };
+  if (run.kind === "REPAIR" && run.translatedUnits - run.flaggedUnits <= 0)
+    return { action: "stalled" };
+  const candidates = await ports.candidates();
+  if (candidates === 0) {
+    const remaining = await ports.exhausted();
+    return run.kind === "REPAIR" && remaining > 0
+      ? { action: "exhausted", remaining }
+      : { action: "none" };
+  }
+  const plan = await ports.plan();
+  return { action: "planned", runId: plan.runId, planned: plan.plannedUnits };
+}
+
+export function repairPortsFor(
+  db: PrismaClient,
+  run: FinishedRun,
+): RepairPorts {
+  return {
+    candidates: async () => (await repairCandidates(db, run.locale)).length,
+    // Index: Translation[locale, status, createdAt] — locale + status lead; the rest filters a
+    // handful of rows. What is left for a human once the machine has spent its three attempts.
+    exhausted: () =>
+      db.translation.count({
+        where: {
+          locale: run.locale,
+          status: "NEEDS_REVIEW",
+          entity: { not: "ITEM_VARIANT" },
+          repairAttempts: { gte: MAX_REPAIR_ATTEMPTS },
+        },
+      }),
+    plan: () => planRepairRun(db, run.locale, { startedById: run.startedById }),
+  };
+}
+
+/**
+ * What happens when a run reaches a terminal or paused state: chain the repair, then report.
+ *
+ * The mails themselves are still Task 21 — the seam stays here so the worker never grows a direct
+ * dependency on either; it hands the finished row over and stops caring what is done with it.
  */
 export function defaultAfterRun(deps: {
   db: PrismaClient;
   log: WorkerLog;
 }): (run: FinishedRun) => Promise<void> {
   return async (run) => {
+    const decision = await maybePlanRepair(run, repairPortsFor(deps.db, run));
     deps.log.info(
-      { runId: run.id, locale: run.locale, kind: run.kind, status: run.status },
+      {
+        runId: run.id,
+        locale: run.locale,
+        kind: run.kind,
+        status: run.status,
+        decision,
+      },
       "run finished",
     );
+    // Task 21 adds: await notifyRunEvent(deps.db, run, decision);
   };
 }
 
