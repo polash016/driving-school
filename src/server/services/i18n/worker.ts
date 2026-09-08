@@ -136,7 +136,17 @@ export async function workerTick(
       where: { id: candidate.id },
       select: FINISHED_SELECT,
     });
-    await deps.afterRun(run);
+    // Guarded like the failure path's: `afterRun` sends mail and plans the repair chain, and a
+    // mail transport that throws must not make a run that finished cleanly be logged as failed
+    // and re-reported. The run is already terminal here; nothing downstream can repair it.
+    await deps
+      .afterRun(run)
+      .catch((afterError: unknown) =>
+        deps.log.error(
+          { error: afterError, runId: candidate.id },
+          "afterRun failed",
+        ),
+      );
     return "worked";
   } catch (error) {
     // Layer 3: this run is broken; the next language must not pay for it.

@@ -202,3 +202,44 @@ describe("runWorker", () => {
     vi.useRealTimers();
   });
 });
+
+describe("afterRun failures", () => {
+  it("a throwing afterRun on a finished run is logged, not reported as a failed run", async () => {
+    const db = {
+      translationRun: {
+        findFirst: vi.fn(async () => ({
+          id: "r1",
+          locale: "es",
+          kind: "SYNC",
+        })),
+        findUniqueOrThrow: vi.fn(async () => ({
+          id: "r1",
+          locale: "es",
+          kind: "SYNC",
+          status: "COMPLETED",
+          startedById: "u1",
+          translatedUnits: 3,
+          flaggedUnits: 0,
+          failedUnits: 0,
+          error: null,
+        })),
+        updateMany: vi.fn(),
+      },
+    };
+    const d = deps({
+      db,
+      afterRun: vi.fn(async () => {
+        throw new Error("smtp down");
+      }),
+    });
+
+    // The run completed; only the notification failed. Reporting "failed" here would log a
+    // healthy run as broken and try to write FAILED over a terminal row.
+    expect(await workerTick(d)).toBe("worked");
+    expect(db.translationRun.updateMany).not.toHaveBeenCalled();
+    expect(d.log.error).toHaveBeenCalledWith(
+      expect.objectContaining({ runId: "r1" }),
+      "afterRun failed",
+    );
+  });
+});
