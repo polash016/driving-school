@@ -570,6 +570,17 @@
       "translateSlice": "Oversett 25",
       "translating": "Oversetter…",
       "sliceNote": "Litt om gangen, så siden aldri henger. Bruk pnpm i18n:translate for et helt språk.",
+      "sampleFirst": "Oversett 5 som prøve",
+      "sampleNote": "Fem enheter fordelt på spørsmål, emner, skilt og grensesnittekst — nok til å se om ordlisten og stilnotatet stemmer før du binder deg til hele språket.",
+      "sample": {
+        "title": "Prøveoversettelse",
+        "waiting": "I kø — arbeideren tar den ved neste sjekk",
+        "working": "Oversetter…",
+        "done": "{count} oversatt",
+        "stopped": "Prøven stoppet før den ble ferdig",
+        "empty": "Ingenting igjen å prøve — alle enheter er allerede oversatt fra dagens kildetekst.",
+        "pending": "Ikke oversatt ennå."
+      },
       "runProgress": "{completed} av {planned} oversatt · {flagged} til vurdering · {failed} feilet.",
       "startBackground": "Start i bakgrunnen",
       "starting": "Starter…",

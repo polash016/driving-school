@@ -13,6 +13,7 @@ import {
 } from "./run-math";
 import { planRepairRun } from "./repair";
 import { planRun, type RunPlan } from "./runs";
+import { planSampleRun } from "./sample";
 
 /**
  * Spec-19: what an admin can do to a background run, and what the progress panel reads.
@@ -46,17 +47,19 @@ export async function startBackgroundRun(
       "admin.languages.errors.runActive",
     );
 
-  // A repair is planned from the flagged rows, not from what is missing or stale, so it needs its
-  // own planner. `planRepairRun` enqueues itself — there is no `enqueue` flag to pass.
+  // Two kinds are planned from something other than "what is missing or stale", so each needs its
+  // own planner. Both enqueue themselves — there is no `enqueue` flag to pass.
   const plan =
     input.kind === "REPAIR"
       ? await planRepairRun(db, input.locale, { startedById: actor.id })
-      : await planRun(db, input.locale, {
-          kind: input.kind ?? (input.only ? "SINGLE_ENTITY" : "SYNC"),
-          ...(input.only ? { only: input.only } : {}),
-          startedById: actor.id,
-          enqueue: true,
-        });
+      : input.kind === "SAMPLE"
+        ? await planSampleRun(db, input.locale, { startedById: actor.id })
+        : await planRun(db, input.locale, {
+            kind: input.kind ?? (input.only ? "SINGLE_ENTITY" : "SYNC"),
+            ...(input.only ? { only: input.only } : {}),
+            startedById: actor.id,
+            enqueue: true,
+          });
   await auditLog({
     actorId: actor.id,
     action: AUDIT.translationRunEnqueued,

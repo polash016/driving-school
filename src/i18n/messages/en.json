@@ -570,6 +570,17 @@
       "translateSlice": "Translate 25",
       "translating": "Translating…",
       "sliceNote": "A slice at a time, so the page never hangs. Use pnpm i18n:translate for a whole language.",
+      "sampleFirst": "Translate 5 as a sample",
+      "sampleNote": "Five units spread across questions, topics, signs and interface text — enough to see whether the glossary and the style note are right before committing to the whole language.",
+      "sample": {
+        "title": "Sample translation",
+        "waiting": "Queued — the worker picks it up on its next check",
+        "working": "Translating…",
+        "done": "{count} translated",
+        "stopped": "The sample stopped before it finished",
+        "empty": "Nothing left to sample — every unit is already translated from the current source text.",
+        "pending": "Not translated yet."
+      },
       "runProgress": "{completed} of {planned} translated · {flagged} held for review · {failed} failed.",
       "startBackground": "Start in background",
       "starting": "Starting…",

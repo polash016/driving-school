@@ -30,6 +30,10 @@ import {
   planRun,
   type RunProgress,
 } from "@/server/services/i18n/runs";
+import {
+  sampleResults,
+  type SampleResultsView,
+} from "@/server/services/i18n/sample";
 import type { TranslatableEntity } from "@prisma/client";
 
 /**
@@ -104,6 +108,8 @@ export async function updateLanguageAction(
 
 export interface PlanOutcome {
   runId: string;
+  /** Which language the plan is for — the board shares one plan card across every row. */
+  locale: string;
   plannedUnits: number;
   estimatedUsd: number;
   byEntity: Record<string, number>;
@@ -130,6 +136,7 @@ export async function planRunAction(
       ok: true,
       data: {
         runId: plan.runId,
+        locale: plan.locale,
         plannedUnits: plan.plannedUnits,
         estimatedUsd: plan.estimatedUsd,
         byEntity: plan.byEntity,
@@ -247,6 +254,8 @@ export async function editTranslationAction(
 
 export interface StartOutcome {
   runId: string;
+  /** Carried back so the board knows which language the run it just queued belongs to. */
+  locale: string;
   plannedUnits: number;
   estimatedUsd: number;
 }
@@ -269,6 +278,7 @@ export async function startBackgroundRunAction(
       ok: true,
       data: {
         runId: plan.runId,
+        locale: plan.locale,
         plannedUnits: plan.plannedUnits,
         estimatedUsd: plan.estimatedUsd,
       },
@@ -301,10 +311,54 @@ export async function startRepairRunAction(
       ok: true,
       data: {
         runId: plan.runId,
+        locale: plan.locale,
         plannedUnits: plan.plannedUnits,
         estimatedUsd: plan.estimatedUsd,
       },
     };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+/**
+ * Translate five units as a dry run.
+ *
+ * The cheapest way to find out that a glossary term or a style note is wrong. Five units is about
+ * a minute of a reviewer's attention and a fraction of a cent; the alternative is discovering it
+ * three thousand units later, after the whole language has been written in the wrong register.
+ */
+export async function startSampleRunAction(
+  _prev: ActionResult<StartOutcome> | undefined,
+  formData: FormData,
+): Promise<ActionResult<StartOutcome>> {
+  const user = await requireUser("ADMIN");
+  try {
+    const plan = await startBackgroundRun(db, user, {
+      locale: String(formData.get("code") ?? ""),
+      kind: "SAMPLE",
+    });
+    return {
+      ok: true,
+      data: {
+        runId: plan.runId,
+        locale: plan.locale,
+        plannedUnits: plan.plannedUnits,
+        estimatedUsd: plan.estimatedUsd,
+      },
+    };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+/** Read-only, no revalidation: polled every 3 s by the sample panel until the run is terminal. */
+export async function sampleResultsAction(
+  runId: string,
+): Promise<ActionResult<SampleResultsView>> {
+  await requireUser("ADMIN");
+  try {
+    return { ok: true, data: await sampleResults(db, runId) };
   } catch (error) {
     return toActionError(error);
   }

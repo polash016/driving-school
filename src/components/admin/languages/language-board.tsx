@@ -8,11 +8,13 @@ import {
   runSliceAction,
   startBackgroundRunAction,
   startRepairRunAction,
+  startSampleRunAction,
   updateLanguageAction,
   type PlanOutcome,
   type StartOutcome,
 } from "@/app/[locale]/(admin)/admin/languages/actions";
 import { isRunLive, RunPanel } from "@/components/admin/languages/run-panel";
+import { SampleResults } from "@/components/admin/languages/sample-results";
 import { FormAlert } from "@/components/auth/form-alert";
 import { SubmitButton } from "@/components/auth/submit-button";
 import { Button } from "@/components/ui/button";
@@ -91,6 +93,10 @@ export function LanguageBoard({
     ActionResult<StartOutcome> | undefined,
     FormData
   >(startRepairRunAction, undefined);
+  const [sampleState, sampleAction] = useActionState<
+    ActionResult<StartOutcome> | undefined,
+    FormData
+  >(startSampleRunAction, undefined);
 
   const error = [
     addState,
@@ -99,6 +105,7 @@ export function LanguageBoard({
     runState,
     startState,
     repairState,
+    sampleState,
   ].find((state) => state?.ok === false);
   // Both actions enqueue a background run, so both report it the same way.
   const queued = startState?.ok
@@ -106,6 +113,12 @@ export function LanguageBoard({
     : repairState?.ok
       ? repairState.data
       : null;
+  // The sample panel renders the translation itself, so it needs the language's own reading
+  // direction — an Arabic sample laid out left-to-right is unreadable to the person judging it.
+  const sample = sampleState?.ok ? sampleState.data : null;
+  const sampleDirection =
+    languages.find((language) => language.code === sample?.locale)?.direction ??
+    "LTR";
 
   return (
     <div className="space-y-5">
@@ -388,22 +401,54 @@ export function LanguageBoard({
                 .map(([entity, count]) => `${entity}: ${count}`)
                 .join(" · ")}
             </p>
-            <form
-              action={runAction}
-              className="flex flex-wrap items-center gap-2"
-            >
-              <input type="hidden" name="runId" value={planState.data.runId} />
-              <input type="hidden" name="maxUnits" value="25" />
-              <SubmitButton
-                label={t("translateSlice")}
-                pendingLabel={t("translating")}
-              />
-              <span className="text-xs text-muted-foreground">
-                {t("sliceNote")}
-              </span>
-            </form>
+            <div className="flex flex-wrap items-center gap-2">
+              <form action={runAction}>
+                <input
+                  type="hidden"
+                  name="runId"
+                  value={planState.data.runId}
+                />
+                <input type="hidden" name="maxUnits" value="25" />
+                <SubmitButton
+                  label={t("translateSlice")}
+                  pendingLabel={t("translating")}
+                />
+              </form>
+
+              {/* The cheapest way to find out the glossary or the style note is wrong: five units
+                  across the different kinds of content, read before anyone commits to the bill. */}
+              <form action={sampleAction}>
+                <input
+                  type="hidden"
+                  name="code"
+                  value={planState.data.locale}
+                />
+                <SubmitButton
+                  variant="outline"
+                  label={t("sampleFirst")}
+                  pendingLabel={t("starting")}
+                />
+              </form>
+            </div>
+            <p className="text-xs text-muted-foreground">{t("sliceNote")}</p>
+            <p className="text-xs text-muted-foreground">{t("sampleNote")}</p>
           </CardContent>
         </Card>
+      ) : null}
+
+      {/* Keyed by run id, like the progress panel: a second sample is a different run and has to
+          remount rather than merge into a poll already in flight. */}
+      {sample && sample.plannedUnits > 0 ? (
+        <SampleResults
+          key={sample.runId}
+          runId={sample.runId}
+          code={sample.locale}
+          direction={sampleDirection}
+        />
+      ) : null}
+
+      {sample && sample.plannedUnits === 0 ? (
+        <FormAlert tone="success">{t("nothingToDo")}</FormAlert>
       ) : null}
 
       {planState?.ok && planState.data.plannedUnits === 0 ? (
