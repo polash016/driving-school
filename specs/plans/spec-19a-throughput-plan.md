@@ -225,6 +225,64 @@ if (error instanceof ProviderTruncatedError) throw error;
 
 - [ ] PASS (`pnpm vitest run src/server/ai`) + `tsc`. **Commit** — `spec-19a: truncation surfaces as a typed error and skips the fallback chain`
 
+### Task 2b: A 429 waits and retries the same route before falling through
+
+Added 2026-09-09 after Step 0 went live: the 11× faster run hit Gemini's **per-minute** quota
+(83 embedding + 33 translation 429s in 13 minutes; a probe 90 s after the last one succeeded, so
+the limit is per-minute, not per-day). `withFallback` treats a 429 as "try the next route" with no
+wait — there is no next route, so embeddings fail (`QA_UNAVAILABLE` on 474 units), some translation
+batches fail outright, and the runner's immediate FAILED→QUEUED sweep then hammers the quota:
+190 units reached `SKIPPED` with all three attempts burned in one minute. A rate limit is transient;
+the right response is to wait.
+
+**Files:** `src/server/ai/client.ts` (`withFallback` ~:119-155, `aiJson`/`aiEmbed` pass `signal`), `src/server/ai/providers/types.ts` (`classify` body slice), `config/school.config.ts` (+ test), `src/server/ai/client.test.ts`
+
+- [ ] **Config** (schema + literal + one assertion in the config test): `ai.rateLimitRetries: z.number().int().min(0).max(8)` → `4`; `ai.rateLimitBaseDelayMs: z.number().int().min(250)` → `5_000`. Doc comment: "A 429 is waited out on the same route — 5 s, 10 s, 20 s, 40 s with jitter — before the chain moves on. Per-minute quotas recover; falling through only wastes the next route's quota too."
+- [ ] **Tests first** (`client.test.ts`; mock `resolveRoutes` for two candidates and a fake adapter; use `vi.useFakeTimers()`):
+  1. `a 429 is retried on the same route and succeeds without touching route 2` — first candidate's `chat` rejects with `new ProviderError("quota", 429, true)` twice then resolves; assert 3 calls on candidate 1, 0 on candidate 2, and the timers advanced by ~5 s + ~10 s.
+  2. `after rateLimitRetries 429s the chain moves to the next route` — 5 consecutive 429s → candidate 2 called once.
+  3. `a 5xx still moves to the next route immediately` (no timer wait).
+  4. `an aborted signal during the wait rejects at once` — abort mid-wait → rejects within the same tick with a retryable `ProviderError`.
+  5. `ProviderTruncatedError still rethrows unwrapped` (keeps Task 2's guarantee).
+- [ ] **`withFallback(task, run, signal?)`** — inside the `for` over candidates, wrap `run(candidate)` in a retry loop:
+
+```ts
+for (let attempt = 0; ; attempt++) {
+  try {
+    return { result: await run(candidate), candidate };
+  } catch (error) {
+    if (error instanceof ProviderTruncatedError) throw error;
+    const rateLimited = error instanceof ProviderError && error.status === 429;
+    if (rateLimited && attempt < schoolConfig.ai.rateLimitRetries) {
+      const delay =
+        schoolConfig.ai.rateLimitBaseDelayMs *
+        2 ** attempt *
+        (0.8 + Math.random() * 0.4);
+      logger.warn(
+        {
+          task,
+          provider: candidate.providerLabel,
+          model: candidate.model,
+          attempt,
+          delayMs: Math.round(delay),
+        },
+        "rate limited — waiting on the same route",
+      );
+      await sleep(delay, signal); // rejects with ProviderError("request aborted", 499, true) if signal aborts
+      continue;
+    }
+    /* existing: record failure; retryable → next candidate; else break */
+  }
+}
+```
+
+`sleep` clears its timer on abort. `aiJson` and `aiEmbed` pass `opts.signal` through. Honouring a `Retry-After` header is out of scope (the adapters drop headers in `classify`); exponential backoff is enough for a per-minute window.
+
+- [ ] **`classify`** — slice the body to **600** chars, not 300: Gemini's 429 body names the exhausted quota metric after ~350 chars, and `lastCheckError`/logs currently cut it off. Update the existing classify test if it asserts 300.
+- [ ] PASS (`pnpm vitest run src/server/ai config`) + `tsc`. **Commit** — `spec-19a: a rate limit is waited out, not routed around`
+
+**Sizing note for Task 8:** the Gemini key is on the free tier today. 3 slots × batch 20 ≈ 29 requests/min, above free-tier flash-lite's ~15 RPM — the backoff keeps it _correct_ (it waits), but throughput is then capped by the quota, not the slots. Either run with `translationParallelSlots: 2` on the free tier, or move the key to a paid tier (the whole Spanish bank costs well under $1). This is the user's call; the code is right either way.
+
 ### Task 3: Embed in chunks of ≤100 (Google's `batchEmbedContents` limit)
 
 **Files:** `src/server/services/i18n/qa.ts` (~:197-201)
