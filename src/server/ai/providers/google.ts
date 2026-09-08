@@ -4,6 +4,7 @@ import {
   classify,
   fetchWithDeadline,
   ProviderError,
+  ProviderTruncatedError,
   readJson,
   readText,
   type ChatRequest,
@@ -33,9 +34,17 @@ const responseSchema = z.object({
   candidates: z
     .array(
       z.object({
-        content: z.object({
-          parts: z.array(z.object({ text: z.string().optional() })),
-        }),
+        // A MAX_TOKENS finish can arrive with no `content` at all (nothing was produced before
+        // the cap) or with `content.parts` holding only a partial fragment — both are truncation,
+        // not a malformed response, so neither field can be required here.
+        content: z
+          .object({
+            parts: z
+              .array(z.object({ text: z.string().optional() }))
+              .optional(),
+          })
+          .optional(),
+        finishReason: z.string().optional(),
       }),
     )
     .min(1),
@@ -116,10 +125,18 @@ export const googleAdapter: ProviderAdapter = {
       throw classify(response.status, await readText(response, timeoutMs));
     const parsed = responseSchema.parse(await readJson(response, timeoutMs));
 
+    const candidate = parsed.candidates[0];
+    if (candidate.finishReason === "MAX_TOKENS")
+      throw new ProviderTruncatedError(
+        request.maxTokens,
+        parsed.usageMetadata?.candidatesTokenCount ?? 0,
+      );
+    const text = (candidate.content?.parts ?? [])
+      .map((part) => part.text ?? "")
+      .join("");
+
     return {
-      text: parsed.candidates[0].content.parts
-        .map((part) => part.text ?? "")
-        .join(""),
+      text,
       model: request.model,
       promptTokens: parsed.usageMetadata?.promptTokenCount ?? 0,
       completionTokens: parsed.usageMetadata?.candidatesTokenCount ?? 0,

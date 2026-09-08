@@ -4,7 +4,12 @@ import { env } from "@/lib/env";
 import { AiPipelineError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { db } from "@/server/db";
-import { adapterFor, ProviderError, type ProviderMessage } from "./providers";
+import {
+  adapterFor,
+  ProviderError,
+  ProviderTruncatedError,
+  type ProviderMessage,
+} from "./providers";
 import type { PromptTemplate } from "./prompts";
 import { schoolConfig } from "../../../config/school.config";
 
@@ -127,6 +132,9 @@ async function withFallback<T>(
     try {
       return { result: await run(candidate), candidate };
     } catch (error) {
+      // A truncation must reach the runner as itself: it halves the batch, it does not try route 2.
+      if (error instanceof ProviderTruncatedError) throw error;
+
       const retryable =
         error instanceof ProviderError ? error.retryable : false;
       const message =

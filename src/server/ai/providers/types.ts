@@ -78,6 +78,26 @@ export class ProviderError extends Error {
   }
 }
 
+/**
+ * The model hit `maxTokens` before it finished. Not retryable on purpose: fallback routes around a
+ * PROVIDER fault (429/5xx); a truncation is a REQUEST fault — the prompt is too large for the cap —
+ * and every other route would truncate at the same cap or 400. The runner halves the batch instead.
+ * status 200: the HTTP exchange succeeded; the class is the discriminator.
+ */
+export class ProviderTruncatedError extends ProviderError {
+  constructor(
+    readonly maxTokens: number | undefined,
+    readonly completionTokens: number,
+  ) {
+    super(
+      `output truncated at ${completionTokens} tokens (cap ${maxTokens ?? "default"})`,
+      200,
+      false,
+    );
+    this.name = "ProviderTruncatedError";
+  }
+}
+
 export function classify(status: number, body: string): ProviderError {
   // 429 = quota/rate limit, 5xx = provider trouble: both are worth trying the next route for.
   const retryable = status === 429 || status >= 500;

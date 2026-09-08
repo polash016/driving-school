@@ -3,6 +3,7 @@ import { schoolConfig } from "../../../../config/school.config";
 import {
   classify,
   fetchWithDeadline,
+  ProviderTruncatedError,
   readJson,
   readText,
   type ChatRequest,
@@ -21,7 +22,12 @@ import {
 const chatSchema = z.object({
   model: z.string().optional(),
   choices: z
-    .array(z.object({ message: z.object({ content: z.string() }) }))
+    .array(
+      z.object({
+        message: z.object({ content: z.string() }),
+        finish_reason: z.string().nullable().optional(),
+      }),
+    )
     .min(1),
   usage: z
     .object({
@@ -74,8 +80,15 @@ export const openAiCompatibleAdapter: ProviderAdapter = {
       throw classify(response.status, await readText(response, timeoutMs));
     const parsed = chatSchema.parse(await readJson(response, timeoutMs));
 
+    const choice = parsed.choices[0];
+    if (choice.finish_reason === "length")
+      throw new ProviderTruncatedError(
+        request.maxTokens,
+        parsed.usage?.completion_tokens ?? 0,
+      );
+
     return {
-      text: parsed.choices[0].message.content,
+      text: choice.message.content,
       model: parsed.model ?? request.model,
       promptTokens: parsed.usage?.prompt_tokens ?? 0,
       completionTokens: parsed.usage?.completion_tokens ?? 0,

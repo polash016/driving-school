@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ProviderError } from "./types";
+import { ProviderError, ProviderTruncatedError } from "./types";
 import { openAiCompatibleAdapter } from "./openai-compatible";
 
 /**
@@ -160,5 +160,71 @@ describe("openai-compatible adapter", () => {
       messages: [{ role: "user", content: "x" }],
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps finish_reason=length to a non-retryable ProviderTruncatedError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              ...COMPLETION,
+              choices: [
+                {
+                  index: 0,
+                  finish_reason: "length",
+                  message: { role: "assistant", content: '{"units":[{' },
+                },
+              ],
+              usage: { prompt_tokens: 10, completion_tokens: 4096 },
+            }),
+            { status: 200 },
+          ),
+      ),
+    );
+
+    await expect(
+      openAiCompatibleAdapter.chat(CREDENTIALS, {
+        model: "m",
+        messages: [{ role: "user", content: "x" }],
+        maxTokens: 4096,
+      }),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof ProviderTruncatedError &&
+        !e.retryable &&
+        e.status === 200 &&
+        e.completionTokens === 4096 &&
+        e.maxTokens === 4096,
+    );
+  });
+
+  it("finish_reason=stop is not an error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              ...COMPLETION,
+              choices: [
+                {
+                  index: 0,
+                  finish_reason: "stop",
+                  message: { role: "assistant", content: "hello" },
+                },
+              ],
+            }),
+            { status: 200 },
+          ),
+      ),
+    );
+
+    const result = await openAiCompatibleAdapter.chat(CREDENTIALS, {
+      model: "m",
+      messages: [{ role: "user", content: "x" }],
+    });
+    expect(result.text).toBe("hello");
   });
 });

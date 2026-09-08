@@ -3,6 +3,7 @@ import { schoolConfig } from "../../../../config/school.config";
 import {
   classify,
   fetchWithDeadline,
+  ProviderTruncatedError,
   readJson,
   readText,
   type ChatRequest,
@@ -23,6 +24,7 @@ const responseSchema = z.object({
   content: z
     .array(z.object({ type: z.string(), text: z.string().optional() }))
     .min(1),
+  stop_reason: z.string().optional(),
   usage: z
     .object({
       input_tokens: z.number().optional(),
@@ -91,6 +93,12 @@ export const anthropicAdapter: ProviderAdapter = {
     if (!response.ok)
       throw classify(response.status, await readText(response, timeoutMs));
     const parsed = responseSchema.parse(await readJson(response, timeoutMs));
+
+    if (parsed.stop_reason === "max_tokens")
+      throw new ProviderTruncatedError(
+        request.maxTokens,
+        parsed.usage?.output_tokens ?? 0,
+      );
 
     return {
       text: parsed.content.map((block) => block.text ?? "").join(""),
