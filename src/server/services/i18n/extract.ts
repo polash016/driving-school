@@ -183,6 +183,7 @@ export async function extractLicenseClasses(
   ids?: string[],
 ): Promise<TranslationUnit[]> {
   const classes = await db.licenseClass.findMany({
+    // {} when ids is absent — this entity has no other filter.
     where: { ...(ids ? { id: { in: ids } } : {}) },
     select: { id: true, code: true, name: true },
   });
@@ -205,6 +206,7 @@ export async function extractSigns(
   ids?: string[],
 ): Promise<TranslationUnit[]> {
   const signs = await db.sign.findMany({
+    // {} when ids is absent — this entity has no other filter.
     where: { ...(ids ? { id: { in: ids } } : {}) },
     select: { id: true, code: true, name: true, meaning: true },
   });

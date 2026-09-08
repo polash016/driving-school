@@ -849,7 +849,9 @@ async function unitsFor(
     ids,
   });
   const wanted = new Set(ids);
-  return all.filter((unit) => wanted.has(unit.entityId)); // keep the guard: the source may have moved since planning
+  // Defence in depth: every extractor filters on ids, but a future one that forgets would
+  // silently widen a batch.
+  return all.filter((unit) => wanted.has(unit.entityId));
 }
 
 export async function progressOf(
