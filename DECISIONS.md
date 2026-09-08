@@ -430,3 +430,26 @@ post-fix flag rate is ~7%. Plan: `specs/plans/spec-19a-throughput-plan.md`.
 - **Not changed, on purpose:** `qaSampleRate` stays at 1 for both languages. Lowering it is a real
   speed-up but trades scrutiny on 80% of units; it is the school's call in the language settings.
 - **Approved by:** developer (routing to Gemini and 3 parallel slots chosen explicitly, 2026-09-09).
+
+## 2026-09-09 · spec-19 amendment B · Bulk approve is scoped to consented flag codes
+
+- **Decision:** `bulkApproveTranslations` no longer refuses every flagged row. Its
+  `includeFlagged: z.literal(false)` is replaced by `allowFlags: string[]` (default `[]`), and a row
+  is approved only when EVERY flag it carries appears in that list. The review screen renders one
+  checkbox per code still holding rows (`flagCounts`), with the two non-quality codes
+  (`QA_UNAVAILABLE`, `LENGTH_OUTLIER`) pre-ticked and every quality code listed but unticked and
+  marked as a real finding. The consent list is written into the audit meta as `allowFlags`.
+- **Why:** an infrastructure flag says nothing about the translation. 405 rows of one production
+  language carry `QA_UNAVAILABLE` — the semantic check could not run, because there was no embedding
+  route at the time — and clearing them one at a time is not a workflow anybody finishes. Deciding
+  per ROW over ALL of its flags is what keeps the quality findings safe: a unit flagged both
+  `QA_UNAVAILABLE` and `NUMBER_DRIFT` is never swept up by consenting to the former.
+- **Impact:** `src/server/services/i18n/review.ts` (new `flagCounts`, rewritten bulk approve),
+  `validation.ts` (now owns `NOT_A_QUALITY_FLAG`; `repair.ts` imports it rather than keeping a
+  second copy), the languages action, `[code]/page.tsx`, `translation-review.tsx`, and five new
+  `admin.languages.*` keys in both message files. Supersedes the line in amendment A that
+  `LENGTH_OUTLIER` is safe in `qaFlags` _because_ bulk approve refuses any flagged row: it is still
+  the reviewer's only view of the finding, but it is now pre-ticked in the consent list, so a length
+  outlier is bulk-approvable by a reviewer who leaves the default. With nothing ticked the behaviour
+  is unchanged — only rows no check flagged are approved.
+- **Approved by:** developer (2026-09-09)

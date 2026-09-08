@@ -16,6 +16,23 @@ import {
  * catastrophic on a driving test, and completely detectable without asking a model anything.
  */
 
+/**
+ * Flags that say nothing about the text.
+ *
+ * `QA_UNAVAILABLE` is emitted wholesale when the back-translation or the embedding call fails —
+ * the check could not run, which is not a finding about the translation. `LENGTH_OUTLIER` is
+ * advisory by construction: it does not block, and a model asked to "fix" it will pad or trim
+ * meaning to hit a ratio.
+ *
+ * One list, two consumers: auto-repair will not spend a model call on these (`isReQaOnly`), and
+ * bulk approve offers them to a reviewer pre-ticked. Both answer the same question — "is this a
+ * statement about correctness?" — so there must only ever be one answer to it.
+ */
+export const NOT_A_QUALITY_FLAG: ReadonlySet<string> = new Set([
+  "QA_UNAVAILABLE",
+  "LENGTH_OUTLIER",
+]);
+
 export interface TranslationIssue {
   code: string;
   /** Blocking issues stop a translation being served; warnings are shown to the reviewer. */

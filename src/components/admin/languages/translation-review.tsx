@@ -78,12 +78,15 @@ export function TranslationReview({
   direction,
   rows,
   pendingClean,
+  flagCounts,
 }: {
   code: string;
   direction: "LTR" | "RTL";
   rows: ReviewRow[];
-  /** Clean machine translations waiting — what a bulk approve would clear. */
+  /** Clean machine translations waiting — what a bulk approve clears with nothing ticked. */
   pendingClean: number;
+  /** Every check currently holding rows back, and how many each holds. */
+  flagCounts: Array<{ code: string; count: number; quality: boolean }>;
 }) {
   const t = useTranslations("admin.languages");
   const tErrors = useTranslations();
@@ -118,21 +121,73 @@ export function TranslationReview({
           })}
         </FormAlert>
       ) : null}
-      {pendingClean > 0 ? (
+      {pendingClean > 0 || flagCounts.length > 0 ? (
         <form
           action={bulkAction}
-          className="flex flex-wrap items-center gap-2 rounded-[var(--radius-base)] border border-border bg-muted/40 p-3"
+          className="flex flex-col gap-3 rounded-[var(--radius-base)] border border-border bg-muted/40 p-3"
         >
           <input type="hidden" name="code" value={code} />
-          <SubmitButton
-            className="h-9"
-            label={t("bulkApprove", { count: pendingClean })}
-            pendingLabel={t("saving")}
-          />
-          {/* The line that keeps a bulk action honest: it never touches a finding. */}
-          <span className="text-xs text-muted-foreground">
-            {t("bulkApproveNote")}
-          </span>
+
+          {/* The consent list. A check nobody ticks keeps holding its rows back, and a row is
+              approved only when EVERY check on it was ticked — so consenting to "the quality
+              check could not run" cannot carry a changed speed limit through with it. */}
+          {flagCounts.length > 0 ? (
+            <fieldset className="space-y-1.5">
+              <legend className="text-sm font-medium text-foreground">
+                {t("approveScope")}
+              </legend>
+              <p className="text-xs text-muted-foreground">
+                {t("approveScopeNote")}
+              </p>
+              <ul className="grid gap-0.5 pt-1 sm:grid-cols-2">
+                {flagCounts.map((entry) => (
+                  <li key={entry.code}>
+                    <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[var(--radius-control)] px-2 text-sm text-foreground hover:bg-background/70">
+                      <input
+                        type="checkbox"
+                        name="allowFlags"
+                        value={entry.code}
+                        // Infrastructure codes start ticked because they are not findings; a
+                        // quality code is never ticked for the reviewer.
+                        defaultChecked={!entry.quality}
+                        className="size-4 shrink-0 accent-primary"
+                      />
+                      <span className="flex flex-wrap items-baseline gap-x-1.5">
+                        <span>{flagLabel(t, entry.code)}</span>
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          {t("flagCount", { count: entry.count })}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-xs",
+                            entry.quality
+                              ? "font-medium text-destructive"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {entry.quality
+                            ? t("approveScopeQuality")
+                            : t("approveScopeInfra")}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </fieldset>
+          ) : null}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <SubmitButton
+              className="h-9"
+              label={t("bulkApprove", { count: pendingClean })}
+              pendingLabel={t("saving")}
+            />
+            {/* The line that keeps a bulk action honest: nothing unticked is touched. */}
+            <span className="text-xs text-muted-foreground">
+              {t("bulkApproveNote")}
+            </span>
+          </div>
         </form>
       ) : null}
     </>

@@ -19,16 +19,16 @@ import {
   type TranslatedUnit,
 } from "./translate";
 import { memoryHash, type TranslationUnit, type UnitPayload } from "./units";
-import { allCodes, checkTranslation } from "./validation";
+import { allCodes, checkTranslation, NOT_A_QUALITY_FLAG } from "./validation";
 
 /**
  * Auto-repair (spec-19).
  *
  * A translation that fails a QA check is stored NEEDS_REVIEW, and NEEDS_REVIEW is served under no
- * policy, never counts towards the coverage a language needs to be published, and is deliberately
- * refused by bulk approve. So the flagged pile can only be cleared one unit at a time by a human,
- * and that wall is what this module exists to remove — by making the machine fix its own mistakes,
- * never by lowering the bar.
+ * policy, never counts towards the coverage a language needs to be published, and is refused by
+ * bulk approve unless a reviewer names the very code that flagged it. So a quality finding is
+ * cleared one unit at a time by a human, and that wall is what this module exists to remove — by
+ * making the machine fix its own mistakes, never by lowering the bar.
  *
  * A NEEDS_REVIEW unit is re-translated with the QA finding stated in the prompt, at temperature 0,
  * and ALWAYS re-QA'd. Three attempts, then a human. Units whose only flags are infrastructure
@@ -48,16 +48,11 @@ import { allCodes, checkTranslation } from "./validation";
 export const MAX_REPAIR_ATTEMPTS = 3;
 
 /**
- * Flags that say nothing about the text.
+ * Units whose only flags say nothing about the text — re-QA'd, never re-translated. Without this
+ * rule one provider outage would burn every flagged unit's entire quality budget re-translating
+ * text that was never wrong. The list of such codes lives in `validation.ts`, because bulk approve
+ * asks the same question of the same codes and there must be one answer to it.
  *
- * `QA_UNAVAILABLE` is emitted wholesale when the back-translation or the embedding call fails —
- * so without this rule, one provider outage would burn every flagged unit's entire quality budget
- * re-translating text that was never wrong. `LENGTH_OUTLIER` is advisory by construction: it does
- * not block, and a model asked to "fix" it will pad or trim meaning to hit a ratio.
- */
-const NOT_A_QUALITY_FLAG = new Set(["QA_UNAVAILABLE", "LENGTH_OUTLIER"]);
-
-/**
  * `[].every()` is vacuously true, so an empty flag list would report "the text was never the
  * problem" about a unit nothing is known about — and that unit would be re-QA'd for free, for
  * ever, instead of being re-translated. Unreachable while every NEEDS_REVIEW writer attaches a

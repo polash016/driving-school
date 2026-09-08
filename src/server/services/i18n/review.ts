@@ -11,7 +11,7 @@ import { invalidateMessages } from "./catalogue";
 import { rememberTranslation } from "./memory";
 import { deriveVariantTranslations } from "./runs";
 import type { UnitPayload } from "./units";
-import { checkTranslation } from "./validation";
+import { checkTranslation, NOT_A_QUALITY_FLAG } from "./validation";
 
 /**
  * Human review of translations (spec-15).
@@ -121,24 +121,72 @@ export async function reviewQueue(
   return items.filter((item) => item.source !== null);
 }
 
+/**
+ * How many rows each QA code is currently holding back, worst first.
+ *
+ * The number is the point: "405 held by a check that could not run" and "3 held because the
+ * options may have swapped meaning" are different problems, and a reviewer cannot consent to
+ * clearing the first without being shown that the second exists.
+ *
+ * Tallied in JS rather than with a raw `unnest` — these are a few thousand rows of short string
+ * arrays, and keeping it in Prisma keeps the whole path typed.
+ *
+ * Index: Translation[locale, status, createdAt] — locale and status are the leading columns.
+ */
+export async function flagCounts(
+  db: PrismaClient,
+  locale: string,
+): Promise<Array<{ code: string; count: number; quality: boolean }>> {
+  const rows = await db.translation.findMany({
+    where: {
+      locale,
+      status: { in: ["MACHINE", "NEEDS_REVIEW"] },
+      entity: { not: "ITEM_VARIANT" },
+    },
+    select: { qaFlags: true },
+  });
+
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    for (const flag of row.qaFlags) {
+      counts.set(flag, (counts.get(flag) ?? 0) + 1);
+    }
+  }
+
+  return [...counts.entries()]
+    .map(([code, count]) => ({
+      code,
+      count,
+      quality: !NOT_A_QUALITY_FLAG.has(code),
+    }))
+    .sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
+}
+
 export const bulkApproveInputSchema = z
   .object({
     locale: z.string().min(2),
     entity: z.string().optional(),
-    /** Approving something a check flagged is exactly what must stay a deliberate, single act. */
-    includeFlagged: z.literal(false).default(false),
+    /**
+     * Flag codes the reviewer has explicitly consented to. A row is approved only when EVERY one
+     * of its flags appears here, so consenting to an infrastructure code can never sweep up a
+     * quality finding that happens to sit on the same row.
+     */
+    allowFlags: z.array(z.string()).max(32).default([]),
   })
   .strict();
 
 /**
- * Approve every clean machine translation at once.
+ * Approve machine translations at once, scoped to the flags the reviewer consented to.
  *
  * Necessary rather than convenient: a language has 534 UI strings, and approving those one at a
  * time is not a workflow anybody completes. It is still a human act, recorded as one — a reviewer
  * saying "the automated checks are good enough for the boilerplate".
  *
- * Deliberately refuses to touch anything flagged. A `NUMBER_DRIFT` or `ANSWER_PERMUTED` finding is
- * the whole reason the checks exist, and sweeping it up in a bulk action would waste them.
+ * The scope is what keeps it honest. `allowFlags: []` — the default, and what every existing
+ * caller gets — approves only rows nothing flagged at all. Passing `QA_UNAVAILABLE` says "the
+ * semantic check could not run, and that was never a statement about the translation"; it does
+ * NOT say anything about a `NUMBER_DRIFT` sitting on the same row, which is why approval is
+ * decided per ROW over ALL of its flags rather than per flag.
  */
 export async function bulkApproveTranslations(
   db: PrismaClient,
@@ -146,28 +194,26 @@ export async function bulkApproveTranslations(
   rawInput: unknown,
 ): Promise<{ approved: number; skipped: number }> {
   const input = bulkApproveInputSchema.parse(rawInput);
+  const allowed = new Set(input.allowFlags);
 
-  const where = {
-    locale: input.locale,
-    status: "MACHINE" as const,
-    entity: input.entity
-      ? (input.entity as TranslatableEntity)
-      : ({ not: "ITEM_VARIANT" } as const),
-    qaFlags: { isEmpty: true },
-  };
-
-  const targets = await db.translation.findMany({
-    where,
-    select: { id: true, entity: true, entityId: true },
-  });
-  const skipped = await db.translation.count({
+  // Index: Translation[locale, status, createdAt].
+  const candidates = await db.translation.findMany({
     where: {
       locale: input.locale,
       status: { in: ["MACHINE", "NEEDS_REVIEW"] },
-      entity: { not: "ITEM_VARIANT" },
-      NOT: { qaFlags: { isEmpty: true } },
+      entity: input.entity
+        ? (input.entity as TranslatableEntity)
+        : ({ not: "ITEM_VARIANT" } as const),
     },
+    select: { id: true, entity: true, entityId: true, qaFlags: true },
   });
+
+  // `[].every()` is vacuously true, which is exactly right here: a row with no flags at all is
+  // approved under every consent set, including the empty one.
+  const targets = candidates.filter((row) =>
+    row.qaFlags.every((flag) => allowed.has(flag)),
+  );
+  const skipped = candidates.length - targets.length;
 
   if (targets.length === 0) return { approved: 0, skipped };
 
@@ -195,10 +241,13 @@ export async function bulkApproveTranslations(
     action: AUDIT.translationApproved,
     entityType: "Language",
     entityId: input.locale,
+    // `allowFlags` is the consent itself: what a reviewer waved through, and on what grounds, has
+    // to survive in the record rather than only in the count.
     meta: {
       bulk: true,
       approved: result.count,
-      skippedBecauseFlagged: skipped,
+      skipped,
+      allowFlags: input.allowFlags,
     },
   });
   return { approved: result.count, skipped };

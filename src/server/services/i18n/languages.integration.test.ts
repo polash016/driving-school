@@ -383,26 +383,19 @@ d("bulk approve after auto-repair", () => {
 });
 
 /**
- * And there is no way to ask for the other behaviour: `includeFlagged` is `z.literal(false)`, so
- * the escape hatch cannot be opened from a form, a fetch, or a future caller who means well.
+ * And the only way to reach anything flagged is to name the flag: `allowFlags` defaults to the
+ * empty list, so a form, a fetch, or a future caller who means well all get the old behaviour.
+ * The contract itself is pinned in `review.integration.test.ts`.
  */
 describe("the bulk approve contract", () => {
-  it("has no opt-out from refusing flagged units", () => {
+  it("consents to nothing unless a reviewer says otherwise", () => {
+    expect(bulkApproveInputSchema.parse({ locale: "es" })).toEqual({
+      locale: "es",
+      allowFlags: [],
+    });
+    // The old boolean escape hatch is gone rather than renamed.
     expect(() =>
       bulkApproveInputSchema.parse({ locale: "es", includeFlagged: true }),
     ).toThrow();
-    // And it is refused *because of* includeFlagged, not incidentally by some other rule.
-    const refused = bulkApproveInputSchema.safeParse({
-      locale: "es",
-      includeFlagged: true,
-    });
-    expect(refused.success).toBe(false);
-    expect(
-      refused.error?.issues.map((issue) => issue.path.join(".")),
-    ).toContain("includeFlagged");
-    expect(bulkApproveInputSchema.parse({ locale: "es" })).toEqual({
-      locale: "es",
-      includeFlagged: false,
-    });
   });
 });

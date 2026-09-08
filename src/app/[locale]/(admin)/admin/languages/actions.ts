@@ -204,11 +204,12 @@ export interface BulkApproveOutcome {
 }
 
 /**
- * Approve every clean machine translation for a language in one act.
+ * Approve machine translations for a language in one act, scoped to the flags the reviewer ticked.
  *
  * A language has 534 UI strings; approving those one at a time is not a workflow anybody finishes.
- * It deliberately refuses anything a check flagged — those are the findings the checks exist for,
- * and clearing them in bulk would waste them.
+ * The scope is what keeps it honest: with nothing ticked it touches only rows no check flagged,
+ * and a row is swept up only when EVERY flag it carries was consented to — so a NUMBER_DRIFT never
+ * rides along with the QA_UNAVAILABLE beside it.
  */
 export async function bulkApproveAction(
   _prev: ActionResult<BulkApproveOutcome> | undefined,
@@ -222,7 +223,7 @@ export async function bulkApproveAction(
       ...(optionalString(formData, "entity")
         ? { entity: optionalString(formData, "entity") }
         : {}),
-      includeFlagged: false,
+      allowFlags: formData.getAll("allowFlags").map(String),
     });
     revalidatePath(`/admin/languages/${locale}`);
     revalidatePath("/admin/languages");

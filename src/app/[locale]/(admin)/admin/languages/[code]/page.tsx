@@ -17,7 +17,7 @@ import {
   untranslatedUnits,
   type BlockerKind,
 } from "@/server/services/i18n/languages";
-import { reviewQueue } from "@/server/services/i18n/review";
+import { flagCounts, reviewQueue } from "@/server/services/i18n/review";
 import type { TranslationStatus } from "@prisma/client";
 
 /**
@@ -88,7 +88,7 @@ export default async function LanguageReviewPage({
   const untranslatedKind =
     blocker === "UNTRANSLATED" || blocker === "FAILED" ? blocker : undefined;
 
-  const [t, coverage, queue, untranslated] = await Promise.all([
+  const [t, coverage, queue, untranslated, flags] = await Promise.all([
     getTranslations("admin.languages"),
     languageCoverage(db, code),
     untranslatedKind
@@ -103,6 +103,8 @@ export default async function LanguageReviewPage({
           only: untranslatedKind,
         })
       : [],
+    // What each check is currently holding back — the scope a bulk approve is consented to.
+    flagCounts(db, code),
   ]);
 
   const rows: ReviewRow[] = queue.map((item) => ({
@@ -195,6 +197,7 @@ export default async function LanguageReviewPage({
           code={code}
           direction={language.direction === "RTL" ? "RTL" : "LTR"}
           rows={rows}
+          flagCounts={flags}
           pendingClean={coverage.byEntity.reduce(
             (sum, entry) =>
               sum + (entry.translated - entry.approved - entry.flagged),
