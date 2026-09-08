@@ -401,3 +401,32 @@ more` and `@supports not (backdrop-filter)` each collapse the glass to an opaque
      a second time.
 - **Approved by:** developer (plan approved 2026-09-09; subagent-driven execution on branch
   `spec-19-translation-automation`)
+
+## 2026-09-09 · spec-19 amendment A · Translation throughput: where the time went, and what changes
+
+Measured on the live Spanish run (worker log, 38 AI calls over 19 batches): the translation call on
+Gemini flash-lite took **3.6 s** per batch of 5; the back-translation QA call, routed to the
+self-hosted Ollama model, took **82.8 s** on average (p95 117 s; one 240 s fallback after the gateway
+answered with a Cloudflare HTML page). That one serial call was 88% of every batch. "77% held for
+review" was 62 stale `QA_UNAVAILABLE` flags from before the `EMBEDDING` route existed; the real
+post-fix flag rate is ~7%. Plan: `specs/plans/spec-19a-throughput-plan.md`.
+
+- **Back-translation QA runs on the same fast hosted model as translation.** `VALIDATION` →
+  Gemini/gemini-3.5-flash-lite; the two self-hosted `VALIDATION` routes were removed (equal priority
+  would have left the chain order undefined). The self-hosted models keep `GENERATION`. Applied in
+  production 2026-09-09 before any code change; the live run picked it up within one batch.
+- **`translationMaxTokens` defaults to 8192, not 16384.** Gemini 2.0 Flash-Lite rejects anything
+  above 8192 with a non-retryable 400, which would FAIL every batch three times. 20 Spanish units
+  need ~5100 tokens at p90 (60% headroom), and truncation halving covers non-Latin scripts. Raise
+  only after verifying the routed model's cap.
+- **`LENGTH_OUTLIER` stays in `qaFlags`.** It is the reviewer's only view of the finding, and
+  `bulkApproveTranslations` refuses any row with a flag — moving it out would make length outliers
+  bulk-approvable. Only the "force a semantic check" gate switches to blocking codes.
+- **Truncation halves the run's shared batch size and re-queues without charging an attempt.** A
+  truncation is a request fault, not a provider fault, so it also skips the fallback chain. A
+  single-unit truncation is a real failure — that is what prevents an infinite re-queue loop.
+- **`recentRejections` is computed once per run.** A rejection made mid-run reaches the prompt on
+  the next run, which is when `pendingUnits` re-plans the rejected unit anyway.
+- **Not changed, on purpose:** `qaSampleRate` stays at 1 for both languages. Lowering it is a real
+  speed-up but trades scrutiny on 80% of units; it is the school's call in the language settings.
+- **Approved by:** developer (routing to Gemini and 3 parallel slots chosen explicitly, 2026-09-09).

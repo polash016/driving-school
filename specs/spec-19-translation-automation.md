@@ -179,3 +179,28 @@ filtering the review queue.
   working system.
 - Deployment adds one pm2 entry to the VPS `ecosystem.config.cjs` — see the deployment notes in
   memory for the access limits that shape it.
+
+## Amendment A — throughput (approved 2026-09-09)
+
+The first unattended Spanish run measured **3.2 units/min**. Instrumenting it showed the
+translation call itself takes 3.6 s per batch on Gemini; the back-translation QA call, routed to
+the self-hosted model, takes 83 s — 88% of every batch, serial, on a host that also returned an
+HTML error page mid-run. The runner was also structurally limited: three serial AI calls, serial
+batches, a batch size of 5 using 15% of the output window, a whole-bank re-extract per batch, and no
+handling of a truncated model response.
+
+**In scope (accuracy-neutral):** route QA to the same hosted model as translation (config); batch
+size, output cap and parallel slots as school config; a typed truncation error in every adapter with
+halve-and-requeue in the runner; N in-flight batches per run with a per-slot claim token; embeddings
+in chunks of 100; per-batch extraction restricted to the batch; batched writes; only blocking
+findings force a semantic check; an aggregate rate meter so the ETA stays right under concurrency.
+
+**Out of scope:** any change to the QA threshold or the deterministic checks; lowering
+`qaSampleRate` (a policy choice in the language settings, not code).
+
+**Acceptance:** no unit is translated twice across slots; a truncated batch is re-queued without an
+attempt and the next batch is half the size; a single-unit truncation is a real failure; cancel,
+pause, abort and budget each stop within one batch per slot; the flag distribution on a finished run
+changes only in `QA_UNAVAILABLE`; the measured rate on Spanish exceeds 100 units/min.
+
+Plan: `specs/plans/spec-19a-throughput-plan.md`. Decisions: `DECISIONS.md` (2026-09-09).
