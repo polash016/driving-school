@@ -177,7 +177,12 @@ export const schoolConfig: SchoolConfig = Object.freeze(
       pingTimeoutMs: 60_000,
       translationBatchSize: 20,
       translationMaxTokens: 8192,
-      translationParallelSlots: 3,
+      // 1, not 3, because the school's Gemini key is on the free tier (~15 requests/min). Each
+      // batch costs ~4 calls (translate, back-translation, one or two embeds), so three slots
+      // demand ~29/min: measured 161 rate-limit rejections in one run, and every unit came back
+      // QA_UNAVAILABLE because the embedding retries ran out. Raise this to 3 once the key is on a
+      // paid tier — the runner is correct at 3, it is the quota that is not.
+      translationParallelSlots: 1,
       rateLimitRetries: 4,
       rateLimitBaseDelayMs: 5_000,
     },
