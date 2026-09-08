@@ -6,9 +6,12 @@ import {
   addLanguageAction,
   planRunAction,
   runSliceAction,
+  startBackgroundRunAction,
   updateLanguageAction,
   type PlanOutcome,
+  type StartOutcome,
 } from "@/app/[locale]/(admin)/admin/languages/actions";
+import { isRunLive, RunPanel } from "@/components/admin/languages/run-panel";
 import { FormAlert } from "@/components/auth/form-alert";
 import { SubmitButton } from "@/components/auth/submit-button";
 import { Button } from "@/components/ui/button";
@@ -16,6 +19,7 @@ import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/server/contracts/common";
+import type { RunDetail } from "@/server/services/i18n/run-control";
 import type { RunProgress } from "@/server/services/i18n/runs";
 
 export interface LanguageRow {
@@ -36,6 +40,8 @@ export interface LanguageRow {
     flagged: number;
     complete: boolean;
   };
+  /** The newest background run for this language, live or finished — null if there has never been one. */
+  latestRun: RunDetail | null;
 }
 
 /**
@@ -47,15 +53,11 @@ export interface LanguageRow {
  */
 export function LanguageBoard({
   languages,
-  activeRun,
+  workerOnline,
 }: {
   languages: LanguageRow[];
-  activeRun: {
-    id: string;
-    locale: string;
-    planned: number;
-    done: number;
-  } | null;
+  /** The background worker reported in recently — without it an enqueued run just waits. */
+  workerOnline: boolean;
 }) {
   const t = useTranslations("admin.languages");
   const tErrors = useTranslations();
@@ -77,8 +79,12 @@ export function LanguageBoard({
     ActionResult<RunProgress> | undefined,
     FormData
   >(runSliceAction, undefined);
+  const [startState, startAction] = useActionState<
+    ActionResult<StartOutcome> | undefined,
+    FormData
+  >(startBackgroundRunAction, undefined);
 
-  const error = [addState, updateState, planState, runState].find(
+  const error = [addState, updateState, planState, runState, startState].find(
     (state) => state?.ok === false,
   );
 
@@ -87,6 +93,28 @@ export function LanguageBoard({
       {error?.ok === false ? (
         <FormAlert>{tErrors(error.messageKey)}</FormAlert>
       ) : null}
+
+      {startState?.ok ? (
+        <FormAlert tone="success">
+          {t("startQueued", {
+            count: startState.data.plannedUnits,
+            cost: startState.data.estimatedUsd.toFixed(2),
+          })}
+        </FormAlert>
+      ) : null}
+
+      <p className="flex flex-wrap items-center gap-2 text-xs">
+        <span
+          className={cn(
+            "rounded-full px-2 py-0.5",
+            workerOnline
+              ? "bg-[var(--status-success-soft)] text-[var(--status-success-strong)]"
+              : "bg-muted text-muted-foreground",
+          )}
+        >
+          {workerOnline ? t("workerOnline") : t("workerOffline")}
+        </span>
+      </p>
 
       <ul className="space-y-3">
         {languages.map((language) => (
@@ -193,6 +221,23 @@ export function LanguageBoard({
                         />
                       </form>
 
+                      {/* Hidden while a run is live: startBackgroundRun would only refuse it, and
+                          the panel below already carries pause, resume and cancel. */}
+                      {!isRunLive(language.latestRun) ? (
+                        <form action={startAction}>
+                          <input
+                            type="hidden"
+                            name="code"
+                            value={language.code}
+                          />
+                          <SubmitButton
+                            className="h-9"
+                            label={t("startBackground")}
+                            pendingLabel={t("starting")}
+                          />
+                        </form>
+                      ) : null}
+
                       <form action={updateAction}>
                         <input
                           type="hidden"
@@ -250,6 +295,24 @@ export function LanguageBoard({
                         </span>
                       ) : null}
                     </div>
+
+                    {!isRunLive(language.latestRun) ? (
+                      <p className="text-xs text-muted-foreground">
+                        {workerOnline
+                          ? t("startBackgroundNote")
+                          : t("workerOfflineNote")}
+                      </p>
+                    ) : null}
+
+                    {/* Keyed by run id: the detail is panel state, so a different run has to
+                        remount rather than merge into a poll already in flight. */}
+                    {language.latestRun ? (
+                      <RunPanel
+                        key={language.latestRun.runId}
+                        initial={language.latestRun}
+                        workerOnline={workerOnline}
+                      />
+                    ) : null}
                   </>
                 ) : null}
               </CardContent>
@@ -303,16 +366,6 @@ export function LanguageBoard({
             failed: runState.data.failed,
           })}
         </FormAlert>
-      ) : null}
-
-      {activeRun ? (
-        <p className="text-xs text-muted-foreground">
-          {t("activeRun", {
-            locale: activeRun.locale,
-            done: activeRun.done,
-            planned: activeRun.planned,
-          })}
-        </p>
       ) : null}
 
       {adding ? (
