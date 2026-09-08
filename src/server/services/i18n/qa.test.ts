@@ -14,6 +14,9 @@ vi.mock("@/server/ai/client", () => ({
   aiJson: (...args: unknown[]) => aiJson(...args),
   aiEmbed: (...args: unknown[]) => aiEmbed(...args),
 }));
+vi.mock("@/lib/logger", () => ({
+  logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
+}));
 
 const { semanticCheck } = await import("./qa");
 

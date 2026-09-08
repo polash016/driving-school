@@ -30,25 +30,6 @@ import type { TranslatableEntity } from "@prisma/client";
  * and the route table makes "a different model" a setting rather than a code change.
  */
 
-/** Google's batchEmbedContents accepts at most 100 requests per call. */
-const EMBED_CHUNK = 100;
-
-async function embedAll(
-  texts: string[],
-  signal?: AbortSignal,
-): Promise<number[][]> {
-  const vectors: number[][] = [];
-  for (let start = 0; start < texts.length; start += EMBED_CHUNK) {
-    vectors.push(
-      ...(await aiEmbed(
-        texts.slice(start, start + EMBED_CHUNK),
-        signal ? { signal } : {},
-      )),
-    );
-  }
-  return vectors;
-}
-
 /**
  * Below this, the stem is flagged and a human looks at it.
  *
@@ -117,6 +98,28 @@ export interface QaResult {
 function stemOf(payload: UnitPayload): string {
   const value = payload as { stem?: string; name?: string; text?: string };
   return value.stem ?? value.name ?? value.text ?? "";
+}
+
+/** Google's batchEmbedContents accepts at most 100 requests per call. */
+const EMBED_CHUNK = 100;
+
+async function embedAll(
+  texts: string[],
+  signal?: AbortSignal,
+): Promise<number[][]> {
+  const vectors: number[][] = [];
+  // Sequential, not Promise.all: the runner will soon run several translation batches concurrently
+  // against a rate-limited (free-tier) Gemini key — firing all of a batch's chunks at once compounds
+  // that.
+  for (let start = 0; start < texts.length; start += EMBED_CHUNK) {
+    vectors.push(
+      ...(await aiEmbed(
+        texts.slice(start, start + EMBED_CHUNK),
+        signal ? { signal } : {},
+      )),
+    );
+  }
+  return vectors;
 }
 
 /**
