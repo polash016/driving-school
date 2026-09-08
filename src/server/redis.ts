@@ -51,6 +51,8 @@ export const keys = {
   i18nMessages: (locale: string) => `tp:i18n:msg:${locale}`,
   /** Topic/class/sign names resolved for one locale. Invalidated by: taxonomy or translation edit. */
   i18nTaxonomy: (locale: string) => `tp:i18n:taxonomy:${locale}`,
+  /** Set by the i18n worker every poll with a 3×poll TTL; the admin board reads it as "online". */
+  i18nWorker: () => "tp:i18n:worker",
   /** Rate-limit counter (window-expiring). */
   rateLimit: (route: string, key: string) => `tp:rl:${route}:${key}`,
   /** AI spend counter per day (cost guard). */

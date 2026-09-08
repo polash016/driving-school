@@ -30,6 +30,8 @@ const envSchema = z.object({
   // throws a typed error on first use if missing.
   OMNIROUTE_BASE_URL: z.string().url().optional(),
   OMNIROUTE_API_KEY: z.string().min(1).optional(),
+  /** How often the i18n worker looks for an enqueued run when idle (spec-19). */
+  I18N_WORKER_POLL_MS: z.coerce.number().int().positive().default(5000),
 });
 
 export type Env = Omit<z.infer<typeof envSchema>, "AUTH_SECRET"> & {
