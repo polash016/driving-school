@@ -290,6 +290,15 @@ export interface RunProgress {
 
 /** Lease keepalive cadence: a quarter of the lease, so three missed ticks still hold it. */
 const KEEPALIVE_MS = (LEASE_MINUTES * 60_000) / 4;
+/**
+ * Consecutive keepalive ERRORS (a pool timeout, say) before the runner gives the lease up for lost.
+ *
+ * Two ticks is half the lease: past that another runner may legitimately claim the run, so
+ * carrying on would mean paying for translations we are no longer allowed to store.
+ */
+const KEEPALIVE_FAILURES_TO_STOP = 2;
+/** Clean batches in a row before a size halved by truncation earns half of itself back. */
+const CLEAN_BATCHES_TO_GROW = 5;
 
 function leaseUntil(from = Date.now()): Date {
   return new Date(from + LEASE_MINUTES * 60_000);
@@ -479,10 +488,23 @@ export async function executeRun(
     options.parallelSlots ?? schoolConfig.ai.translationParallelSlots;
   // Shared across slots on purpose: truncation is a fact about the language and the prompt shape,
   // so a batch that overflows the output window in one slot overflows it in every other.
-  let batchSize = options.batchSize ?? initialBatchSize(language);
+  const initialSize = options.batchSize ?? initialBatchSize(language);
+  let batchSize = initialSize;
+  /** Clean batches since the last truncation, shared by every slot — see the recovery below. */
+  let cleanBatches = 0;
   const budget = options.maxUnits ?? Number.POSITIVE_INFINITY;
   /** Units claimed against the budget. Moved synchronously, so no two slots can spend the same. */
   let reserved = 0;
+  /**
+   * Hand reserved units back to the budget.
+   *
+   * Every give-back goes through here so the clamp is in ONE place: a double release — a batch
+   * released on failure and again by a later path — would otherwise drive `reserved` negative and
+   * silently hand the run more budget than the admin asked for.
+   */
+  const release = (n: number): void => {
+    reserved = Math.max(0, reserved - n);
+  };
   const meter = new RunRateMeter(run.rateUnitsPerMin, slots);
   const translatedMasterIds: string[] = [];
 
@@ -520,6 +542,13 @@ export async function executeRun(
   // Keepalive IS the heartbeat: a batch on the slow self-hosted model routinely outlives a 2-minute
   // lease, and the lease used to be extended only after a batch. Owner-guarded, so a runner that
   // has already lost the lease learns it here instead of overwriting the new owner's state.
+  //
+  // A keepalive that THROWS used to be logged and forgotten, which is the worse failure of the
+  // two: the lease is not refreshed, the runner does not know it, and it keeps translating and
+  // WRITING under a lease another runner has since taken — double provider spend, and
+  // `storeTranslations` overwriting rows the new owner is responsible for. Two consecutive
+  // failures are half the lease, so that is where this stops the run itself.
+  let keepaliveFailures = 0;
   const keepalive = setInterval(() => {
     void db.translationRun
       .updateMany({
@@ -527,11 +556,21 @@ export async function executeRun(
         data: { leaseExpiresAt: leaseUntil(), heartbeatAt: new Date() },
       })
       .then((result) => {
+        keepaliveFailures = 0;
         if (result.count === 0) requestStop("lostLease");
       })
-      .catch((error: unknown) =>
-        logger.warn({ error, runId }, "lease keepalive failed"),
-      );
+      .catch((error: unknown) => {
+        keepaliveFailures += 1;
+        if (keepaliveFailures >= KEEPALIVE_FAILURES_TO_STOP) {
+          logger.error(
+            { error, runId, keepaliveFailures },
+            "lease keepalive failed twice — assuming the lease is gone",
+          );
+          requestStop("lostLease");
+          return;
+        }
+        logger.warn({ error, runId }, "lease keepalive failed");
+      });
   }, KEEPALIVE_MS);
 
   interface SlotJob {
@@ -623,7 +662,7 @@ export async function executeRun(
           select: { id: true, entity: true, entityId: true },
         });
         if (jobs.length === 0) {
-          reserved -= take;
+          release(take);
           return { kind: "empty" };
         }
 
@@ -652,7 +691,7 @@ export async function executeRun(
           select: { id: true, entity: true, entityId: true },
         });
         // Give back everything that was never ours to take.
-        reserved -= take - batch.length;
+        release(take - batch.length);
         return batch.length === 0
           ? { kind: "contended" }
           : { kind: "batch", entity, batch };
@@ -667,16 +706,27 @@ export async function executeRun(
       if (claim.kind === "contended") continue;
       const { entity, batch } = claim;
 
-      // Re-extract just this slice, so the source is read fresh rather than trusted from plan time.
-      const units = await unitsFor(
-        db,
-        language,
-        entity,
-        batch.map((job) => job.entityId),
-      );
       const batchStarted = Date.now();
 
       try {
+        // Inside the try, not before it: this is a database round trip, and a pool timeout here
+        // used to reject the slot and take the WHOLE run down with it — the batch orphaned
+        // RUNNING with its attempt already charged, its reservation leaked, and the worker
+        // marking the run FAILED. It is an ordinary batch failure like any other.
+        // Re-extract just this slice, so the source is read fresh rather than trusted from plan
+        // time.
+        const units = await unitsFor(
+          db,
+          language,
+          entity,
+          batch.map((job) => job.entityId),
+        );
+        if (stop.reason === "lostLease") {
+          // The lease is gone: another runner owns these jobs now. Hand them back rather than
+          // paying for a translation we may not be allowed to store.
+          await requeue(batch);
+          return;
+        }
         const outcome =
           run.kind === "REPAIR"
             ? await repairSlice(
@@ -721,12 +771,18 @@ export async function executeRun(
             .map((item) => item.unit.entityId)
             .filter((id) => !superseded.has(id)),
         );
+        // `run: { leaseOwner }` on every terminal write, for the same reason `retireExhausted`
+        // carries it: job state and the run's counters must stand or fall together. Between a new
+        // owner's claim committing and its takeover sweep committing, a `claimedBy`-only filter
+        // still matched — so the old owner marked jobs DONE while its guarded counter update
+        // no-opped, and nothing ever counted them.
         await db.translationJob.updateMany({
           where: {
             runId,
             entityId: { in: [...doneIds] },
             state: "RUNNING",
             claimedBy: claimToken,
+            run: { leaseOwner: options.leaseOwner },
           },
           data: { state: "DONE", finishedAt: new Date() },
         });
@@ -737,6 +793,7 @@ export async function executeRun(
               entityId: { in: [...superseded] },
               state: "RUNNING",
               claimedBy: claimToken,
+              run: { leaseOwner: options.leaseOwner },
             },
             data: {
               state: "SKIPPED",
@@ -752,6 +809,7 @@ export async function executeRun(
             id: { in: batch.map((job) => job.id) },
             state: "RUNNING",
             claimedBy: claimToken,
+            run: { leaseOwner: options.leaseOwner },
           },
           data: {
             state: "FAILED",
@@ -759,6 +817,10 @@ export async function executeRun(
             finishedAt: new Date(),
           },
         });
+        // A reservation must never outlive the work it covered: whatever the model silently
+        // dropped goes back to the budget, or a run bounded at 25 units delivers 20 and reports
+        // the other 5 as spent.
+        release(batch.length - doneIds.size);
 
         const modelUnits = translated.length - memoryHits;
         // One shared meter, not a per-batch EWMA: with several batches in flight each one only
@@ -798,6 +860,15 @@ export async function executeRun(
           counters.flagged += flagged;
           counters.memoryHits += memoryHits;
         }
+        // ...and grow it back. A halving used to be permanent, so one overflowed call in the first
+        // minute cost a six-hour run double the model calls it needed. Clean batches in a row are
+        // the evidence that the smaller size is no longer necessary; never past where we started.
+        cleanBatches += 1;
+        if (cleanBatches >= CLEAN_BATCHES_TO_GROW) {
+          cleanBatches = 0;
+          if (batchSize < initialSize)
+            batchSize = Math.min(initialSize, batchSize * 2);
+        }
       } catch (error) {
         if (options.signal?.aborted) {
           // A deploy is not the unit's fault: hand the batch back without charging an attempt.
@@ -810,24 +881,36 @@ export async function executeRun(
           // truncates on every batch. The units go back uncharged and unreserved, and this slot
           // takes the smaller batch on its next pass. A truncation at ONE unit falls through to
           // the ordinary FAILED path below, which is what stops an endless re-queue.
-          const next = Math.max(1, Math.floor(batch.length / 2));
+          //
+          // Halve the CONFIGURED size, not the batch this slot happened to win: contention and
+          // the entity-boundary trim routinely hand a slot 3 of a 20-unit take, and halving THAT
+          // pinned the whole run — every slot — at 1 unit per model call, 20× the calls.
+          const next = Math.max(1, Math.floor(batchSize / 2));
           if (next < batchSize) batchSize = next;
-          reserved -= batch.length;
+          cleanBatches = 0;
           logger.warn(
             { runId, entity, from: batch.length, to: batchSize },
             "output truncated — halving batch size",
           );
+          // Inside the claim lock, like every other give-back: releasing out here is exactly the
+          // "hand budget back after a sibling has already latched it" race the lock exists for.
+          await underClaimLock(async () => release(batch.length));
           await requeue(batch);
           continue;
         }
         // One bad batch must not end a run of three thousand. Record it and carry on.
         logger.error({ error, runId, entity }, "translation batch failed");
+        // These units are re-queued by the next pass and will reserve again then; keeping the
+        // reservation charged an admin's `maxUnits: 25` three times over for one bad batch, so a
+        // provider outage could translate nothing at all and still report the budget spent.
+        release(batch.length);
         await db.translationJob.updateMany({
           where: {
             runId,
             id: { in: batch.map((job) => job.id) },
             state: "RUNNING",
             claimedBy: claimToken,
+            run: { leaseOwner: options.leaseOwner },
           },
           data: {
             state: "FAILED",
@@ -889,7 +972,7 @@ export async function executeRun(
   }
   await invalidateMessages(run.locale);
 
-  const release = { leaseOwner: null, leaseExpiresAt: null };
+  const releaseLease = { leaseOwner: null, leaseExpiresAt: null };
   if (stopReason === "cancelled") {
     // Index: TranslationJob[runId, state, entity].
     await db.translationJob.updateMany({
@@ -902,7 +985,7 @@ export async function executeRun(
         status: "CANCELLED",
         finishedAt: new Date(),
         cancelRequested: false,
-        ...release,
+        ...releaseLease,
       },
     });
     return { ...(await progressOf(db, runId)), stopReason };
@@ -911,7 +994,15 @@ export async function executeRun(
   // RUNNING counts too: a job this runner could not finish is not a finished run.
   // Index: TranslationJob[runId, state, entity].
   const remaining = await db.translationJob.count({
-    where: { runId, state: { in: ["QUEUED", "RUNNING"] } },
+    where: {
+      runId,
+      OR: [
+        { state: { in: ["QUEUED", "RUNNING"] } },
+        // Retryable work is not finished work: a batch that failed with attempts to spare will be
+        // re-queued by the next pass, so a run that stops here must stay PAUSED, not claim COMPLETED.
+        { state: "FAILED", attempts: { lt: MAX_ATTEMPTS } },
+      ],
+    },
   });
   if (remaining === 0) {
     await db.translationRun.updateMany({
@@ -921,7 +1012,7 @@ export async function executeRun(
         finishedAt: new Date(),
         // Nothing left to pause; a stale flag would only confuse the run board.
         pauseRequested: false,
-        ...release,
+        ...releaseLease,
       },
     });
     // Only a whole-language pass may claim the language is in sync. A SINGLE_ENTITY slice, a
@@ -950,7 +1041,7 @@ export async function executeRun(
   // clears it. A bounded slice ending never set the flag in the first place.
   await db.translationRun.updateMany({
     where: { id: runId, leaseOwner: options.leaseOwner },
-    data: { status: "PAUSED", ...release },
+    data: { status: "PAUSED", ...releaseLease },
   });
   return { ...(await progressOf(db, runId)), stopReason };
 }
@@ -1056,7 +1147,15 @@ export async function progressOf(
   // A job left RUNNING by a killed process is outstanding work, not finished work.
   // Index: TranslationJob[runId, state, entity].
   const remaining = await db.translationJob.count({
-    where: { runId, state: { in: ["QUEUED", "RUNNING"] } },
+    where: {
+      runId,
+      OR: [
+        { state: { in: ["QUEUED", "RUNNING"] } },
+        // Retryable work is not finished work: a batch that failed with attempts to spare will be
+        // re-queued by the next pass, so a run that stops here must stay PAUSED, not claim COMPLETED.
+        { state: "FAILED", attempts: { lt: MAX_ATTEMPTS } },
+      ],
+    },
   });
   return {
     runId: run.id,

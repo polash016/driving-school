@@ -89,7 +89,11 @@ export const schoolConfigSchema = z
       /** Output cap per translation call. Must not exceed the routed model's own cap — Gemini 2.0
        *  Flash-Lite rejects >8192 with a non-retryable 400. Raise only after verifying the route. */
       translationMaxTokens: z.number().int().min(1024),
-      /** Batches in flight inside one run. Keep ≤ (DB pool − 2). */
+      /** Batches in flight inside one run, and the number the DB pool has to carry: each slot
+       *  needs ~2 connections at peak (its own queries plus `storeTranslations`' array
+       *  transaction) and the lease keepalive needs one more, so `slots * 2 + 2` must fit inside
+       *  the pool. Prisma's pool defaults to CPUs × 2 + 1 — 5 on the 2-vCPU VPS, too small for 3
+       *  slots — unless `connection_limit` is set on `DATABASE_URL`; see .env.example. */
       translationParallelSlots: z.number().int().min(1).max(8),
       /** A 429 is waited out on the same route — base × 2^attempt, capped at 60 s (at 4 retries
        *  from 5 s: 5/10/20/40 s) — before the chain moves on. Per-minute quotas recover; falling

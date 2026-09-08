@@ -191,6 +191,25 @@ function sentBatches(): SentBatch[] {
     });
 }
 
+/**
+ * Trim a planned run down to exactly `n` jobs.
+ *
+ * The fixture plans every TOPIC in the database, which is 15 of our own plus whatever else the
+ * test database happens to hold. The cases below reason about the WHOLE queue — "the run ends with
+ * nothing but a retryable failure left", "the claim is smaller than the configured batch" — so
+ * they pin the depth rather than asserting around an unknown one.
+ */
+async function keepJobs(runId: string, n: number) {
+  const jobs = await db.translationJob.findMany({
+    where: { runId },
+    orderBy: { id: "asc" },
+    select: { id: true },
+  });
+  await db.translationJob.deleteMany({
+    where: { runId, id: { in: jobs.slice(n).map((job) => job.id) } },
+  });
+}
+
 async function jobStates(runId: string) {
   return db.translationJob.findMany({
     where: { runId },
@@ -636,14 +655,134 @@ d("executeRun slots (spec-19a)", () => {
 
     const sizes = sentBatches().map((batch) => batch.ids.length);
     expect(sizes[0]).toBe(5);
-    expect(Math.min(...sizes.slice(1))).toBeLessThanOrEqual(2);
-    expect(Math.max(...sizes.slice(1))).toBeLessThanOrEqual(2);
+    // Halved to 2, and it stays there for the next five batches. It does NOT stay there for ever:
+    // five clean batches in a row earn half the size back (spec-19a), so the sixth is 4 again.
+    expect(sizes.slice(1, 6)).toEqual([2, 2, 2, 2, 2]);
+    expect(sizes[6]).toBe(4);
 
     const jobs = await jobStates(plan.runId);
     expect(jobs).toHaveLength(plan.plannedUnits);
     // A truncation is the runner's fault, not the unit's: nothing is charged an attempt for it.
     expect(jobs.every((job) => job.state === "DONE")).toBe(true);
     expect(jobs.every((job) => job.attempts === 1)).toBe(true);
+  });
+
+  /**
+   * A run used to finalise COMPLETED while a batch sat FAILED with attempts to spare.
+   *
+   * `remaining` counted only QUEUED and RUNNING, and the stop checks at the top of a pass fire
+   * BEFORE that pass's own FAILED → QUEUED sweep — so a provider outage plus any stop left the run
+   * "finished", stamped `Language.lastSyncedAt`, wrote the finished audit row and mailed the admin
+   * that the language was ready, with those units untranslated and uncounted.
+   */
+  it("a run that stops with a retryable failure left over stays PAUSED, not COMPLETED", async () => {
+    // SYNC, because only a whole-language pass stamps `lastSyncedAt` — the false claim at issue.
+    const plan = await planRun(db, CODE, {
+      kind: "SYNC",
+      only: ["TOPIC"],
+      startedById: actor.id,
+    });
+    await keepJobs(plan.runId, 5);
+    await db.language.update({
+      where: { code: CODE },
+      data: { lastSyncedAt: null },
+      select: { code: true },
+    });
+    const { ProviderError } = await import("@/server/ai/providers");
+    aiJson.mockImplementation(async () => {
+      // An admin pauses while the batch is in the model. The flag is read at the top of the next
+      // pass, before the sweep that would have re-queued this batch, which is what leaves a
+      // retryable FAILED job behind at finalisation.
+      await db.translationRun.update({
+        where: { id: plan.runId },
+        data: { pauseRequested: true },
+      });
+      throw new ProviderError("down", 503, true);
+    });
+
+    const progress = await executeRun(db, plan.runId, {
+      leaseOwner: "t-retryable",
+      maxUnits: 5,
+      batchSize: 5,
+      parallelSlots: 1,
+    });
+    expect(progress.stopReason).toBe("paused");
+    expect(progress.status).toBe("PAUSED");
+    expect(progress.done).toBe(false);
+
+    const jobs = await jobStates(plan.runId);
+    expect(jobs).toHaveLength(5);
+    expect(
+      jobs.every((job) => job.state === "FAILED" && job.attempts === 1),
+    ).toBe(true);
+
+    const language = await db.language.findUniqueOrThrow({
+      where: { code: CODE },
+      select: { lastSyncedAt: true },
+    });
+    expect(language.lastSyncedAt).toBeNull();
+  });
+
+  /**
+   * A failed batch used to keep its reservation, so a bounded slice paid for work it never got:
+   * three failures of a 5-unit batch spent 15 of an admin's 25, and a provider outage could
+   * translate nothing at all and still report the budget fully spent.
+   */
+  it("a batch that fails does not spend the budget twice", async () => {
+    const plan = await planTopics();
+    const { ProviderError } = await import("@/server/ai/providers");
+    aiJson.mockImplementationOnce(async () => {
+      throw new ProviderError("down", 503, true);
+    });
+
+    const progress = await executeRun(db, plan.runId, {
+      leaseOwner: "t-budget-release",
+      maxUnits: 10,
+      batchSize: 5,
+      parallelSlots: 1,
+    });
+    expect(progress.stopReason).toBe("budget");
+
+    // Both slices of the budget are delivered: the failed one is re-queued and reserves again,
+    // rather than the retry eating the other half of the admin's 10.
+    const run = await db.translationRun.findUniqueOrThrow({
+      where: { id: plan.runId },
+      select: { translatedUnits: true },
+    });
+    expect(run.translatedUnits).toBe(10);
+    expect(
+      await db.translationJob.count({
+        where: { runId: plan.runId, state: "DONE" },
+      }),
+    ).toBe(10);
+  });
+
+  /**
+   * Contention and the entity-boundary trim routinely hand a slot far fewer units than the
+   * configured batch. Halving what the slot WON meant one truncation on such a batch could pin
+   * every slot at one unit per model call for the rest of the run.
+   */
+  it("a truncation halves the configured size, not the batch that happened to be claimed", async () => {
+    const plan = await planTopics();
+    // Fewer than the configured 20, so the claim this slot wins is a trimmed one.
+    await keepJobs(plan.runId, 12);
+    const { ProviderTruncatedError } = await import("@/server/ai/providers");
+    aiJson.mockImplementationOnce(async () => {
+      throw new ProviderTruncatedError(8192, 8192);
+    });
+
+    const progress = await executeRun(db, plan.runId, {
+      leaseOwner: "t-truncate-size",
+      batchSize: 20,
+      parallelSlots: 1,
+    });
+    expect(progress.status).toBe("COMPLETED");
+
+    const sizes = sentBatches().map((batch) => batch.ids.length);
+    expect(sizes[0]).toBe(12);
+    // Half of the configured 20 — not half of the 12 that happened to be claimed, which would be 6.
+    expect(sizes[1]).toBe(10);
+    expect(sizes[2]).toBe(2);
   });
 
   it("a single unit that truncates is FAILED, not re-queued for ever", async () => {

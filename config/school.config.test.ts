@@ -46,6 +46,9 @@ describe("school.config", () => {
     expect(translationParallelSlots).toBeGreaterThanOrEqual(1);
     // pool − 2: the default Prisma pool is 5 on the 2-vCPU VPS
     expect(translationParallelSlots).toBeLessThanOrEqual(3);
+    // Each slot needs ~2 connections at peak and the keepalive one more, so the whole runner has
+    // to fit the pool the worker is documented to run with in .env.example.
+    expect(translationParallelSlots * 2 + 2).toBeLessThanOrEqual(12); // must fit the documented worker connection_limit
   });
 
   it("waits out a 429 on the same route at least once before falling through (spec-19a)", () => {
