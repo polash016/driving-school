@@ -453,3 +453,28 @@ post-fix flag rate is ~7%. Plan: `specs/plans/spec-19a-throughput-plan.md`.
   outlier is bulk-approvable by a reviewer who leaves the default. With nothing ticked the behaviour
   is unchanged — only rows no check flagged are approved.
 - **Approved by:** developer (2026-09-09)
+
+## 2026-09-09 · spec-19a · The rate meter scales its warm-up rather than folding it in
+
+The plan's `RunRateMeter` (Task 7) folded every observation through the EWMA. With three slots that
+is wrong during ramp-up: the first slot to finish sees a window holding 1 of 3 in-flight batches
+spread over the full concurrent span, so the first `slots - 1` readings are about `window.length /
+slots` of the truth, and folding them in bakes that in permanently. Measured on the task's own
+fixture (15 units over ~10.4 s): the literal formula reported 53/min where the real aggregate was
+86/min.
+
+- **Rejected — reseeding during warm-up** (`ewmaRate(null, observed)` until the window is full).
+  It fixes a fresh run but throws away a RESUMED run's stored `rateUnitsPerMin` on the first
+  observation: 86/min becomes 30/min, which is worse than the formula it replaces. `modelBatches`
+  is persisted, so a resumed run is already past the `etaSeconds` gate and would render a ~3×
+  inflated ETA rather than showing nothing.
+- **Chosen — scale the warm-up reading** by `slots / window.length`, then keep the ordinary EWMA
+  line. It corrects the bias at its source (the batches in flight but not yet observed) instead of
+  disabling smoothing, and needs no special case for `previous`. Fresh run: 90 → 89.5 → 88.6.
+  Resume from 86: 87.2 → 87.5 → 87.2. At `slots === 1` the window is warm on the first push, so the
+  behaviour is unchanged.
+- It assumes the unobserved slots run at roughly the observed pace — a strictly better assumption
+  than the alternative, which is that they do not exist.
+- `observe` also returns early for a batch served entirely from memory, matching the runner's
+  existing rule that such a batch says nothing about how fast the model is.
+- **Approved by:** developer (via the spec-19a plan; deviation raised in review and fixed there).
