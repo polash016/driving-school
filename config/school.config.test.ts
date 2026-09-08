@@ -31,11 +31,21 @@ describe("school.config", () => {
   });
 
   it("translation batch fits the output cap with headroom, and slots are bounded (spec-19a)", () => {
-    const { translationBatchSize, translationMaxTokens, translationParallelSlots } = schoolConfig.ai;
+    const {
+      translationBatchSize,
+      translationMaxTokens,
+      translationParallelSlots,
+    } = schoolConfig.ai;
     // ~255 completion tokens per Spanish question at p90; 300 leaves margin for verbose models.
-    expect(translationBatchSize * 300).toBeLessThanOrEqual(translationMaxTokens);
+    expect(translationBatchSize * 300).toBeLessThanOrEqual(
+      translationMaxTokens,
+    );
+    // The routed Gemini model's output cap. Raising this is a deliberate act: verify the model in
+    // /admin/ai first, then change this number together with the config.
+    expect(translationMaxTokens).toBeLessThanOrEqual(8192);
     expect(translationParallelSlots).toBeGreaterThanOrEqual(1);
-    expect(translationParallelSlots).toBeLessThanOrEqual(4); // default Prisma pool is 5 on 2 vCPUs
+    // pool − 2: the default Prisma pool is 5 on the 2-vCPU VPS
+    expect(translationParallelSlots).toBeLessThanOrEqual(3);
   });
 });
 
