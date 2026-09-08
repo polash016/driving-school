@@ -8,6 +8,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { logger } from "@/lib/logger";
 import type { SessionUser } from "@/server/authz";
 import { db } from "@/server/db";
 import { redis } from "@/server/redis";
@@ -160,6 +161,9 @@ async function planTopics() {
  * keeps them testing what they were written to test; the slot behaviour has its own cases below.
  */
 const SERIAL = { batchSize: 5, parallelSlots: 1 } as const;
+
+/** `KEEPALIVE_MS` in runs.ts: a quarter of the 2-minute lease. Not exported; kept level by hand. */
+const KEEPALIVE_MS = (2 * 60_000) / 4;
 
 interface SentBatch {
   ids: string[];
@@ -783,6 +787,123 @@ d("executeRun slots (spec-19a)", () => {
     // Half of the configured 20 — not half of the 12 that happened to be claimed, which would be 6.
     expect(sizes[1]).toBe(10);
     expect(sizes[2]).toBe(2);
+  });
+
+  /**
+   * The keepalive used to swallow its own failures.
+   *
+   * `.catch()` logged and returned, so two pool timeouts in a row meant the lease was never
+   * refreshed AND the runner never found out: another runner took the run over, re-queued the jobs
+   * and translated them a second time, while this process carried on spending model calls and
+   * overwriting live `Translation` rows — nulling `reviewedById`/`reviewedAt`/`reviewNote` on rows
+   * a human had already approved. Two ticks is half the lease, and that is where it now fences
+   * itself: stop claiming, stop spending, hand the in-flight batch back.
+   */
+  it("two consecutive keepalive failures fence the runner before it spends another call", async () => {
+    const plan = await planTopics();
+    // Only the interval is faked. Date, setTimeout and the rest stay real, so the real Postgres
+    // round trips this case makes still complete while the keepalive's clock is ours to drive.
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+
+    // The keepalive writes the lease and the heartbeat and NOTHING else — that two-key `data` is
+    // its signature. Armed only once a batch is parked, so no other run-row write can match it.
+    const runUpdateMany = db.translationRun.updateMany.bind(db.translationRun);
+    let fenceArmed = false;
+    const runSpy = vi
+      .spyOn(db.translationRun, "updateMany")
+      .mockImplementation(((args: { data: Record<string, unknown> }) => {
+        const keys = Object.keys(args.data);
+        const isKeepalive =
+          keys.length === 2 &&
+          keys.includes("leaseExpiresAt") &&
+          keys.includes("heartbeatAt");
+        if (fenceArmed && isKeepalive) {
+          return Promise.reject(new Error("connection pool timeout"));
+        }
+        return runUpdateMany(args as Parameters<typeof runUpdateMany>[0]);
+      }) as unknown as typeof db.translationRun.updateMany);
+
+    // Park the SECOND batch between its claim and its model call — the window the fence has to
+    // close — by holding its re-extract open while the keepalive ticks.
+    const topicFindMany = db.topic.findMany.bind(db.topic);
+    let extracts = 0;
+    let parked!: () => void;
+    const atSecondBatch = new Promise<void>((resolve) => {
+      parked = resolve;
+    });
+    let unpark!: () => void;
+    const held = new Promise<void>((resolve) => {
+      unpark = resolve;
+    });
+    const topicSpy = vi.spyOn(db.topic, "findMany").mockImplementation((async (
+      args: Parameters<typeof topicFindMany>[0],
+    ) => {
+      extracts += 1;
+      if (extracts === 2) {
+        parked();
+        await held;
+      }
+      return topicFindMany(args);
+    }) as unknown as typeof db.topic.findMany);
+    const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => {});
+
+    let progress;
+    let callsBeforeFence = 0;
+    let callsAfterFence = 0;
+    let keepaliveLogged = false;
+    try {
+      const running = executeRun(db, plan.runId, {
+        leaseOwner: "t-keepalive",
+        ...SERIAL,
+      });
+      await atSecondBatch;
+      callsBeforeFence = aiJson.mock.calls.length;
+      fenceArmed = true;
+
+      // Two ticks: the first is a warning, the second gives the lease up for lost. The flush is a
+      // real timeout — the keepalive's `.catch` is a microtask on a rejected promise.
+      for (let tick = 0; tick < 2; tick++) {
+        vi.advanceTimersByTime(KEEPALIVE_MS);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      keepaliveLogged = errorSpy.mock.calls.some(
+        (call) =>
+          typeof call[1] === "string" && call[1].includes("lease keepalive"),
+      );
+
+      unpark();
+      progress = await running;
+      callsAfterFence = aiJson.mock.calls.length;
+    } finally {
+      unpark();
+      runSpy.mockRestore();
+      topicSpy.mockRestore();
+      errorSpy.mockRestore();
+      vi.useRealTimers();
+    }
+
+    expect(progress.stopReason).toBe("lostLease");
+    expect(keepaliveLogged).toBe(true);
+    // The whole point: the parked batch never reaches the model. A translation we may not be
+    // allowed to store is money spent for nothing, and a row someone else now owns.
+    expect(callsBeforeFence).toBeGreaterThan(0);
+    expect(callsAfterFence).toBe(callsBeforeFence);
+
+    const jobs = await jobStates(plan.runId);
+    // The parked batch went back to the queue, and a fence is not the unit's fault: no attempt.
+    expect(jobs.filter((job) => job.state === "RUNNING")).toHaveLength(0);
+    expect(jobs.filter((job) => job.state === "DONE")).toHaveLength(5);
+    const queued = jobs.filter((job) => job.state === "QUEUED");
+    expect(queued.length).toBeGreaterThanOrEqual(5);
+    expect(queued.every((job) => job.attempts === 0)).toBe(true);
+
+    // And it wrote no outcome: the run is left exactly as the next owner will find it.
+    const run = await db.translationRun.findUniqueOrThrow({
+      where: { id: plan.runId },
+      select: { status: true, finishedAt: true },
+    });
+    expect(run.status).toBe("RUNNING");
+    expect(run.finishedAt).toBeNull();
   });
 
   it("a single unit that truncates is FAILED, not re-queued for ever", async () => {
