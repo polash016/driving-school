@@ -1,4 +1,8 @@
-import type { PrismaClient, TranslationStatus } from "@prisma/client";
+import type {
+  PrismaClient,
+  TranslatableEntity,
+  TranslationStatus,
+} from "@prisma/client";
 import { z } from "zod";
 import { ConflictError, ValidationError } from "@/lib/errors";
 import { BUILTIN_PREFIXES, isBuiltinLocale, localeSchema } from "@/lib/locale";
@@ -53,6 +57,23 @@ export interface CoverageRow {
   flagged: number;
 }
 
+export type BlockerKind =
+  "UNTRANSLATED" | "FAILED" | "FLAGGED" | "AWAITING_APPROVAL";
+
+/** One reason this language is not servable yet, and how many units carry it. */
+export interface Blocker {
+  kind: BlockerKind;
+  count: number;
+}
+
+/** Cheapest to clear first — an admin reads this list top to bottom. */
+const BLOCKER_ORDER: BlockerKind[] = [
+  "UNTRANSLATED",
+  "FAILED",
+  "FLAGGED",
+  "AWAITING_APPROVAL",
+];
+
 export interface LanguageCoverage {
   locale: string;
   total: number;
@@ -61,8 +82,161 @@ export interface LanguageCoverage {
   flagged: number;
   percent: number;
   byEntity: CoverageRow[];
-  /** True when every unit is ready — the gate on showing the language to students. */
+  /**
+   * Exactly what stands between this language and students. A partition of `total − ready`, so
+   * the sum of the counts is always the shortfall the percentage describes.
+   */
+  blockers: Blocker[];
+  /** True when nothing blocks — the gate on showing the language to students. */
   complete: boolean;
+}
+
+/**
+ * Exactly what stands between this language and students, as a partition of (total − ready):
+ * every unit that is not ready lands in one bucket and one only. `complete` is derived from this,
+ * so the checklist and the publish gate cannot drift — a language that shows an empty checklist
+ * is a language the gate will let through, by construction rather than by agreement.
+ *
+ * FAILED is a *subset of* "no fresh row", never a status of its own: a unit the machine gave up on
+ * in one run and translated in the next has a fresh row and is not counted twice.
+ */
+export function partitionBlockers(
+  units: Array<{
+    entity: TranslatableEntity;
+    entityId: string;
+    sourceHash: string;
+  }>,
+  rows: Map<string, { sourceHash: string; status: TranslationStatus }>,
+  failedKeys: Set<string>,
+  requiresApproval: boolean,
+): Blocker[] {
+  const counts: Record<BlockerKind, number> = {
+    UNTRANSLATED: 0,
+    FAILED: 0,
+    FLAGGED: 0,
+    AWAITING_APPROVAL: 0,
+  };
+
+  for (const unit of units) {
+    const key = `${unit.entity}:${unit.entityId}`;
+    const row = rows.get(key);
+    // A translation made from text that has since moved is not coverage — stale reads as absent.
+    const fresh = row !== undefined && row.sourceHash === unit.sourceHash;
+    if (!fresh) {
+      counts[failedKeys.has(key) ? "FAILED" : "UNTRANSLATED"] += 1;
+      continue;
+    }
+    if (row.status === "NEEDS_REVIEW" || row.status === "REJECTED") {
+      counts.FLAGGED += 1;
+      continue;
+    }
+    // MACHINE is servable when the language does not require approval, so it blocks nothing then.
+    if (row.status === "MACHINE" && requiresApproval)
+      counts.AWAITING_APPROVAL += 1;
+  }
+
+  return BLOCKER_ORDER.filter((kind) => counts[kind] > 0).map((kind) => ({
+    kind,
+    count: counts[kind],
+  }));
+}
+
+/**
+ * Units the machine gave up on: SKIPPED jobs of the newest completed, non-sample run, mapped to
+ * the last error they carried.
+ *
+ * A cancel marks every remaining job SKIPPED and a re-plan supersedes them — neither is a failure,
+ * and calling them one would put "gave up after 3 tries" beside a unit nobody ever tried. Samples
+ * are excluded because a sample deliberately covers ~5 units and skips the rest.
+ */
+async function failedUnits(
+  db: PrismaClient,
+  locale: string,
+): Promise<Map<string, string | null>> {
+  // Index: TranslationRun[locale, status, createdAt(sort: Desc)].
+  const lastRun = await db.translationRun.findFirst({
+    where: { locale, status: "COMPLETED", kind: { not: "SAMPLE" } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  if (!lastRun) return new Map();
+
+  // Index: TranslationJob[runId, state, entity].
+  const jobs = await db.translationJob.findMany({
+    where: {
+      runId: lastRun.id,
+      state: "SKIPPED",
+      error: { notIn: ["cancelled", "superseded"] },
+    },
+    select: { entity: true, entityId: true, error: true },
+  });
+  return new Map(
+    jobs.map((job) => [`${job.entity}:${job.entityId}`, job.error]),
+  );
+}
+
+export interface UntranslatedUnit {
+  entity: TranslatableEntity;
+  entityId: string;
+  label: string;
+  failed: boolean;
+  error: string | null;
+}
+
+/**
+ * The units behind the UNTRANSLATED and FAILED blockers.
+ *
+ * These have no `Translation` row at all, so the review queue — built on `translation.findMany` —
+ * cannot show them. Without this list those two lines of the checklist would link nowhere.
+ *
+ * `only` filters BEFORE the limit is applied: asking for the failures must return failures, not
+ * whatever survives a slice of a much longer untranslated list.
+ */
+export async function untranslatedUnits(
+  db: PrismaClient,
+  locale: string,
+  options: { limit?: number; only?: "FAILED" | "UNTRANSLATED" } = {},
+): Promise<UntranslatedUnit[]> {
+  const language = await db.language.findUniqueOrThrow({
+    where: { code: locale },
+    select: { glossaryVersion: true },
+  });
+  const units = await extractAll(db, {
+    glossaryVersion: language.glossaryVersion,
+  });
+  // Index: Translation[locale, entity, status] — the leading column serves this locale scan.
+  const rows = await db.translation.findMany({
+    where: { locale },
+    select: { entity: true, entityId: true, sourceHash: true },
+  });
+  const fresh = new Set(
+    rows.map((row) => `${row.entity}:${row.entityId}:${row.sourceHash}`),
+  );
+  const failed = await failedUnits(db, locale);
+
+  return units
+    .filter(
+      (unit) =>
+        !fresh.has(`${unit.entity}:${unit.entityId}:${unit.sourceHash}`),
+    )
+    .map((unit) => {
+      const key = `${unit.entity}:${unit.entityId}`;
+      return {
+        entity: unit.entity,
+        entityId: unit.entityId,
+        label: unit.label,
+        failed: failed.has(key),
+        error: failed.get(key) ?? null,
+      };
+    })
+    .filter((unit) =>
+      options.only === undefined
+        ? true
+        : options.only === "FAILED"
+          ? unit.failed
+          : !unit.failed,
+    )
+    .slice(0, options.limit ?? 50);
 }
 
 /**
@@ -83,7 +257,8 @@ export async function languageCoverage(
   });
 
   if (language.isBuiltIn) {
-    // Built-in languages are authored, not translated: they are complete by definition.
+    // Built-in languages are authored, not translated: they are complete by definition, and
+    // nothing can block them.
     return {
       locale,
       total: 0,
@@ -91,6 +266,7 @@ export async function languageCoverage(
       flagged: 0,
       percent: 100,
       byEntity: [],
+      blockers: [],
       complete: true,
     };
   }
@@ -98,10 +274,12 @@ export async function languageCoverage(
   const units = await extractAll(db, {
     glossaryVersion: language.glossaryVersion,
   });
+  // Index: Translation[locale, entity, status] — the leading column serves this locale scan.
   const rows = await db.translation.findMany({
     where: { locale },
     select: { entity: true, entityId: true, sourceHash: true, status: true },
   });
+  const failedKeys = new Set((await failedUnits(db, locale)).keys());
 
   const servable: TranslationStatus[] = language.requiresApproval
     ? ["APPROVED"]
@@ -140,6 +318,12 @@ export async function languageCoverage(
   }
 
   const total = units.length;
+  const blockers = partitionBlockers(
+    units,
+    byKey,
+    failedKeys,
+    language.requiresApproval,
+  );
   return {
     locale,
     total,
@@ -149,7 +333,10 @@ export async function languageCoverage(
     byEntity: [...totals.values()].sort((a, b) =>
       a.entity.localeCompare(b.entity),
     ),
-    complete: total > 0 && ready === total,
+    blockers,
+    // Derived from the blockers, never computed alongside them: the checklist an admin reads and
+    // the gate that refuses `studentVisible` are then the same statement.
+    complete: total > 0 && blockers.length === 0,
   };
 }
 

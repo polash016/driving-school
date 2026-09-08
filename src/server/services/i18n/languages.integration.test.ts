@@ -4,11 +4,17 @@ import { ConflictError, ValidationError } from "@/lib/errors";
 import type { SessionUser } from "@/server/authz";
 import { db } from "@/server/db";
 import { redis } from "@/server/redis";
-import { createLanguage, languageCoverage, updateLanguage } from "./languages";
+import {
+  createLanguage,
+  languageCoverage,
+  untranslatedUnits,
+  updateLanguage,
+} from "./languages";
 import { MAX_REPAIR_ATTEMPTS } from "./repair";
 import {
   bulkApproveInputSchema,
   bulkApproveTranslations,
+  reviewQueue,
   reviewTranslation,
 } from "./review";
 
@@ -127,6 +133,37 @@ d("the coverage gate", () => {
     expect(
       coverage.byEntity.some((entry) => entry.entity === "UI_MESSAGE"),
     ).toBe(true);
+  });
+
+  it("names what is blocking, and the names add up to the shortfall", async () => {
+    const coverage = await languageCoverage(db, CODE);
+    // The partition, against a real extraction rather than a fixture: every unit that is not
+    // servable is counted in exactly one bucket.
+    expect(coverage.blockers.reduce((sum, b) => sum + b.count, 0)).toBe(
+      coverage.total - coverage.ready,
+    );
+    // And `complete` is that list being empty — not a second opinion about it. This is the
+    // agreement `updateLanguage`'s gate depends on.
+    expect(coverage.complete).toBe(coverage.blockers.length === 0);
+    expect(coverage.complete).toBe(coverage.ready === coverage.total);
+    // Nothing is translated yet, so the whole language sits in one bucket.
+    expect(coverage.blockers).toEqual([
+      { kind: "UNTRANSLATED", count: coverage.total },
+    ]);
+  });
+
+  it("lists the units behind the untranslated blocker, which have no row to review", async () => {
+    const units = await untranslatedUnits(db, CODE, { limit: 5 });
+    expect(units.length).toBe(5);
+    // The review queue is built on `translation.findMany`, so it cannot show these at all.
+    expect(await reviewQueue(db, CODE, { limit: 5 })).toEqual([]);
+    for (const unit of units) {
+      expect(unit.label.length).toBeGreaterThan(0);
+      expect(unit.failed).toBe(false);
+    }
+    // No run has failed here, so asking for the failures returns none rather than a slice of
+    // whatever happened to be first.
+    expect(await untranslatedUnits(db, CODE, { only: "FAILED" })).toEqual([]);
   });
 
   it("counts only what a student can actually see", async () => {

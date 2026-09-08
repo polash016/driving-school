@@ -1,4 +1,8 @@
-import type { PrismaClient, TranslatableEntity } from "@prisma/client";
+import type {
+  PrismaClient,
+  TranslatableEntity,
+  TranslationStatus,
+} from "@prisma/client";
 import { z } from "zod";
 import { ConflictError, NotFoundError } from "@/lib/errors";
 import { AUDIT, auditLog } from "@/server/audit";
@@ -63,15 +67,24 @@ export async function reviewQueue(
     entity?: TranslatableEntity;
     limit?: number;
     onlyFlagged?: boolean;
+    /**
+     * Exactly which statuses to list, overriding `onlyFlagged`. The readiness checklist uses it to
+     * open the queue on precisely the rows one blocker counted — `REJECTED` included, which the
+     * default view deliberately leaves out.
+     */
+    status?: TranslationStatus[];
   } = {},
 ): Promise<ReviewQueueItem[]> {
+  // Index: Translation[locale, entity, status].
   const rows = await db.translation.findMany({
     where: {
       locale,
       ...(options.entity ? { entity: options.entity } : {}),
-      status: options.onlyFlagged
-        ? "NEEDS_REVIEW"
-        : { in: ["MACHINE", "NEEDS_REVIEW"] },
+      status: options.status
+        ? { in: options.status }
+        : options.onlyFlagged
+          ? "NEEDS_REVIEW"
+          : { in: ["MACHINE", "NEEDS_REVIEW"] },
     },
     orderBy: [{ semanticScore: "asc" }, { createdAt: "asc" }],
     take: options.limit ?? 50,
