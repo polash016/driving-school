@@ -32,7 +32,8 @@ attacks that pile by **making the machine fix its own mistakes**, not by lowerin
 ## In scope
 
 - **A background worker** (`teoripro-i18n-worker`, its own pm2 app) that claims runs by lease and
-  works them to completion, with error containment at five layers and a graceful `SIGTERM` path.
+  works them to completion, with error containment at six layers — from a per-request deadline up to
+  pm2 itself — and a graceful `SIGTERM` path.
 - **Auto-repair**: a `REPAIR` run kind that re-translates every `NEEDS_REVIEW` unit with the QA
   finding fed back into the prompt, re-QAs the result, and only surfaces to a human what survives
   three repair attempts.
