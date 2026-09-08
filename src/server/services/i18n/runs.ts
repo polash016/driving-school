@@ -492,6 +492,14 @@ export async function executeRun(
   let batchSize = initialSize;
   /** Clean batches since the last truncation, shared by every slot — see the recovery below. */
   let cleanBatches = 0;
+  /**
+   * The largest size known to overflow this language's output window.
+   *
+   * Recovery has to stay strictly under it or the run never converges: 20 truncates, halves to 10,
+   * five clean batches take it back to 20, and it truncates again — an overflowed call, and the
+   * batch behind it re-queued, every fifth batch for the length of the run.
+   */
+  let lastTruncatedSize = Number.POSITIVE_INFINITY;
   const budget = options.maxUnits ?? Number.POSITIVE_INFINITY;
   /** Units claimed against the budget. Moved synchronously, so no two slots can spend the same. */
   let reserved = 0;
@@ -502,7 +510,7 @@ export async function executeRun(
    * released on failure and again by a later path — would otherwise drive `reserved` negative and
    * silently hand the run more budget than the admin asked for.
    */
-  const release = (n: number): void => {
+  const releaseBudget = (n: number): void => {
     reserved = Math.max(0, reserved - n);
   };
   const meter = new RunRateMeter(run.rateUnitsPerMin, slots);
@@ -515,6 +523,14 @@ export async function executeRun(
     if (stop.reason === null || STOP_RANK[reason] > STOP_RANK[stop.reason])
       stop.reason = reason;
   };
+  /**
+   * Have we stopped owning the rows we are holding?
+   *
+   * Read INSIDE the slice, between the model call and the store: a batch runs 30–540 s and the
+   * keepalive ticks every 30 s, so the likeliest moment to lose the lease is while the model is
+   * working — long after the check before the call.
+   */
+  const abandoned = (): boolean => stop.reason === "lostLease";
 
   // Progress for the log line is built from these rather than re-read: `progressOf` is two queries,
   // and it was paying them after every single batch. The terminal returns still read the row, so
@@ -662,7 +678,7 @@ export async function executeRun(
           select: { id: true, entity: true, entityId: true },
         });
         if (jobs.length === 0) {
-          release(take);
+          releaseBudget(take);
           return { kind: "empty" };
         }
 
@@ -691,7 +707,7 @@ export async function executeRun(
           select: { id: true, entity: true, entityId: true },
         });
         // Give back everything that was never ours to take.
-        release(take - batch.length);
+        releaseBudget(take - batch.length);
         return batch.length === 0
           ? { kind: "contended" }
           : { kind: "batch", entity, batch };
@@ -705,6 +721,22 @@ export async function executeRun(
       // Another runner won the rows out from under us. Not a stop — go round and take the next.
       if (claim.kind === "contended") continue;
       const { entity, batch } = claim;
+
+      /**
+       * This batch's own slice of `reserved`, given back at most once.
+       *
+       * Two paths can release the same batch — the success path hands back what the model dropped,
+       * and the generic catch (which a failing counter update reaches AFTER that) hands back the
+       * whole batch. Releasing `batch.length` twice frees reservations belonging to OTHER slots,
+       * so a bounded slice of 25 could translate 35. `giveBack` can never return more than is
+       * still held.
+       */
+      let held = batch.length;
+      const giveBack = (n: number): void => {
+        const give = Math.min(n, held);
+        held -= give;
+        releaseBudget(give);
+      };
 
       const batchStarted = Date.now();
 
@@ -721,9 +753,11 @@ export async function executeRun(
           entity,
           batch.map((job) => job.entityId),
         );
-        if (stop.reason === "lostLease") {
+        if (abandoned()) {
           // The lease is gone: another runner owns these jobs now. Hand them back rather than
-          // paying for a translation we may not be allowed to store.
+          // paying for a translation we may not be allowed to store. This window is narrow — the
+          // one that matters is inside the slice, where the same question is asked again after
+          // the model returns.
           await requeue(batch);
           return;
         }
@@ -736,6 +770,7 @@ export async function executeRun(
                 units,
                 runId,
                 options.signal,
+                abandoned,
               )
             : await translateSlice(
                 db,
@@ -745,6 +780,7 @@ export async function executeRun(
                 runId,
                 options.signal,
                 rejections,
+                abandoned,
               );
         const { translated, superseded } = outcome;
 
@@ -820,7 +856,7 @@ export async function executeRun(
         // A reservation must never outlive the work it covered: whatever the model silently
         // dropped goes back to the budget, or a run bounded at 25 units delivers 20 and reports
         // the other 5 as spent.
-        release(batch.length - doneIds.size);
+        giveBack(batch.length - doneIds.size);
 
         const modelUnits = translated.length - memoryHits;
         // One shared meter, not a per-batch EWMA: with several batches in flight each one only
@@ -866,8 +902,13 @@ export async function executeRun(
         cleanBatches += 1;
         if (cleanBatches >= CLEAN_BATCHES_TO_GROW) {
           cleanBatches = 0;
-          if (batchSize < initialSize)
-            batchSize = Math.min(initialSize, batchSize * 2);
+          // Strictly under the size that overflowed, so this converges instead of oscillating.
+          const grown = Math.min(
+            initialSize,
+            lastTruncatedSize - 1,
+            batchSize * 2,
+          );
+          if (grown > batchSize) batchSize = grown;
         }
       } catch (error) {
         if (options.signal?.aborted) {
@@ -887,6 +928,7 @@ export async function executeRun(
           // pinned the whole run — every slot — at 1 unit per model call, 20× the calls.
           const next = Math.max(1, Math.floor(batchSize / 2));
           if (next < batchSize) batchSize = next;
+          lastTruncatedSize = batch.length;
           cleanBatches = 0;
           logger.warn(
             { runId, entity, from: batch.length, to: batchSize },
@@ -894,7 +936,7 @@ export async function executeRun(
           );
           // Inside the claim lock, like every other give-back: releasing out here is exactly the
           // "hand budget back after a sibling has already latched it" race the lock exists for.
-          await underClaimLock(async () => release(batch.length));
+          await underClaimLock(async () => giveBack(held));
           await requeue(batch);
           continue;
         }
@@ -903,7 +945,7 @@ export async function executeRun(
         // These units are re-queued by the next pass and will reserve again then; keeping the
         // reservation charged an admin's `maxUnits: 25` three times over for one bad batch, so a
         // provider outage could translate nothing at all and still report the budget spent.
-        release(batch.length);
+        giveBack(held);
         await db.translationJob.updateMany({
           where: {
             runId,
@@ -1060,11 +1102,19 @@ async function translateSlice(
   runId: string,
   signal: AbortSignal | undefined,
   rejections: Rejection[],
+  abandoned: () => boolean,
 ): Promise<SliceOutcome> {
   const translated = await translateBatch(db, language, units, {
     ...(signal ? { signal } : {}),
     rejections,
   });
+  // The lease went while the model was working: these rows belong to another runner now. Returning
+  // empty sends the batch down the "no translation returned" path, so the rightful owner retries it.
+  //
+  // Nothing else guards this write — not the lease, not `claimedBy` — and `storeTranslations`
+  // UPDATES: it would null `reviewedById`/`reviewedAt`/`reviewNote` and reset `repairAttempts` on
+  // rows a human had already approved, under a lease we no longer hold.
+  if (abandoned()) return { translated: [], superseded: new Set() };
   await storeTranslations(db, locale, translated, runId);
   return { translated, superseded: new Set() };
 }
@@ -1085,6 +1135,7 @@ async function repairSlice(
   units: TranslationUnit[],
   runId: string,
   signal: AbortSignal | undefined,
+  abandoned: () => boolean,
 ): Promise<SliceOutcome> {
   if (units.length === 0) return { translated: [], superseded: new Set() };
   const context = await repairContextFor(
@@ -1100,6 +1151,9 @@ async function repairSlice(
     context,
     signal ? { signal } : {},
   );
+  // Same fence as `translateSlice`: a repair writes over a row a reviewer may have just approved,
+  // and a runner that has lost its lease has no business making that call for the new owner.
+  if (abandoned()) return { translated: [], superseded: new Set() };
   const superseded = await storeRepairs(
     db,
     locale,

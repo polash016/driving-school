@@ -906,6 +906,191 @@ d("executeRun slots (spec-19a)", () => {
     expect(run.finishedAt).toBeNull();
   });
 
+  /**
+   * The fence has to hold AFTER the model returns, not only before the call.
+   *
+   * A batch runs 30–540 s and the keepalive ticks every 30 s, so the likeliest moment to lose the
+   * lease is while the model is working — and `storeTranslations` runs the instant it comes back,
+   * guarded by nothing at all. Its UPDATE branch nulls `reviewedById`/`reviewedAt`/`reviewNote`
+   * and resets `repairAttempts`, so an unfenced store wipes a human review off rows that now
+   * belong to another runner.
+   */
+  it("a lease lost during the model call is not stored", async () => {
+    const plan = await planTopics();
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+
+    const runUpdateMany = db.translationRun.updateMany.bind(db.translationRun);
+    let fenceArmed = false;
+    const runSpy = vi
+      .spyOn(db.translationRun, "updateMany")
+      .mockImplementation(((args: { data: Record<string, unknown> }) => {
+        const keys = Object.keys(args.data);
+        const isKeepalive =
+          keys.length === 2 &&
+          keys.includes("leaseExpiresAt") &&
+          keys.includes("heartbeatAt");
+        if (fenceArmed && isKeepalive) {
+          return Promise.reject(new Error("connection pool timeout"));
+        }
+        return runUpdateMany(args as Parameters<typeof runUpdateMany>[0]);
+      }) as unknown as typeof db.translationRun.updateMany);
+    const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => {});
+
+    // Hold the model call open — the lease is lost while the batch is INSIDE it.
+    let inModel!: () => void;
+    const atModel = new Promise<void>((resolve) => {
+      inModel = resolve;
+    });
+    let answer!: () => void;
+    const held = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    aiJson.mockImplementationOnce(
+      async (opts: { vars: { unitsJson: string } }) => {
+        inModel();
+        await held;
+        return {
+          data: { units: echo(opts.vars.unitsJson) },
+          modelVersion: "stub",
+          promptVersion: "p",
+          usage: { promptTokens: 1, completionTokens: 1 },
+          providerLabel: "stub",
+        };
+      },
+    );
+
+    let progress;
+    try {
+      const running = executeRun(db, plan.runId, {
+        leaseOwner: "t-store-fence",
+        ...SERIAL,
+      });
+      await atModel;
+      fenceArmed = true;
+      for (let tick = 0; tick < 2; tick++) {
+        vi.advanceTimersByTime(KEEPALIVE_MS);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      // The model answers AFTER the lease is gone. The answer is real and complete — and must
+      // still not be written.
+      answer();
+      progress = await running;
+    } finally {
+      answer();
+      runSpy.mockRestore();
+      errorSpy.mockRestore();
+      vi.useRealTimers();
+    }
+
+    expect(progress.stopReason).toBe("lostLease");
+    // Not one row: the whole point of the fence is that the new owner's rows stay its own.
+    expect(await db.translation.count({ where: { locale: CODE } })).toBe(0);
+
+    const jobs = await jobStates(plan.runId);
+    expect(jobs.filter((job) => job.state === "DONE")).toHaveLength(0);
+    // The batch goes back down the "no translation returned" path, retryable, for its new owner.
+    expect(
+      await db.translationJob.count({
+        where: { runId: plan.runId, state: "FAILED", attempts: 1 },
+      }),
+    ).toBe(5);
+  });
+
+  /**
+   * A reservation may be handed back once, by whichever path gets there first.
+   *
+   * The success path returns what the model dropped, and the counter update that follows it is a
+   * round trip that can throw — landing in the generic catch, which returned the WHOLE batch a
+   * second time. The surplus comes out of other slots' reservations, so a slice bounded at 25
+   * could translate 35.
+   */
+  it("a batch whose counter update fails does not free another slot's reservation", async () => {
+    const plan = await planTopics();
+
+    // The second batch: the model silently drops four of its five units...
+    let translationCalls = 0;
+    aiJson.mockImplementation(
+      async (opts: { prompt: { id: string }; vars: { unitsJson: string } }) => {
+        const units = echo(opts.vars.unitsJson);
+        const isTranslation = opts.prompt.id === "translation.units";
+        if (isTranslation) translationCalls += 1;
+        return {
+          data: {
+            units:
+              isTranslation && translationCalls === 2
+                ? units.slice(0, 1)
+                : units,
+          },
+          modelVersion: "stub",
+          promptVersion: "p",
+          usage: { promptTokens: 1, completionTokens: 1 },
+          providerLabel: "stub",
+        };
+      },
+    );
+    // ...and its counter update — the round trip after the give-back — fails.
+    const runUpdateMany = db.translationRun.updateMany.bind(db.translationRun);
+    let counterUpdates = 0;
+    const runSpy = vi
+      .spyOn(db.translationRun, "updateMany")
+      .mockImplementation(((args: { data: Record<string, unknown> }) => {
+        if ("translatedUnits" in args.data) {
+          counterUpdates += 1;
+          if (counterUpdates === 2) {
+            return Promise.reject(new Error("could not serialize access"));
+          }
+        }
+        return runUpdateMany(args as Parameters<typeof runUpdateMany>[0]);
+      }) as unknown as typeof db.translationRun.updateMany);
+
+    let progress;
+    try {
+      progress = await executeRun(db, plan.runId, {
+        leaseOwner: "t-double-release",
+        maxUnits: 10,
+        batchSize: 5,
+        parallelSlots: 1,
+      });
+    } finally {
+      runSpy.mockRestore();
+    }
+    expect(progress.stopReason).toBe("budget");
+
+    // Three batches of five. The failed batch legitimately reserves again on its retry (that is
+    // the point of releasing a failure at all) — but only ONCE. Releasing it twice bought a
+    // fourth batch out of reservations that were never this batch's to give.
+    expect(sentBatches().flatMap((batch) => batch.ids)).toHaveLength(15);
+  });
+
+  /**
+   * Recovery must converge, not oscillate.
+   *
+   * Growing back to the configured size on a language that genuinely overflows there gives
+   * 20 → 10 → 20 → truncate → 10 → … for the length of the run: an overflowed call, and the batch
+   * behind it re-queued, every fifth batch. Recovery therefore stops strictly below the size that
+   * is known to have truncated.
+   */
+  it("recovery never grows back to a size that has already truncated", async () => {
+    const plan = await planTopics();
+    const { ProviderTruncatedError } = await import("@/server/ai/providers");
+    aiJson.mockImplementationOnce(async () => {
+      throw new ProviderTruncatedError(8192, 8192);
+    });
+
+    await executeRun(db, plan.runId, {
+      leaseOwner: "t-truncate-converge",
+      batchSize: 4,
+      parallelSlots: 1,
+    });
+
+    const sizes = sentBatches().map((batch) => batch.ids.length);
+    expect(sizes[0]).toBe(4);
+    // Halved to 2, then five clean batches earn a step back up — to 3, NOT to the 4 that
+    // truncated.
+    expect(sizes.slice(1, 6)).toEqual([2, 2, 2, 2, 2]);
+    expect(sizes[6]).toBe(3);
+  });
+
   it("a single unit that truncates is FAILED, not re-queued for ever", async () => {
     const plan = await planTopics();
     const { ProviderTruncatedError } = await import("@/server/ai/providers");
