@@ -729,7 +729,9 @@
         "resume": "Resume",
         "resuming": "Resuming…",
         "cancel": "Cancel run",
-        "cancelling": "Cancelling…"
+        "cancelling": "Cancelling…",
+        "forceCancel": "Force cancel (worker gone)",
+        "forceCancelling": "Cancelling…"
       }
     },
     "images": {

@@ -57,8 +57,16 @@ export const MAX_REPAIR_ATTEMPTS = 3;
  */
 const NOT_A_QUALITY_FLAG = new Set(["QA_UNAVAILABLE", "LENGTH_OUTLIER"]);
 
+/**
+ * `[].every()` is vacuously true, so an empty flag list would report "the text was never the
+ * problem" about a unit nothing is known about — and that unit would be re-QA'd for free, for
+ * ever, instead of being re-translated. Unreachable while every NEEDS_REVIEW writer attaches a
+ * flag; the guard is what keeps it that way.
+ */
 export function isReQaOnly(flags: string[]): boolean {
-  return flags.every((flag) => NOT_A_QUALITY_FLAG.has(flag));
+  return (
+    flags.length > 0 && flags.every((flag) => NOT_A_QUALITY_FLAG.has(flag))
+  );
 }
 
 export interface RepairProblem {
@@ -524,6 +532,10 @@ export async function storeRepairs(
         entityId: item.unit.entityId,
         status: "NEEDS_REVIEW",
         sourceHash: item.unit.sourceHash,
+        // The ceiling, made structural. The planner already filters on it, but that read happened
+        // before the batch went to the model: a row that reached three attempts in the meantime
+        // must not be written a fourth time, whatever planned it.
+        repairAttempts: { lt: MAX_REPAIR_ATTEMPTS },
       },
       data: {
         value: item.value as object,

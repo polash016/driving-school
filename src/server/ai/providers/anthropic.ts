@@ -4,6 +4,7 @@ import {
   classify,
   fetchWithDeadline,
   readJson,
+  readText,
   type ChatRequest,
   type ChatResponse,
   type ProviderAdapter,
@@ -87,7 +88,8 @@ export const anthropicAdapter: ProviderAdapter = {
       { timeoutMs, ...(request.signal ? { signal: request.signal } : {}) },
     );
 
-    if (!response.ok) throw classify(response.status, await response.text());
+    if (!response.ok)
+      throw classify(response.status, await readText(response, timeoutMs));
     const parsed = responseSchema.parse(await readJson(response, timeoutMs));
 
     return {

@@ -4,6 +4,7 @@ import {
   fetchWithDeadline,
   ProviderError,
   readJson,
+  readText,
 } from "./types";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -83,6 +84,38 @@ describe("fetchWithDeadline", () => {
   });
 });
 
+/** A response whose headers arrived and whose body never does — the 502-then-stall case. */
+function stalledBody(status: number): Response {
+  const timedOut = Object.assign(
+    new Error("The operation was aborted due to timeout"),
+    { name: "TimeoutError" },
+  );
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: new Headers(),
+    text: () => Promise.reject(timedOut),
+  } as unknown as Response;
+}
+
+describe("readText", () => {
+  it("returns the body when the server sends one", async () => {
+    await expect(readText(new Response("upstream is down"), 100)).resolves.toBe(
+      "upstream is down",
+    );
+  });
+
+  // The error path used to read the body outside every wrapper: `classify` never ran, and
+  // `withFallback` saw a bare AbortError it could not call retryable, so the chain stopped on the
+  // one failure it exists to route around.
+  it("reports a body that never arrives as a retryable ProviderError, not a bare AbortError", async () => {
+    await expect(readText(stalledBody(502), 100)).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof ProviderError && e.status === 504 && e.retryable,
+    );
+  });
+});
+
 describe("readJson", () => {
   it("names a non-JSON body instead of throwing a bare SyntaxError", async () => {
     const response = new Response("<html>gateway</html>", {
@@ -92,6 +125,12 @@ describe("readJson", () => {
     await expect(readJson(response)).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof ProviderError && e.message.includes("text/html"),
+    );
+  });
+
+  it("carries a stalled body up as a retryable ProviderError too", async () => {
+    await expect(readJson(stalledBody(200), 100)).rejects.toSatisfy(
+      (e: unknown) => e instanceof ProviderError && e.retryable,
     );
   });
 });

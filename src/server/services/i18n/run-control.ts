@@ -127,6 +127,76 @@ export async function resumeRun(
   });
 }
 
+/** The statuses a run can still move on from — the only ones a cancel has anything to say to. */
+const CANCELLABLE = ["PENDING", "RUNNING", "PAUSED"] as const;
+
+/**
+ * End a run nobody is executing: drop its outstanding work and mark it CANCELLED.
+ *
+ * The one place that writes it, shared by the two paths that need it — `requestCancel` when the
+ * lease is already free, and the worker's `reapAbandonedCancels` when the runner that was asked
+ * to stop died holding it. They must not drift: between them they are the only way a cancelled
+ * run ever reaches a terminal state.
+ */
+export async function finaliseCancelledRun(
+  db: PrismaClient,
+  runId: string,
+): Promise<boolean> {
+  const now = new Date();
+  // Index: TranslationJob[runId, state, entity].
+  await db.translationJob.updateMany({
+    where: { runId, state: { in: ["QUEUED", "RUNNING"] } },
+    data: { state: "SKIPPED", error: "cancelled", finishedAt: now },
+  });
+  // Index: TranslationRun primary key. Guarded on status rather than a plain update, so a run
+  // that reached a terminal state of its own in the meantime keeps the ending it earned.
+  const updated = await db.translationRun.updateMany({
+    where: { id: runId, status: { in: [...CANCELLABLE] } },
+    data: {
+      status: "CANCELLED",
+      finishedAt: now,
+      leaseOwner: null,
+      leaseExpiresAt: null,
+      pauseRequested: false,
+      cancelRequested: false,
+    },
+  });
+  return updated.count > 0;
+}
+
+/**
+ * Self-healing for the one state nothing else can leave: `cancelRequested` set, and the runner
+ * that was supposed to honour it gone.
+ *
+ * `findClaimableRun` and `executeRun`'s claim both exclude `cancelRequested: true` — deliberately,
+ * so a run on its way out is not picked up and worked again. But that also means a runner killed
+ * between the flag and the batch boundary leaves the run RUNNING for ever: no worker will touch
+ * it, and `startBackgroundRun` refuses a new run while it stands, so the language is locked out
+ * until someone writes SQL. A lapsed lease is proof the runner is gone, and this finishes what it
+ * was asked to do.
+ *
+ * Called by the worker on every tick.
+ */
+export async function reapAbandonedCancels(
+  db: PrismaClient,
+  now: Date,
+): Promise<string[]> {
+  // Index: TranslationRun[status, leaseExpiresAt] — the same index the claim query uses.
+  const abandoned = await db.translationRun.findMany({
+    where: {
+      status: { in: [...CANCELLABLE] },
+      cancelRequested: true,
+      OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lt: now } }],
+    },
+    select: { id: true },
+  });
+  const finalised: string[] = [];
+  for (const run of abandoned) {
+    if (await finaliseCancelledRun(db, run.id)) finalised.push(run.id);
+  }
+  return finalised;
+}
+
 export async function requestCancel(
   db: PrismaClient,
   actor: SessionUser,
@@ -137,7 +207,7 @@ export async function requestCancel(
     select: { status: true, leaseExpiresAt: true },
   });
   if (!run) throw new NotFoundError({ runId });
-  if (!["PENDING", "RUNNING", "PAUSED"].includes(run.status))
+  if (!(CANCELLABLE as readonly string[]).includes(run.status))
     throw new ConflictError({ runId }, "admin.languages.errors.runFinished");
   const runnerAlive =
     run.status === "RUNNING" &&
@@ -146,6 +216,8 @@ export async function requestCancel(
   if (runnerAlive) {
     // The runner finalises at its next batch boundary (executeRun's cancelled branch). Writing
     // CANCELLED from here would race it: it still holds the lease and would keep translating.
+    // If that runner never comes back — kill -9, a reboot, pm2 past its kill_timeout — the flag
+    // is honoured instead by the worker's `reapAbandonedCancels`, once the lease lapses.
     await db.translationRun.update({
       where: { id: runId },
       data: { cancelRequested: true },
@@ -153,23 +225,7 @@ export async function requestCancel(
     });
   } else {
     // Nobody is executing this run, so nobody will ever honour the flag. Finalise it here.
-    // Index: TranslationJob[runId, state, entity].
-    await db.translationJob.updateMany({
-      where: { runId, state: { in: ["QUEUED", "RUNNING"] } },
-      data: { state: "SKIPPED", error: "cancelled", finishedAt: new Date() },
-    });
-    await db.translationRun.update({
-      where: { id: runId },
-      data: {
-        status: "CANCELLED",
-        finishedAt: new Date(),
-        leaseOwner: null,
-        leaseExpiresAt: null,
-        pauseRequested: false,
-        cancelRequested: false,
-      },
-      select: { id: true },
-    });
+    await finaliseCancelledRun(db, runId);
   }
   await auditLog({
     actorId: actor.id,

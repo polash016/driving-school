@@ -729,7 +729,9 @@
         "resume": "Fortsett",
         "resuming": "Fortsetter…",
         "cancel": "Avbryt kjøring",
-        "cancelling": "Avbryter…"
+        "cancelling": "Avbryter…",
+        "forceCancel": "Tving avbrudd (arbeider borte)",
+        "forceCancelling": "Avbryter…"
       }
     },
     "images": {

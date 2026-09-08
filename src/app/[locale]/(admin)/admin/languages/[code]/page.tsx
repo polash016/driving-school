@@ -47,7 +47,7 @@ export default async function LanguageReviewPage({
   const { locale, code } = await params;
   const query = await searchParams;
   setRequestLocale(locale);
-  await requireUser("INSTRUCTOR");
+  const viewer = await requireUser("INSTRUCTOR");
 
   const language = await db.language.findUnique({
     where: { code },
@@ -188,6 +188,7 @@ export default async function LanguageReviewPage({
           units={untranslated}
           kind={untranslatedKind}
           limit={UNTRANSLATED_LIMIT}
+          viewerRole={viewer.role}
         />
       ) : (
         <TranslationReview

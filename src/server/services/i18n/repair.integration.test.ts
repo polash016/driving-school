@@ -289,6 +289,57 @@ d("repair (spec-19)", () => {
         where: { runId: plan.runId, state: "SKIPPED", error: "superseded" },
       }),
     ).toBe(1);
+    // Nor counted: the slice returned the unit, `storeRepairs` refused it, and a progress panel
+    // reading "1 of 1 done" over a row nothing was written to is a lie about the database.
+    expect(
+      (
+        await db.translationRun.findUniqueOrThrow({
+          where: { id: plan.runId },
+          select: { translatedUnits: true },
+        })
+      ).translatedUnits,
+    ).toBe(0);
+  });
+
+  /**
+   * The ceiling, enforced by the write rather than only by the planner. The planner reads the row
+   * before the batch goes to the model; a sibling runner (or the admin's own re-plan) can spend
+   * the unit's last attempt while that call is in flight, and a fourth write would be exactly the
+   * hot-loop `MAX_REPAIR_ATTEMPTS` exists to end.
+   */
+  it("refuses a write to a row that reached the attempt ceiling while the batch ran", async () => {
+    await seedFlagged(topicIds[0], { repairAttempts: 2 });
+    aiJson.mockImplementationOnce(
+      async (opts: { vars: { unitsJson: string } }) => {
+        await db.translation.updateMany({
+          where: { locale: CODE, entity: "TOPIC", entityId: topicIds[0] },
+          data: { repairAttempts: 3 },
+        });
+        return {
+          data: { units: answer(opts.vars.unitsJson) },
+          modelVersion: "stub",
+          promptVersion: "p",
+          usage: { promptTokens: 1, completionTokens: 1 },
+          providerLabel: "stub",
+        };
+      },
+    );
+
+    const plan = await planRepairRun(db, CODE, { startedById: actor.id });
+    expect(plan.plannedUnits).toBe(1);
+    await executeRun(db, plan.runId, { leaseOwner: "t-ceiling" });
+
+    const row = await db.translation.findFirstOrThrow({
+      where: { locale: CODE, entity: "TOPIC", entityId: topicIds[0] },
+    });
+    expect(row.status).toBe("NEEDS_REVIEW");
+    expect(row.value).toEqual({ name: "Tema 50" });
+    expect(row.repairAttempts).toBe(3);
+    expect(
+      await db.translationJob.count({
+        where: { runId: plan.runId, state: "SKIPPED", error: "superseded" },
+      }),
+    ).toBe(1);
   });
 
   it("stops planning a unit after three consumed attempts; infrastructure flags cost nothing", async () => {

@@ -292,6 +292,31 @@ function leaseUntil(from = Date.now()): Date {
 }
 
 /**
+ * Jobs that have spent every attempt: SKIPPED, and charged to the run's failure counter once.
+ *
+ * Counting at the moment of failure instead would charge the same unit on every attempt — a
+ * 5-unit batch failing three times rendered as "failed 15 / planned 5" — and counting nowhere at
+ * all would let a run finish COMPLETED with units silently given up on. This is the one crossing
+ * into a terminal state, so it is the one place the count belongs.
+ */
+async function retireExhausted(
+  db: PrismaClient,
+  runId: string,
+  leaseOwner: string,
+): Promise<void> {
+  // Index: TranslationJob[runId, state, entity].
+  const retired = await db.translationJob.updateMany({
+    where: { runId, state: "FAILED", attempts: { gte: MAX_ATTEMPTS } },
+    data: { state: "SKIPPED" },
+  });
+  if (retired.count === 0) return;
+  await db.translationRun.updateMany({
+    where: { id: runId, leaseOwner },
+    data: { failedUnits: { increment: retired.count } },
+  });
+}
+
+/**
  * Do the work.
  *
  * Claims the run under a lease first, so two runners (a script and an admin action, say) cannot
@@ -440,10 +465,7 @@ export async function executeRun(
         where: { runId, state: "FAILED", attempts: { lt: MAX_ATTEMPTS } },
         data: { state: "QUEUED", error: null },
       });
-      await db.translationJob.updateMany({
-        where: { runId, state: "FAILED", attempts: { gte: MAX_ATTEMPTS } },
-        data: { state: "SKIPPED" },
-      });
+      await retireExhausted(db, runId, options.leaseOwner);
 
       // One entity kind at a time, so a batch shares a prompt shape.
       // Index: TranslationJob[runId, state, entity].
@@ -583,7 +605,10 @@ export async function executeRun(
         const updated = await db.translationRun.updateMany({
           where: { id: runId, leaseOwner: options.leaseOwner },
           data: {
-            translatedUnits: { increment: translated.length },
+            // Not `translated.length`: a repair `storeRepairs` refused as superseded was returned
+            // by the slice but never written, and counting it would report progress that is not
+            // in the database.
+            translatedUnits: { increment: translated.length - superseded.size },
             flaggedUnits: { increment: flagged },
             memoryHits: { increment: memoryHits },
             promptTokens: { increment: promptTokens },
@@ -640,10 +665,12 @@ export async function executeRun(
             finishedAt: new Date(),
           },
         });
+        // No `failedUnits` here: this batch may well be retried. The counter is charged where a
+        // job runs out of attempts — see `retireExhausted` — so a 5-unit batch that fails all
+        // three times is 5 failed units, not the 15 the panel used to show against a plan of 5.
         const updated = await db.translationRun.updateMany({
           where: { id: runId, leaseOwner: options.leaseOwner },
           data: {
-            failedUnits: { increment: batch.length },
             leaseExpiresAt: leaseUntil(),
             heartbeatAt: new Date(),
           },
@@ -657,6 +684,12 @@ export async function executeRun(
   } finally {
     clearInterval(keepalive);
   }
+
+  // The loop retires exhausted jobs at the top of each pass, which the last failure of a run
+  // never reaches: it stops on the budget, a pause, or an empty queue instead. Once more here, so
+  // every terminal failure is SKIPPED and counted exactly once whatever ended the run.
+  if (stopReason !== "lostLease")
+    await retireExhausted(db, runId, options.leaseOwner);
 
   if (stopReason === "lostLease") {
     logger.warn(

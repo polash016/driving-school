@@ -13,7 +13,8 @@ import {
   type PlanOutcome,
   type StartOutcome,
 } from "@/app/[locale]/(admin)/admin/languages/actions";
-import { isRunLive, RunPanel } from "@/components/admin/languages/run-panel";
+import { RunPanel } from "@/components/admin/languages/run-panel";
+import { isRunLive } from "@/components/admin/languages/run-view";
 import { SampleResults } from "@/components/admin/languages/sample-results";
 import { FormAlert } from "@/components/auth/form-alert";
 import { SubmitButton } from "@/components/auth/submit-button";

@@ -6,6 +6,7 @@ import {
   startBackgroundRunAction,
   type StartOutcome,
 } from "@/app/[locale]/(admin)/admin/languages/actions";
+import { canStartRuns } from "@/components/admin/languages/run-view";
 import { FormAlert } from "@/components/auth/form-alert";
 import { SubmitButton } from "@/components/auth/submit-button";
 import { Link } from "@/i18n/navigation";
@@ -16,6 +17,7 @@ import type {
   BlockerKind,
   UntranslatedUnit,
 } from "@/server/services/i18n/languages";
+import type { Role } from "@prisma/client";
 
 /**
  * What is standing between this language and students (spec-19).
@@ -96,12 +98,15 @@ export function UntranslatedList({
   units,
   kind,
   limit,
+  viewerRole,
 }: {
   code: string;
   units: UntranslatedUnit[];
   kind: "UNTRANSLATED" | "FAILED";
   /** How many the page asked for — the list says so when it is showing a first page. */
   limit: number;
+  /** This page is open to INSTRUCTOR; starting a run is not. */
+  viewerRole: Role;
 }) {
   const t = useTranslations("admin.languages");
   const tErrors = useTranslations();
@@ -131,16 +136,21 @@ export function UntranslatedList({
             : t("readiness.listTitle")}
         </h2>
         {/* Both lists are cleared the same way: plan what is missing and let the worker run it.
-            A failure is re-planned like anything else — nothing about it is sticky. */}
-        <form action={startAction}>
-          <input type="hidden" name="code" value={code} />
-          <SubmitButton
-            className="h-9"
-            variant="outline"
-            label={t("startBackground")}
-            pendingLabel={t("starting")}
-          />
-        </form>
+            A failure is re-planned like anything else — nothing about it is sticky.
+
+            Admins only, because `startBackgroundRunAction` is: an instructor pressing this would
+            get a `forbidden()` navigation interrupt rather than anything they could read. */}
+        {canStartRuns(viewerRole) ? (
+          <form action={startAction}>
+            <input type="hidden" name="code" value={code} />
+            <SubmitButton
+              className="h-9"
+              variant="outline"
+              label={t("startBackground")}
+              pendingLabel={t("starting")}
+            />
+          </form>
+        ) : null}
       </div>
 
       {units.length === 0 ? (

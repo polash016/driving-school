@@ -4,6 +4,7 @@ import {
   backoffMs,
   maybePlanRepair,
   runWorker,
+  startHeartbeat,
   workerTick,
   type WorkerDeps,
 } from "./worker";
@@ -47,6 +48,7 @@ function deps(
     pollMs: 10,
     signal: new AbortController().signal,
     heartbeat: vi.fn(async () => undefined),
+    reap: vi.fn(async () => []),
     execute: vi.fn(async () => COMPLETED),
     afterRun: vi.fn(async () => undefined),
     log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -178,6 +180,101 @@ describe("workerTick", () => {
     expect(d.afterRun).toHaveBeenCalledWith(
       expect.objectContaining({ status: "FAILED" }),
     );
+  });
+});
+
+describe("cancelled runs whose runner never came back", () => {
+  it("reaps them before looking for work, and reports what it finalised", async () => {
+    const db: Stub = {
+      translationRun: {
+        findFirst: vi.fn(async () => null),
+        findUniqueOrThrow: vi.fn(),
+        updateMany: vi.fn(),
+      },
+    };
+    const d = deps({ db, reap: vi.fn(async () => ["wedged"]) });
+
+    expect(await workerTick(d)).toBe("idle");
+    expect(d.reap).toHaveBeenCalledTimes(1);
+    expect(d.log.warn).toHaveBeenCalledWith(
+      { runIds: ["wedged"] },
+      "finalised cancelled runs with no runner",
+    );
+  });
+
+  it("still works the queue when the reap itself fails", async () => {
+    const db: Stub = {
+      translationRun: {
+        findFirst: vi.fn(async () => ({
+          id: "r1",
+          locale: "es",
+          kind: "SYNC",
+        })),
+        findUniqueOrThrow: vi.fn(async () => ({
+          id: "r1",
+          locale: "es",
+          kind: "SYNC",
+          status: "COMPLETED",
+          startedById: "u1",
+          translatedUnits: 1,
+          flaggedUnits: 0,
+          failedUnits: 0,
+          error: null,
+        })),
+        updateMany: vi.fn(),
+      },
+    };
+    const d = deps({
+      db,
+      reap: vi.fn(async () => {
+        throw new Error("db down");
+      }),
+    });
+
+    expect(await workerTick(d)).toBe("worked");
+    expect(d.log.error).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.any(Error) }),
+      "reaping cancelled runs failed",
+    );
+  });
+});
+
+describe("startHeartbeat", () => {
+  // The bug this exists for: the beat used to be the tick's first statement, and the tick's next
+  // statement awaits a run for as long as the run takes. The key's TTL is three polls, so the
+  // board read "worker offline" for the entire duration of every real run.
+  it("keeps beating while a run holds the tick for far longer than the TTL", async () => {
+    vi.useFakeTimers();
+    const heartbeat = vi.fn(async () => undefined);
+    const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const stop = startHeartbeat({ heartbeat, pollMs: 5000, log });
+
+    expect(heartbeat).toHaveBeenCalledTimes(1); // at once, not one poll late
+    await vi.advanceTimersByTimeAsync(5000 * 10);
+    expect(heartbeat).toHaveBeenCalledTimes(11);
+
+    stop();
+    await vi.advanceTimersByTimeAsync(5000 * 3);
+    expect(heartbeat).toHaveBeenCalledTimes(11);
+    vi.useRealTimers();
+  });
+
+  it("logs a Redis failure and beats again on the next interval", async () => {
+    vi.useFakeTimers();
+    const heartbeat = vi.fn(async () => {
+      throw new Error("redis down");
+    });
+    const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const stop = startHeartbeat({ heartbeat, pollMs: 1000, log });
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(heartbeat).toHaveBeenCalledTimes(3);
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.any(Error) }),
+      "worker heartbeat failed",
+    );
+    stop();
+    vi.useRealTimers();
   });
 });
 

@@ -5,6 +5,7 @@ import {
   fetchWithDeadline,
   ProviderError,
   readJson,
+  readText,
   type ChatRequest,
   type ChatResponse,
   type EmbedRequest,
@@ -111,7 +112,8 @@ export const googleAdapter: ProviderAdapter = {
       { timeoutMs, ...(request.signal ? { signal: request.signal } : {}) },
     );
 
-    if (!response.ok) throw classify(response.status, await response.text());
+    if (!response.ok)
+      throw classify(response.status, await readText(response, timeoutMs));
     const parsed = responseSchema.parse(await readJson(response, timeoutMs));
 
     return {
@@ -142,7 +144,8 @@ export const googleAdapter: ProviderAdapter = {
       },
       { timeoutMs, ...(request.signal ? { signal: request.signal } : {}) },
     );
-    if (!response.ok) throw classify(response.status, await response.text());
+    if (!response.ok)
+      throw classify(response.status, await readText(response, timeoutMs));
     const vectors = embedSchema
       .parse(await readJson(response, timeoutMs))
       .embeddings.map((row) => row.values);

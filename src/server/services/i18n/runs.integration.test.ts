@@ -315,6 +315,39 @@ d("executeRun (spec-19)", () => {
     expect(await progressOf(db, plan.runId)).toMatchObject({ done: true });
   });
 
+  /**
+   * `failedUnits` used to be charged on every attempt: a 5-unit batch that failed all three times
+   * reported "failed 15" against a plan of 5, and the outcome mail quoted the same number. A unit
+   * is counted where it runs out of attempts and is given up on — once.
+   */
+  it("counts a unit that fails every attempt once, not once per attempt", async () => {
+    const plan = await planTopics();
+    aiJson.mockImplementation(async () => {
+      throw new Error("provider down");
+    });
+
+    const progress = await executeRun(db, plan.runId, { leaseOwner: "t-fail" });
+    expect(progress.done).toBe(true);
+    expect(progress.failed).toBe(plan.plannedUnits);
+
+    const run = await db.translationRun.findUniqueOrThrow({
+      where: { id: plan.runId },
+      select: { status: true, failedUnits: true, plannedUnits: true },
+    });
+    expect(run.status).toBe("COMPLETED");
+    expect(run.failedUnits).toBe(run.plannedUnits);
+
+    // Every job really did spend all three attempts — the count is small because it is charged
+    // once, not because the runner gave up early.
+    const jobs = await db.translationJob.findMany({
+      where: { runId: plan.runId },
+      select: { state: true, attempts: true },
+    });
+    expect(jobs).toHaveLength(plan.plannedUnits);
+    expect(jobs.every((job) => job.state === "SKIPPED")).toBe(true);
+    expect(jobs.every((job) => job.attempts === 3)).toBe(true);
+  });
+
   it("stops when another runner has taken the lease, and writes nothing over its state", async () => {
     const plan = await planTopics();
     aiJson.mockImplementationOnce(

@@ -4,6 +4,7 @@ import {
   classify,
   fetchWithDeadline,
   readJson,
+  readText,
   type ChatRequest,
   type ChatResponse,
   type EmbedRequest,
@@ -69,7 +70,8 @@ export const openAiCompatibleAdapter: ProviderAdapter = {
       { timeoutMs, ...(request.signal ? { signal: request.signal } : {}) },
     );
 
-    if (!response.ok) throw classify(response.status, await response.text());
+    if (!response.ok)
+      throw classify(response.status, await readText(response, timeoutMs));
     const parsed = chatSchema.parse(await readJson(response, timeoutMs));
 
     return {
@@ -94,7 +96,8 @@ export const openAiCompatibleAdapter: ProviderAdapter = {
       },
       { timeoutMs, ...(request.signal ? { signal: request.signal } : {}) },
     );
-    if (!response.ok) throw classify(response.status, await response.text());
+    if (!response.ok)
+      throw classify(response.status, await readText(response, timeoutMs));
     return embedSchema
       .parse(await readJson(response, timeoutMs))
       .data.map((row) => row.embedding);

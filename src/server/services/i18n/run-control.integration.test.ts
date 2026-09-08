@@ -7,6 +7,7 @@ import { redis } from "@/server/redis";
 import { createLanguage } from "./languages";
 import {
   latestRunFor,
+  reapAbandonedCancels,
   requestCancel,
   requestPause,
   resumeRun,
@@ -206,6 +207,80 @@ d("run control (spec-19)", () => {
     await expect(requestCancel(db, actor, started.runId)).rejects.toThrow(
       ConflictError,
     );
+  });
+
+  /**
+   * The wedge: `requestCancel` correctly leaves a live runner to finalise itself, and both claim
+   * queries exclude `cancelRequested`. So a runner killed between the flag and the batch boundary
+   * left the run RUNNING for ever — no worker would touch it and `startBackgroundRun` refused a
+   * new one, which locked the language out of translation entirely until someone ran SQL.
+   */
+  it("reaps a cancelled run whose runner died holding the lease, and frees the language", async () => {
+    const started = await startBackgroundRun(db, actor, {
+      locale: CODE,
+      only: ["TOPIC"],
+    });
+    // A runner has it, and its lease is good for another two minutes.
+    await db.translationRun.update({
+      where: { id: started.runId },
+      data: {
+        status: "RUNNING",
+        leaseOwner: "t-doomed",
+        leaseExpiresAt: new Date(Date.now() + 120_000),
+      },
+    });
+
+    await requestCancel(db, actor, started.runId);
+    const flagged = await db.translationRun.findUniqueOrThrow({
+      where: { id: started.runId },
+      select: { status: true, cancelRequested: true },
+    });
+    expect(flagged).toEqual({ status: "RUNNING", cancelRequested: true });
+    // While the lease is good the runner owns the ending: the reaper must keep its hands off.
+    expect(await reapAbandonedCancels(db, new Date())).not.toContain(
+      started.runId,
+    );
+
+    // kill -9. The lease lapses and nothing else in the system can ever finish this run.
+    await db.translationRun.update({
+      where: { id: started.runId },
+      data: { leaseExpiresAt: new Date(Date.now() - 1000) },
+    });
+    expect(await reapAbandonedCancels(db, new Date())).toContain(started.runId);
+
+    const reaped = await db.translationRun.findUniqueOrThrow({
+      where: { id: started.runId },
+      select: {
+        status: true,
+        finishedAt: true,
+        cancelRequested: true,
+        pauseRequested: true,
+        leaseOwner: true,
+        leaseExpiresAt: true,
+      },
+    });
+    // Exactly what requestCancel's own "no runner" branch writes — one shared function, so the
+    // two endings cannot drift.
+    expect(reaped).toEqual({
+      status: "CANCELLED",
+      finishedAt: expect.any(Date),
+      cancelRequested: false,
+      pauseRequested: false,
+      leaseOwner: null,
+      leaseExpiresAt: null,
+    });
+    expect(
+      await db.translationJob.count({
+        where: { runId: started.runId, state: "SKIPPED", error: "cancelled" },
+      }),
+    ).toBe(started.plannedUnits);
+
+    // The point of all of it: the language can be translated again.
+    const next = await startBackgroundRun(db, actor, {
+      locale: CODE,
+      only: ["TOPIC"],
+    });
+    await requestCancel(db, actor, next.runId);
   });
 
   it("runDetail reports counts, per-entity states, stale heartbeat and eta", async () => {

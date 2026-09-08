@@ -13,7 +13,9 @@ describe("repair triage", () => {
     expect(isReQaOnly(["QA_UNAVAILABLE", "LENGTH_OUTLIER"])).toBe(true);
     expect(isReQaOnly(["NUMBER_DRIFT"])).toBe(false);
     expect(isReQaOnly(["QA_UNAVAILABLE", "NUMBER_DRIFT"])).toBe(false);
-    expect(isReQaOnly([])).toBe(true);
+    // Vacuous truth is not an answer: no flags means nothing is known about the unit, and
+    // "re-QA it and charge nothing" would loop it for free rather than repair it.
+    expect(isReQaOnly([])).toBe(false);
   });
 
   it("turns a stored qaReport into prompt-ready problems", () => {

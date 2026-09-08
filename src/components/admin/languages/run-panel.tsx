@@ -8,6 +8,10 @@ import {
   resumeRunAction,
   runDetailAction,
 } from "@/app/[locale]/(admin)/admin/languages/actions";
+import {
+  LIVE_RUN_STATUSES,
+  runControls,
+} from "@/components/admin/languages/run-view";
 import { FormAlert } from "@/components/auth/form-alert";
 import { SubmitButton } from "@/components/auth/submit-button";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
@@ -16,9 +20,6 @@ import type { ActionResult } from "@/server/contracts/common";
 import type { RunDetail } from "@/server/services/i18n/run-control";
 
 const POLL_MS = 3000;
-
-/** The statuses a run can still move on from — the only ones worth polling or offering controls for. */
-const LIVE = new Set(["PENDING", "RUNNING", "PAUSED"]);
 
 /**
  * DB status → message key. A lookup rather than `status.toLowerCase()` so that an unknown status
@@ -34,14 +35,6 @@ const STATUS_KEYS: Record<string, string> = {
 };
 
 type RunTranslator = ReturnType<typeof useTranslations<"admin.languages.run">>;
-
-/**
- * Whether a run can still change on its own. The board asks this to decide between offering
- * "start in background" and handing the language over to the panel's own controls.
- */
-export function isRunLive(run: RunDetail | null): run is RunDetail {
-  return run !== null && LIVE.has(run.status);
-}
 
 /**
  * What a background run is doing, refreshed every three seconds while it is live (spec-19).
@@ -85,7 +78,7 @@ export function RunPanel({
   }, [runId]);
 
   useEffect(() => {
-    if (!LIVE.has(run.status)) return;
+    if (!LIVE_RUN_STATUSES.has(run.status)) return;
     let cancelled = false;
     // Doubles as the visibility handler: coming back to the tab refreshes at once rather than
     // showing numbers up to three seconds stale.
@@ -132,15 +125,18 @@ export function RunPanel({
       : run.pauseRequested
         ? "pausing"
         : (STATUS_KEYS[run.status] ?? "pending");
-  const live = LIVE.has(run.status);
+  const controls = runControls(run);
 
   return (
-    <Card className="[--card-spacing:--spacing(4)]" aria-live="polite">
+    <Card className="[--card-spacing:--spacing(4)]">
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-sm">
             {t("title", { kind: t(`kinds.${run.kind}`) })}
           </CardTitle>
+          {/* Only the status is live. The card carries eight stat values, the entity chips and a
+              progress bar, all of which change on every three-second poll — announcing the card
+              would read the whole run aloud, continuously, for its entire duration. */}
           <span
             className={cn(
               "rounded-full px-2 py-0.5 text-xs",
@@ -148,6 +144,7 @@ export function RunPanel({
                 ? "bg-destructive/10 text-destructive"
                 : "bg-muted text-muted-foreground",
             )}
+            aria-live="polite"
           >
             {t(`status.${statusKey}`)}
           </span>
@@ -241,7 +238,7 @@ export function RunPanel({
         ) : null}
 
         {run.stale ? <FormAlert>{t("staleHint")}</FormAlert> : null}
-        {!workerOnline && live ? (
+        {!workerOnline && LIVE_RUN_STATUSES.has(run.status) ? (
           <FormAlert tone="info">{t("workerOffline")}</FormAlert>
         ) : null}
         {run.error ? (
@@ -251,13 +248,15 @@ export function RunPanel({
           <FormAlert>{tErrors(error.messageKey)}</FormAlert>
         ) : null}
 
-        {/* Every control is gated on `cancelRequested`: a run already on its way out has nothing
-            left to offer, and pausing it would only delay the batch boundary that ends it. */}
-        {live ? (
+        {/* Which of these are offered is `runControls`, not markup: a run on its way out has
+            nothing left to offer, except when the worker that was asked to end it never came
+            back — then cancelling again is the one thing that helps. */}
+        {controls.pause ||
+        controls.resume ||
+        controls.cancel ||
+        controls.forceCancel ? (
           <div className="flex flex-wrap gap-2">
-            {run.status === "RUNNING" &&
-            !run.pauseRequested &&
-            !run.cancelRequested ? (
+            {controls.pause ? (
               <form action={pause}>
                 <input type="hidden" name="runId" value={run.runId} />
                 <SubmitButton
@@ -267,8 +266,7 @@ export function RunPanel({
                 />
               </form>
             ) : null}
-            {(run.status === "PAUSED" || run.pauseRequested) &&
-            !run.cancelRequested ? (
+            {controls.resume ? (
               <form action={resume}>
                 <input type="hidden" name="runId" value={run.runId} />
                 <SubmitButton
@@ -277,13 +275,19 @@ export function RunPanel({
                 />
               </form>
             ) : null}
-            {!run.cancelRequested ? (
+            {controls.cancel || controls.forceCancel ? (
               <form action={cancel}>
                 <input type="hidden" name="runId" value={run.runId} />
+                {/* The same action either way: `requestCancel` sees the lapsed lease and takes
+                    its "no runner" branch, which finalises the run there and then. */}
                 <SubmitButton
                   variant="ghost"
-                  label={t("cancel")}
-                  pendingLabel={t("cancelling")}
+                  label={controls.forceCancel ? t("forceCancel") : t("cancel")}
+                  pendingLabel={
+                    controls.forceCancel
+                      ? t("forceCancelling")
+                      : t("cancelling")
+                  }
                 />
               </form>
             ) : null}

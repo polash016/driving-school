@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 import { sampleResultsAction } from "@/app/[locale]/(admin)/admin/languages/actions";
+import { shouldPollSample } from "@/components/admin/languages/run-view";
 import { FormAlert } from "@/components/auth/form-alert";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -12,9 +13,6 @@ import type {
 } from "@/server/services/i18n/sample";
 
 const POLL_MS = 3000;
-
-/** The statuses a run can still move on from — the only ones worth polling. */
-const LIVE = new Set(["PENDING", "RUNNING", "PAUSED"]);
 
 /**
  * QA codes stated in words. Deliberately a copy of the list in `translation-review.tsx` rather
@@ -101,10 +99,11 @@ export function SampleResults({
 
   // A boolean, not the view itself: the view changes on every poll, and depending on it would tear
   // the interval down and rebuild it — and re-read — on each one. This flips exactly once, when
-  // the run reaches a terminal state.
-  const pollable = view === null || LIVE.has(view.status);
+  // the run reaches a terminal state or the read fails.
+  const pollable = shouldPollSample(view, failed !== null);
   useEffect(() => {
     // Nothing left to poll for once the run is terminal; a finished sample never changes again.
+    // Nor once the read has failed: `view` would stay null and the poll would never stop.
     if (!pollable) return;
     let cancelled = false;
     // Doubles as the visibility handler: coming back to the tab reads at once rather than showing

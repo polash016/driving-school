@@ -53,7 +53,9 @@ export async function notificationRecipients(
         },
       ];
   }
-  // Index: User[role, isActive] — the leading column; admins are a handful.
+  // Index: User[role, isActive] — `role` alone, its leading column. `deletedAt` is in no index;
+  // it filters the handful of rows that come back, which is why it is not a scan worth widening
+  // the index for.
   const admins = await db.user.findMany({
     where: { role: "ADMIN", deletedAt: null },
     select: { email: true, profile: { select: { preferredLocale: true } } },

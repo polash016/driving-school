@@ -117,6 +117,38 @@ describe("openai-compatible adapter", () => {
     );
   });
 
+  // Phase 0's remaining hole: the error body was read outside every wrapper, so a gateway that
+  // answers 502 and then stalls surfaced as a bare AbortError. `withFallback` reads `retryable`
+  // off ProviderError and defaults to false for anything else — so the fallback chain stopped on
+  // exactly the failure it exists to route around.
+  it("classifies an error body that never arrives as retryable, not as a raw AbortError", async () => {
+    const timedOut = Object.assign(new Error("aborted"), {
+      name: "TimeoutError",
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          ({
+            ok: false,
+            status: 502,
+            headers: new Headers(),
+            text: () => Promise.reject(timedOut),
+          }) as unknown as Response,
+      ),
+    );
+
+    await expect(
+      openAiCompatibleAdapter.chat(CREDENTIALS, {
+        model: "m",
+        messages: [{ role: "user", content: "ping" }],
+        timeoutMs: 100,
+      }),
+    ).rejects.toSatisfy(
+      (e: unknown) => e instanceof ProviderError && e.retryable,
+    );
+  });
+
   it("sends the configured default deadline when the request carries none", async () => {
     const fetchMock = vi.fn(async (_u: string, init: RequestInit) => {
       expect(init.signal).toBeInstanceOf(AbortSignal);

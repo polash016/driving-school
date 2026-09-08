@@ -14,8 +14,13 @@ import { PrismaClient } from "@prisma/client";
 import { logger } from "../src/lib/logger";
 import { env } from "../src/lib/env";
 import { keys, redis } from "../src/server/redis";
+import { reapAbandonedCancels } from "../src/server/services/i18n/run-control";
 import { executeRun } from "../src/server/services/i18n/runs";
-import { defaultAfterRun, runWorker } from "../src/server/services/i18n/worker";
+import {
+  defaultAfterRun,
+  runWorker,
+  startHeartbeat,
+} from "../src/server/services/i18n/worker";
 
 (process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(
   ".env",
@@ -54,12 +59,18 @@ async function heartbeat(): Promise<void> {
   );
 }
 
+// On its own interval, not on the tick: `workerTick` awaits a run that can last hours, and the
+// key's TTL is three polls. Beating only from inside the tick made the board report the worker
+// offline for the whole of every real run — the exact opposite of the truth.
+const stopHeartbeat = startHeartbeat({ heartbeat, pollMs, log });
+
 runWorker({
   db,
   leaseOwner,
   pollMs,
   signal: shutdown.signal,
   heartbeat,
+  reap: () => reapAbandonedCancels(db, new Date()),
   execute: (runId, options) => executeRun(db, runId, options),
   afterRun: defaultAfterRun({ db, log }),
   log,
@@ -69,6 +80,7 @@ runWorker({
     process.exitCode = 1;
   })
   .finally(async () => {
+    stopHeartbeat();
     await db.$disconnect();
     await redis.quit().catch(() => undefined);
   });

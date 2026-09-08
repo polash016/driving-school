@@ -125,6 +125,26 @@ export async function fetchWithDeadline(
 }
 
 /**
+ * Read a body under the same guarantee the request itself has.
+ *
+ * The body is streamed under the request's own abort signal, so a provider that answers 502 with
+ * a chunked body and then stalls makes `response.text()` reject with a bare `AbortError` — which
+ * `withFallback` cannot classify, so it stops the fallback chain instead of trying the next route.
+ * Every read of a body, error bodies included, goes through here so that every one of them lands
+ * as a retryable ProviderError.
+ */
+export async function readText(
+  response: Response,
+  timeoutMs = 0,
+): Promise<string> {
+  try {
+    return await response.text();
+  } catch (error) {
+    throw asProviderError(error, timeoutMs);
+  }
+}
+
+/**
  * Read a JSON body without ever surfacing a bare SyntaxError. A gateway streaming by default, a
  * proxy sign-in page, an HTML error page: all answer 200 with something JSON.parse rejects, and
  * that parser message is what the admin screen would otherwise show. The body read is under the
@@ -134,12 +154,7 @@ export async function readJson(
   response: Response,
   timeoutMs = 0,
 ): Promise<unknown> {
-  let body: string;
-  try {
-    body = await response.text();
-  } catch (error) {
-    throw asProviderError(error, timeoutMs);
-  }
+  const body = await readText(response, timeoutMs);
   try {
     return JSON.parse(body);
   } catch {

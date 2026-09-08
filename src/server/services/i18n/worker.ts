@@ -39,6 +39,11 @@ export interface WorkerDeps {
   signal: AbortSignal;
   /** Announce liveness (Redis key with TTL). Failures are logged, never fatal. */
   heartbeat: () => Promise<void>;
+  /**
+   * Finalise runs whose cancel nobody is left to honour, and report which. Injected like
+   * everything else here so the loop stays testable without Postgres.
+   */
+  reap: () => Promise<string[]>;
   /** executeRun bound to db — injected so the loop is testable without Postgres. */
   execute: (
     runId: string,
@@ -97,6 +102,19 @@ export async function workerTick(
     .heartbeat()
     .catch((error: unknown) =>
       deps.log.warn({ error }, "worker heartbeat failed"),
+    );
+  // A run whose cancel was requested is invisible to the claim query below, on purpose. If the
+  // runner holding it died before the batch boundary, nothing else will ever finish it — so the
+  // worker does, before it looks for work. Guarded: a reap that fails must not cost the tick its
+  // run, and the next tick tries again.
+  await deps
+    .reap()
+    .then((runIds) => {
+      if (runIds.length > 0)
+        deps.log.warn({ runIds }, "finalised cancelled runs with no runner");
+    })
+    .catch((error: unknown) =>
+      deps.log.error({ error }, "reaping cancelled runs failed"),
     );
   const candidate = await findClaimableRun(deps.db, new Date());
   if (!candidate) return "idle";
@@ -276,6 +294,30 @@ export function defaultAfterRun(deps: {
     );
     await notifyRunEvent(deps.db, run, decision);
   };
+}
+
+/**
+ * Liveness on a clock of its own, started before the loop and stopped after it.
+ *
+ * The board's "background worker online" chip is a Redis key whose TTL is three polls — 15 s. The
+ * tick used to be the only thing that wrote it, and the very next thing a tick does is await a run
+ * that can last hours. So fifteen seconds into every real run the key expired and the board said
+ * the worker was offline for exactly as long as it was busiest. Raising the TTL is not the fix: a
+ * single batch is up to three provider calls at 180 s each, and a TTL long enough to cover a run
+ * is long enough to keep claiming a dead worker is alive.
+ */
+export function startHeartbeat(
+  deps: Pick<WorkerDeps, "heartbeat" | "pollMs" | "log">,
+): () => void {
+  const beat = () =>
+    void deps
+      .heartbeat()
+      .catch((error: unknown) =>
+        deps.log.warn({ error }, "worker heartbeat failed"),
+      );
+  beat();
+  const timer = setInterval(beat, deps.pollMs);
+  return () => clearInterval(timer);
 }
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
