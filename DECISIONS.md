@@ -387,5 +387,17 @@ more` and `@supports not (backdrop-filter)` each collapse the glass to an opaque
 - **`ai.pingTimeoutMs` defaults to 60 s, not the 20 s first proposed.** A healthy OmniRoute ping was
   measured at 7–13 s, and 29.7 s under load — a 20 s budget would report healthy providers as
   broken, which is the bug `eb9a48e` had just fixed.
+- **Two corrections made to the approved plan during implementation**, both because the plan's own
+  code contradicted its own tests or its stated intent:
+  1. **`executeRun` must NOT clear `pauseRequested` when it writes status `PAUSED`.** The plan's code
+     did, but its pause test then asserted that a second `executeRun` returns `notClaimed` — which
+     cannot hold if the flag is cleared on the way out. An admin's pause has to outlive the runner
+     that honoured it, or the worker re-claims the run on its very next tick, which is the entire
+     reason spec-19 added a flag separate from the `PAUSED` status. Only `resumeRun` clears it.
+  2. **`workerTick` guards `afterRun` on the success path**, as it already did on the failure path.
+     Inert today because `defaultAfterRun` only logs, but once `afterRun` sends mail (task 21) a
+     transport failure on a run that had completed cleanly would have fallen into the layer-3 catch:
+     logged as "run failed", a `FAILED` status attempted over a terminal row, and `afterRun` called
+     a second time.
 - **Approved by:** developer (plan approved 2026-09-09; subagent-driven execution on branch
   `spec-19-translation-automation`)
