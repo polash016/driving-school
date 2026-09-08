@@ -169,6 +169,25 @@ export async function workerTick(
   }
 }
 
+/**
+ * What happens when a run reaches a terminal or paused state.
+ *
+ * A placeholder on purpose: repair chaining is Task 17 and the mails themselves are Task 21. The
+ * seam is here now so the worker never has to grow a direct dependency on either — it hands the
+ * finished row over and stops caring what is done with it.
+ */
+export function defaultAfterRun(deps: {
+  db: PrismaClient;
+  log: WorkerLog;
+}): (run: FinishedRun) => Promise<void> {
+  return async (run) => {
+    deps.log.info(
+      { runId: run.id, locale: run.locale, kind: run.kind, status: run.status },
+      "run finished",
+    );
+  };
+}
+
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     if (signal.aborted) return resolve();
