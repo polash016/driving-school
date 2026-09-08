@@ -838,6 +838,26 @@
       "body": "{school} has invited you to practise for the theory test. Create your account to get started.",
       "cta": "Create your account",
       "footer": "This invitation is personal and can only be used once."
+    },
+    "i18nRun": {
+      "cta": "Open the language",
+      "footer": "Sent by the translation worker.",
+      "finished": {
+        "subject": "{language} translation finished",
+        "heading": "{language} is translated",
+        "body": "{completed} units translated · {flagged} held for review · {failed} failed."
+      },
+      "failed": {
+        "subject": "{language} translation run failed",
+        "heading": "The run stopped",
+        "body": "The worker gave up on this run: {error}. It can be started again from the language page."
+      },
+      "repair": {
+        "subject": "{language}: {remaining} translations need a reviewer",
+        "heading": "Repair is done with what it can do",
+        "body": "{remaining} units failed automated repair three times and are waiting in the review queue.",
+        "bodyStalled": "The repair run could not fix anything — usually the AI provider is unavailable. {remaining} units are still held. Start it again from the language page when the provider is back."
+      }
     }
   },
   "history": {

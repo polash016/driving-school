@@ -1,6 +1,8 @@
 import type { PrismaClient, TranslationRunKind } from "@prisma/client";
-// Runtime import, and safe: repair.ts reaches back to runs.ts with `import type` only, and nothing
-// in either module's runtime graph imports the worker. No cycle.
+// Both runtime imports, and both safe. repair.ts reaches back to runs.ts with `import type` only;
+// notify.ts reaches back HERE with `import type` only, for `FinishedRun` and `RepairDecision`.
+// Type-only imports are erased, so neither pair is a cycle at runtime.
+import { notifyRunEvent } from "./notify";
 import { MAX_REPAIR_ATTEMPTS, planRepairRun, repairCandidates } from "./repair";
 import type { RunProgress } from "./runs";
 
@@ -251,8 +253,10 @@ export function repairPortsFor(
 /**
  * What happens when a run reaches a terminal or paused state: chain the repair, then report.
  *
- * The mails themselves are still Task 21 — the seam stays here so the worker never grows a direct
- * dependency on either; it hands the finished row over and stops caring what is done with it.
+ * Order matters. The decision is made first and handed to the notifier, because a run that just
+ * chained a repair must NOT mail — the repair is the same piece of work continuing and reports
+ * when it finishes. Without that, a language with flagged rows would mail once per link in the
+ * chain for a single outcome.
  */
 export function defaultAfterRun(deps: {
   db: PrismaClient;
@@ -270,7 +274,7 @@ export function defaultAfterRun(deps: {
       },
       "run finished",
     );
-    // Task 21 adds: await notifyRunEvent(deps.db, run, decision);
+    await notifyRunEvent(deps.db, run, decision);
   };
 }
 

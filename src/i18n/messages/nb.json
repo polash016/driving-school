@@ -838,6 +838,26 @@
       "body": "{school} har invitert deg til å øve til teoriprøven. Opprett kontoen din for å komme i gang.",
       "cta": "Opprett konto",
       "footer": "Invitasjonen er personlig og kan bare brukes én gang."
+    },
+    "i18nRun": {
+      "cta": "Åpne språket",
+      "footer": "Sendt av oversettelsesarbeideren.",
+      "finished": {
+        "subject": "Oversettelsen av {language} er ferdig",
+        "heading": "{language} er oversatt",
+        "body": "{completed} enheter oversatt · {flagged} til vurdering · {failed} feilet."
+      },
+      "failed": {
+        "subject": "Oversettelseskjøringen for {language} feilet",
+        "heading": "Kjøringen stoppet",
+        "body": "Arbeideren ga opp denne kjøringen: {error}. Den kan startes igjen fra språksiden."
+      },
+      "repair": {
+        "subject": "{language}: {remaining} oversettelser trenger en vurderer",
+        "heading": "Reparasjonen er ferdig med det den kan",
+        "body": "{remaining} enheter feilet automatisk reparasjon tre ganger og venter i vurderingskøen.",
+        "bodyStalled": "Reparasjonskjøringen klarte ikke å rette noe — vanligvis er KI-leverandøren utilgjengelig. {remaining} enheter holdes fortsatt. Start igjen fra språksiden når leverandøren er tilbake."
+      }
     }
   },
   "history": {
