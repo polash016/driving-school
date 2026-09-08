@@ -367,9 +367,46 @@ unit would otherwise detach it from the sample that produced it.
 ### Final gate
 
 ```
-pnpm test    # 505 passed (56 files) — three consecutive clean runs
+pnpm test    # 526 passed (57 files) — three consecutive clean runs
 pnpm exec tsc --noEmit && pnpm exec eslint && pnpm build     # all clean
 ```
+
+### ✅ A final review, and what it caught
+
+A full adversarial pass over the branch before merge found one blocker and three important defects.
+All are fixed, each with a test — they are recorded here because three of them are the kind that only
+show up in the unattended case this spec exists to serve.
+
+- **A cancelled run whose worker died was permanently wedged, and locked the language out.**
+  `requestCancel` leaves `status: RUNNING` while a live lease is held, because the runner must be the
+  one to finalise. If that process then died hard, nothing could reach the run again: both
+  `findClaimableRun` and `executeRun`'s claim exclude `cancelRequested`, and the panel hid every
+  control the moment the flag was set — so the admin could not even ask again. `startBackgroundRun`
+  then refused every new run for that locale. The language was dead until someone ran SQL.
+  Fixed on both sides: the worker now reaps abandoned cancels itself (`reapAbandonedCancels`), and
+  the panel offers a force-cancel once the heartbeat is stale. The finalising write is one shared
+  `finaliseCancelledRun` so the two paths cannot drift.
+- **The board reported "worker offline" for the whole of every real run.** The heartbeat was the
+  first statement of the tick, and the next statement was an hours-long `executeRun`; the Redis key's
+  TTL is three polls, so it expired 15 seconds in and was not rewritten until the run ended. The
+  chip said the opposite of the truth exactly when it mattered most — and the deploy check below
+  would only have passed while the worker was idle. The heartbeat is now an independent interval in
+  the worker script.
+- **Layer 0 had a hole one line to the right of where it was closed.** Every adapter's error path did
+  `classify(response.status, await response.text())`, and that body read sat outside the deadline
+  wrapper. A provider returning 502 and then stalling would reject with a bare `AbortError`,
+  `classify` would never run, and `withFallback` would break the chain rather than try the next
+  route — the precise failure mode phase 0 was written to prevent. A `readText` helper now routes it
+  through `asProviderError` at all five sites.
+- **`aria-live` covered the whole progress card**, so a screen reader re-announced eight stats, the
+  chips and the bar every three seconds for hours. Narrowed to the status line, matching what the
+  sample screen already did.
+
+Plus hardening: the repair ceiling is now enforced in `storeRepairs`' `where` rather than only by the
+planner; `translatedUnits` no longer counts superseded units and `failedUnits` is charged once at the
+FAILED→SKIPPED crossing instead of on every attempt (a 5-unit batch failing three times used to read
+"failed 15 / planned 5"); the readiness list hides its ADMIN-only action from instructors; and the
+sample panel stops polling after a failure instead of retrying a deleted run for ever.
 
 ### Known gaps, stated plainly
 
