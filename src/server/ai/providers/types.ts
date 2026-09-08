@@ -106,6 +106,13 @@ export function classify(status: number, body: string): ProviderError {
 }
 
 /**
+ * A caller (or a deadline) gave up. Shared by `asProviderError`'s AbortError branch and by
+ * `withFallback`'s rate-limit wait, so both spell the same status/message/retryable triple.
+ */
+export const abortedError = () =>
+  new ProviderError("request aborted", 499, true);
+
+/**
  * Layer 0 (spec-19): every provider request carries a deadline, and every way a request can die
  * — timeout, caller abort, DNS/TLS/connection failure — surfaces as a RETRYABLE ProviderError so
  * `withFallback` moves to the next route instead of stopping the chain on a bare TypeError.
@@ -115,8 +122,7 @@ export function asProviderError(error: unknown, timeoutMs: number): unknown {
   const name = (error as { name?: unknown } | null)?.name;
   if (name === "TimeoutError")
     return new ProviderError(`no response within ${timeoutMs}ms`, 504, true);
-  if (name === "AbortError")
-    return new ProviderError("request aborted", 499, true);
+  if (name === "AbortError") return abortedError();
   if (error instanceof TypeError) {
     // undici wraps ECONNREFUSED / ENOTFOUND / TLS errors as TypeError("fetch failed") with a cause.
     const code = (error as { cause?: { code?: unknown } }).cause?.code;

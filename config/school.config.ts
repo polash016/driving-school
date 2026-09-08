@@ -91,11 +91,13 @@ export const schoolConfigSchema = z
       translationMaxTokens: z.number().int().min(1024),
       /** Batches in flight inside one run. Keep ≤ (DB pool − 2). */
       translationParallelSlots: z.number().int().min(1).max(8),
-      /** A 429 is waited out on the same route — 5 s, 10 s, 20 s, 40 s with jitter — before the
-       *  chain moves on. Per-minute quotas recover; falling through only wastes the next route's
-       *  quota too. */
+      /** A 429 is waited out on the same route — base × 2^attempt, capped at 60 s (at 4 retries
+       *  from 5 s: 5/10/20/40 s) — before the chain moves on. Per-minute quotas recover; falling
+       *  through only wastes the next route's quota too. */
       rateLimitRetries: z.number().int().min(0).max(8),
-      rateLimitBaseDelayMs: z.number().int().min(250),
+      /** The ladder's first step. Below ~1 s does nothing for a quota that resets per minute;
+       *  above 60 s the cap in client.ts would clip it on the very first attempt. */
+      rateLimitBaseDelayMs: z.number().int().min(1_000).max(60_000),
     }),
     /**
      * Where uploaded question images live (spec-06 amendment D3). The driver is config, not code,

@@ -5,6 +5,7 @@ import { AiPipelineError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { db } from "@/server/db";
 import {
+  abortedError,
   adapterFor,
   ProviderError,
   ProviderTruncatedError,
@@ -119,11 +120,16 @@ async function candidatesFor(task: AiTask): Promise<Candidate[]> {
 /**
  * A cancellable delay. Rejects immediately if `signal` is already aborted, or as soon as it fires
  * while waiting — a worker shutdown must not sit through the rest of a 40s backoff.
+ *
+ * Named `sleepOrAbort`, not `sleep`: `src/server/services/i18n/worker.ts` has its own `sleep` with
+ * the OPPOSITE contract (it resolves, not rejects, on abort — the poll loop just wants to stop
+ * waiting, not to see an error). Do not unify them; a shared name inviting a shared import would
+ * silently flip one caller's control flow.
  */
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+function sleepOrAbort(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
-      reject(new ProviderError("request aborted", 499, true));
+      reject(abortedError());
       return;
     }
     const timer = setTimeout(() => {
@@ -132,18 +138,35 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
     }, ms);
     function onAbort() {
       clearTimeout(timer);
-      reject(new ProviderError("request aborted", 499, true));
+      reject(abortedError());
     }
     signal?.addEventListener("abort", onAbort, { once: true });
   });
 }
 
+/** A per-minute quota has reset by here; a per-day one never will inside a run. */
+const RATE_LIMIT_MAX_DELAY_MS = 60_000;
+
+/**
+ * The 429 back-off ladder: base × 2^attempt, ±20% jitter, capped so a per-day quota (which never
+ * recovers inside a run) cannot stall a worker for longer than a per-minute one takes to reset.
+ * `random` is injected so a test can pin the jitter instead of racing it.
+ */
+export function retryDelayMs(attempt: number, random = Math.random()): number {
+  const jitter = 0.8 + random * 0.4;
+  return Math.min(
+    schoolConfig.ai.rateLimitBaseDelayMs * 2 ** attempt * jitter,
+    RATE_LIMIT_MAX_DELAY_MS,
+  );
+}
+
 /**
  * Walks the chain until one route answers. A 429 is a per-minute quota, not a dead route: it is
- * waited out on the SAME route (5s, 10s, 20s, 40s with jitter) before the chain moves on — falling
- * through immediately just spends the next route's quota too (spec-19a). Any other retryable
- * failure (5xx) moves on right away; a non-retryable one (bad key, bad request) is reported
- * immediately — trying three providers with the same malformed prompt just wastes three quotas.
+ * waited out on the SAME route (5s, 10s, 20s, 40s with jitter, capped at 60s) before the chain
+ * moves on — falling through immediately just spends the next route's quota too (spec-19a). Any
+ * other retryable failure (5xx) moves on right away; a non-retryable one (bad key, bad request) is
+ * reported immediately — trying three providers with the same malformed prompt just wastes three
+ * quotas.
  */
 async function withFallback<T>(
   task: AiTask,
@@ -154,7 +177,7 @@ async function withFallback<T>(
   const failures: string[] = [];
 
   candidates: for (const [index, candidate] of candidates.entries()) {
-    for (let attempt = 0; ; attempt++) {
+    attempts: for (let attempt = 0; ; attempt++) {
       try {
         return { result: await run(candidate), candidate };
       } catch (error) {
@@ -163,15 +186,19 @@ async function withFallback<T>(
         // carries the cause.
         if (error instanceof ProviderTruncatedError) throw error;
 
+        // 600, not 200: Gemini's 429 body names the exhausted quota metric after ~350 chars, and
+        // this is the only place that error text reaches a log.
+        const message =
+          error instanceof Error
+            ? error.message.slice(0, 600)
+            : String(error).slice(0, 600);
+
         const rateLimited =
           error instanceof ProviderError && error.status === 429;
         if (rateLimited && attempt < schoolConfig.ai.rateLimitRetries) {
           // Per-minute quotas recover; falling through would only spend the next route's quota
           // too.
-          const delay =
-            schoolConfig.ai.rateLimitBaseDelayMs *
-            2 ** attempt *
-            (0.8 + Math.random() * 0.4);
+          const delay = retryDelayMs(attempt);
           logger.warn(
             {
               task,
@@ -179,17 +206,16 @@ async function withFallback<T>(
               model: candidate.model,
               attempt,
               delayMs: Math.round(delay),
+              error: message,
             },
             "rate limited — waiting on the same route",
           );
-          await sleep(delay, signal);
-          continue;
+          await sleepOrAbort(delay, signal);
+          continue attempts;
         }
 
         const retryable =
           error instanceof ProviderError ? error.retryable : false;
-        const message =
-          error instanceof Error ? error.message.slice(0, 200) : String(error);
         failures.push(
           `${candidate.providerLabel}/${candidate.model}: ${message}`,
         );
@@ -220,6 +246,8 @@ async function withFallback<T>(
 /**
  * Structured chat call: renders the versioned prompt, requests JSON, validates the response
  * against `schema`, records provenance. Throws AiPipelineError once every route has been tried.
+ * A caller-supplied `signal` that aborts during a rate-limit wait rejects with a retryable
+ * `ProviderError` (499) instead.
  */
 export async function aiJson<TVars, T>(opts: {
   task: AiTask;
