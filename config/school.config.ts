@@ -91,6 +91,11 @@ export const schoolConfigSchema = z
       translationMaxTokens: z.number().int().min(1024),
       /** Batches in flight inside one run. Keep ≤ (DB pool − 2). */
       translationParallelSlots: z.number().int().min(1).max(8),
+      /** A 429 is waited out on the same route — 5 s, 10 s, 20 s, 40 s with jitter — before the
+       *  chain moves on. Per-minute quotas recover; falling through only wastes the next route's
+       *  quota too. */
+      rateLimitRetries: z.number().int().min(0).max(8),
+      rateLimitBaseDelayMs: z.number().int().min(250),
     }),
     /**
      * Where uploaded question images live (spec-06 amendment D3). The driver is config, not code,
@@ -167,6 +172,8 @@ export const schoolConfig: SchoolConfig = Object.freeze(
       translationBatchSize: 20,
       translationMaxTokens: 8192,
       translationParallelSlots: 3,
+      rateLimitRetries: 4,
+      rateLimitBaseDelayMs: 5_000,
     },
     storage: {
       driver: "local",

@@ -101,7 +101,8 @@ export class ProviderTruncatedError extends ProviderError {
 export function classify(status: number, body: string): ProviderError {
   // 429 = quota/rate limit, 5xx = provider trouble: both are worth trying the next route for.
   const retryable = status === 429 || status >= 500;
-  return new ProviderError(body.slice(0, 300), status, retryable);
+  // 600, not 300: Gemini's 429 body names the exhausted quota metric after ~350 chars.
+  return new ProviderError(body.slice(0, 600), status, retryable);
 }
 
 /**

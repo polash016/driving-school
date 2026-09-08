@@ -74,7 +74,8 @@ describe("failure classification", () => {
   it("truncates provider error bodies so a key echoed back cannot fill the logs", () => {
     const error = classify(400, "x".repeat(5000));
     expect(error).toBeInstanceOf(ProviderError);
-    expect(error.message.length).toBeLessThanOrEqual(300);
+    // 600, not 300: Gemini's 429 body names the exhausted quota metric after ~350 chars.
+    expect(error.message.length).toBeLessThanOrEqual(600);
   });
 });
 

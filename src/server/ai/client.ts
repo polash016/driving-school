@@ -117,46 +117,100 @@ async function candidatesFor(task: AiTask): Promise<Candidate[]> {
 }
 
 /**
- * Walks the chain until one route answers. A retryable failure (quota, 5xx) moves on; a
- * non-retryable one (bad key, bad request) is reported immediately — trying three providers with
- * the same malformed prompt just wastes three quotas.
+ * A cancellable delay. Rejects immediately if `signal` is already aborted, or as soon as it fires
+ * while waiting — a worker shutdown must not sit through the rest of a 40s backoff.
+ */
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new ProviderError("request aborted", 499, true));
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    function onAbort() {
+      clearTimeout(timer);
+      reject(new ProviderError("request aborted", 499, true));
+    }
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+/**
+ * Walks the chain until one route answers. A 429 is a per-minute quota, not a dead route: it is
+ * waited out on the SAME route (5s, 10s, 20s, 40s with jitter) before the chain moves on — falling
+ * through immediately just spends the next route's quota too (spec-19a). Any other retryable
+ * failure (5xx) moves on right away; a non-retryable one (bad key, bad request) is reported
+ * immediately — trying three providers with the same malformed prompt just wastes three quotas.
  */
 async function withFallback<T>(
   task: AiTask,
   run: (candidate: Candidate) => Promise<T>,
+  signal?: AbortSignal,
 ): Promise<{ result: T; candidate: Candidate }> {
   const candidates = await candidatesFor(task);
   const failures: string[] = [];
 
-  for (const [index, candidate] of candidates.entries()) {
-    try {
-      return { result: await run(candidate), candidate };
-    } catch (error) {
-      // A truncation must reach the runner as itself: it halves the batch, it does not try route 2.
-      // Not logged or recorded here: the runner logs the halving, and the class carries the cause.
-      if (error instanceof ProviderTruncatedError) throw error;
+  candidates: for (const [index, candidate] of candidates.entries()) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return { result: await run(candidate), candidate };
+      } catch (error) {
+        // A truncation must reach the runner as itself: it halves the batch, it does not try
+        // route 2. Not logged or recorded here: the runner logs the halving, and the class
+        // carries the cause.
+        if (error instanceof ProviderTruncatedError) throw error;
 
-      const retryable =
-        error instanceof ProviderError ? error.retryable : false;
-      const message =
-        error instanceof Error ? error.message.slice(0, 200) : String(error);
-      failures.push(
-        `${candidate.providerLabel}/${candidate.model}: ${message}`,
-      );
+        const rateLimited =
+          error instanceof ProviderError && error.status === 429;
+        if (rateLimited && attempt < schoolConfig.ai.rateLimitRetries) {
+          // Per-minute quotas recover; falling through would only spend the next route's quota
+          // too.
+          const delay =
+            schoolConfig.ai.rateLimitBaseDelayMs *
+            2 ** attempt *
+            (0.8 + Math.random() * 0.4);
+          logger.warn(
+            {
+              task,
+              provider: candidate.providerLabel,
+              model: candidate.model,
+              attempt,
+              delayMs: Math.round(delay),
+            },
+            "rate limited — waiting on the same route",
+          );
+          await sleep(delay, signal);
+          continue;
+        }
 
-      logger.warn(
-        {
-          task,
-          provider: candidate.providerLabel,
-          model: candidate.model,
-          retryable,
-          remaining: candidates.length - index - 1,
-          error: message,
-        },
-        retryable ? "AI route failed — trying the next one" : "AI route failed",
-      );
+        const retryable =
+          error instanceof ProviderError ? error.retryable : false;
+        const message =
+          error instanceof Error ? error.message.slice(0, 200) : String(error);
+        failures.push(
+          `${candidate.providerLabel}/${candidate.model}: ${message}`,
+        );
 
-      if (!retryable) break;
+        logger.warn(
+          {
+            task,
+            provider: candidate.providerLabel,
+            model: candidate.model,
+            retryable,
+            remaining: candidates.length - index - 1,
+            error: message,
+          },
+          retryable
+            ? "AI route failed — trying the next one"
+            : "AI route failed",
+        );
+
+        if (!retryable) break candidates;
+        continue candidates;
+      }
     }
   }
 
@@ -187,19 +241,22 @@ export async function aiJson<TVars, T>(opts: {
       : []),
   ];
 
-  const { result, candidate } = await withFallback(opts.task, (route) =>
-    adapterFor(route.kind).chat(
-      { apiKey: route.apiKey, baseUrl: route.baseUrl },
-      {
-        model: route.model,
-        messages,
-        temperature: opts.temperature ?? 0.4,
-        maxTokens: opts.maxTokens ?? 4096,
-        json: true,
-        ...(opts.signal ? { signal: opts.signal } : {}),
-        ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}),
-      },
-    ),
+  const { result, candidate } = await withFallback(
+    opts.task,
+    (route) =>
+      adapterFor(route.kind).chat(
+        { apiKey: route.apiKey, baseUrl: route.baseUrl },
+        {
+          model: route.model,
+          messages,
+          temperature: opts.temperature ?? 0.4,
+          maxTokens: opts.maxTokens ?? 4096,
+          json: true,
+          ...(opts.signal ? { signal: opts.signal } : {}),
+          ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}),
+        },
+      ),
+    opts.signal,
   );
 
   let data: T;
@@ -247,24 +304,28 @@ export async function aiEmbed(
   texts: string[],
   options: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<number[][]> {
-  const { result } = await withFallback("embedding", async (route) => {
-    const adapter = adapterFor(route.kind);
-    if (!adapter.embed) {
-      throw new ProviderError(
-        `${route.kind} has no embedding endpoint`,
-        400,
-        false,
+  const { result } = await withFallback(
+    "embedding",
+    async (route) => {
+      const adapter = adapterFor(route.kind);
+      if (!adapter.embed) {
+        throw new ProviderError(
+          `${route.kind} has no embedding endpoint`,
+          400,
+          false,
+        );
+      }
+      return adapter.embed(
+        { apiKey: route.apiKey, baseUrl: route.baseUrl },
+        {
+          model: route.model,
+          input: texts,
+          ...(options.signal ? { signal: options.signal } : {}),
+          ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
+        },
       );
-    }
-    return adapter.embed(
-      { apiKey: route.apiKey, baseUrl: route.baseUrl },
-      {
-        model: route.model,
-        input: texts,
-        ...(options.signal ? { signal: options.signal } : {}),
-        ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
-      },
-    );
-  });
+    },
+    options.signal,
+  );
   return result;
 }

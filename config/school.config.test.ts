@@ -47,6 +47,10 @@ describe("school.config", () => {
     // pool − 2: the default Prisma pool is 5 on the 2-vCPU VPS
     expect(translationParallelSlots).toBeLessThanOrEqual(3);
   });
+
+  it("waits out a 429 on the same route at least once before falling through (spec-19a)", () => {
+    expect(schoolConfig.ai.rateLimitRetries).toBeGreaterThanOrEqual(1);
+  });
 });
 
 describe("locale formatting", () => {
