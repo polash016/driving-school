@@ -11,9 +11,11 @@ import { repairBatch, repairContextFor, storeRepairs } from "./repair";
 import { batchRate, ESTIMATED_USD_PER_1K_TOKENS, ewmaRate } from "./run-math";
 import {
   BATCH_SIZE,
+  recentRejections,
   storeTranslations,
   translateBatch,
   type LanguagePolicy,
+  type Rejection,
   type TranslatedUnit,
 } from "./translate";
 import type { TranslationUnit } from "./units";
@@ -303,17 +305,19 @@ async function retireExhausted(
   db: PrismaClient,
   runId: string,
   leaseOwner: string,
-): Promise<void> {
+): Promise<number> {
   // Index: TranslationJob[runId, state, entity].
   const retired = await db.translationJob.updateMany({
     where: { runId, state: "FAILED", attempts: { gte: MAX_ATTEMPTS } },
     data: { state: "SKIPPED" },
   });
-  if (retired.count === 0) return;
+  if (retired.count === 0) return 0;
   await db.translationRun.updateMany({
     where: { id: runId, leaseOwner },
     data: { failedUnits: { increment: retired.count } },
   });
+  // Returned so the runner's in-memory counters stay level with the row without re-reading it.
+  return retired.count;
 }
 
 /**
@@ -358,6 +362,12 @@ export async function executeRun(
       kind: true,
       status: true,
       startedAt: true,
+      // Seeds the in-memory progress counters below, so a per-batch `onProgress` costs no query.
+      plannedUnits: true,
+      translatedUnits: true,
+      flaggedUnits: true,
+      failedUnits: true,
+      memoryHits: true,
     },
   });
 
@@ -407,11 +417,35 @@ export async function executeRun(
   });
 
   const language = await languagePolicy(db, run.locale);
+  // Once per run, not once per batch: a rejection recorded mid-run reaches the prompt on the NEXT
+  // run, which is when `pendingUnits` re-plans the rejected unit anyway.
+  const rejections = await recentRejections(db, run.locale);
   const budget = options.maxUnits ?? Number.POSITIVE_INFINITY;
   const translatedMasterIds: string[] = [];
   let processed = 0;
   let lostLease = false;
   let stopReason: StopReason = "finished";
+
+  // Progress for the log line is built from these rather than re-read: `progressOf` is two queries,
+  // and it was paying them after every single batch. The terminal returns still read the row, so
+  // what a caller receives at the end is the database's own number.
+  const counters = {
+    translated: run.translatedUnits,
+    flagged: run.flaggedUnits,
+    failed: run.failedUnits,
+    memoryHits: run.memoryHits,
+  };
+  const snapshot = (stopReason: StopReason): RunProgress => ({
+    runId,
+    status: "RUNNING",
+    planned: run.plannedUnits,
+    completed: counters.translated,
+    failed: counters.failed,
+    flagged: counters.flagged,
+    memoryHits: counters.memoryHits,
+    done: false,
+    stopReason,
+  });
 
   // Keepalive IS the heartbeat: a batch on the slow self-hosted model routinely outlives a 2-minute
   // lease, and the lease used to be extended only after a batch. Owner-guarded, so a runner that
@@ -465,7 +499,7 @@ export async function executeRun(
         where: { runId, state: "FAILED", attempts: { lt: MAX_ATTEMPTS } },
         data: { state: "QUEUED", error: null },
       });
-      await retireExhausted(db, runId, options.leaseOwner);
+      counters.failed += await retireExhausted(db, runId, options.leaseOwner);
 
       // One entity kind at a time, so a batch shares a prompt shape.
       // Index: TranslationJob[runId, state, entity].
@@ -532,6 +566,7 @@ export async function executeRun(
                 units,
                 runId,
                 options.signal,
+                rejections,
               );
         const { translated, superseded } = outcome;
 
@@ -628,6 +663,9 @@ export async function executeRun(
           },
         });
         if (updated.count === 0) lostLease = true;
+        counters.translated += translated.length - superseded.size;
+        counters.flagged += flagged;
+        counters.memoryHits += memoryHits;
         processed += batch.length;
       } catch (error) {
         if (options.signal?.aborted) {
@@ -679,7 +717,7 @@ export async function executeRun(
         processed += batch.length;
       }
 
-      options.onProgress?.({ ...(await progressOf(db, runId)), stopReason });
+      options.onProgress?.(snapshot(stopReason));
     }
   } finally {
     clearInterval(keepalive);
@@ -689,7 +727,7 @@ export async function executeRun(
   // never reaches: it stops on the budget, a pause, or an empty queue instead. Once more here, so
   // every terminal failure is SKIPPED and counted exactly once whatever ended the run.
   if (stopReason !== "lostLease")
-    await retireExhausted(db, runId, options.leaseOwner);
+    counters.failed += await retireExhausted(db, runId, options.leaseOwner);
 
   if (stopReason === "lostLease") {
     logger.warn(
@@ -784,13 +822,12 @@ async function translateSlice(
   units: TranslationUnit[],
   runId: string,
   signal: AbortSignal | undefined,
+  rejections: Rejection[],
 ): Promise<SliceOutcome> {
-  const translated = await translateBatch(
-    db,
-    language,
-    units,
-    signal ? { signal } : {},
-  );
+  const translated = await translateBatch(db, language, units, {
+    ...(signal ? { signal } : {}),
+    rejections,
+  });
   await storeTranslations(db, locale, translated, runId);
   return { translated, superseded: new Set() };
 }

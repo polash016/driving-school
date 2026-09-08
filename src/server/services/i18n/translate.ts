@@ -7,7 +7,12 @@ import {
   rejectedBlock,
   translateUnitsPrompt,
 } from "@/server/ai/prompts/translation";
-import { probeMemory, rememberTranslation, countMemoryHits } from "./memory";
+import {
+  probeMemory,
+  rememberTranslations,
+  countMemoryHits,
+  type RememberInput,
+} from "./memory";
 import { semanticCheck, type QaInput } from "./qa";
 import { memoryHash, type TranslationUnit, type UnitPayload } from "./units";
 import { allCodes, checkTranslation } from "./validation";
@@ -91,11 +96,21 @@ export function shapeLike(
   return out as unknown as UnitPayload;
 }
 
-/** Recent refusals in this language, as worked examples for the prompt. */
-async function recentRejections(
+export interface Rejection {
+  excerpt: string;
+  note: string | null;
+}
+
+/**
+ * Recent refusals in this language, as worked examples for the prompt.
+ *
+ * Computed once per run by the runner and passed in; a rejection made mid-run reaches the prompt
+ * on the NEXT run, which is when `pendingUnits` re-plans the rejected unit anyway.
+ */
+export async function recentRejections(
   db: PrismaClient,
   locale: string,
-): Promise<Array<{ excerpt: string; note: string | null }>> {
+): Promise<Rejection[]> {
   const rows = await db.translation.findMany({
     where: { locale, status: "REJECTED" },
     orderBy: { reviewedAt: "desc" },
@@ -125,8 +140,12 @@ export async function translateBatch(
   db: PrismaClient,
   language: LanguagePolicy,
   units: TranslationUnit[],
-  /** Worker shutdown, threaded into every provider call this batch makes. */
-  options: { signal?: AbortSignal } = {},
+  options: {
+    /** Worker shutdown, threaded into every provider call this batch makes. */
+    signal?: AbortSignal;
+    /** Computed once per run by the caller; queried here only when it is not. */
+    rejections?: Rejection[];
+  } = {},
 ): Promise<TranslatedUnit[]> {
   if (units.length === 0) return [];
 
@@ -176,7 +195,8 @@ export async function translateBatch(
   if (pending.length === 0) return results;
 
   // 2. One call for the rest.
-  const rejections = await recentRejections(db, language.code);
+  const rejections =
+    options.rejections ?? (await recentRejections(db, language.code));
   const response = await aiJson({
     task: "translation",
     prompt: translateUnitsPrompt,
@@ -292,10 +312,11 @@ export async function translateBatch(
     }
   }
 
-  // 4. Only a clean translation is worth remembering.
-  for (const candidate of fresh) {
-    if (candidate.status !== "MACHINE") continue;
-    await rememberTranslation(db, {
+  // 4. Only a clean translation is worth remembering — and the batch's worth of them in one
+  //    transaction, not a write per unit.
+  const remembered: RememberInput[] = fresh
+    .filter((candidate) => candidate.status === "MACHINE")
+    .map((candidate) => ({
       locale: language.code,
       entity: candidate.unit.entity,
       source: candidate.unit.en,
@@ -303,8 +324,8 @@ export async function translateBatch(
       glossaryVersion: language.glossaryVersion,
       modelVersion: candidate.modelVersion,
       promptVersion: candidate.promptVersion,
-    });
-  }
+    }));
+  await rememberTranslations(db, remembered);
 
   return [...results, ...fresh];
 }
@@ -316,8 +337,12 @@ export async function storeTranslations(
   translated: TranslatedUnit[],
   runId: string | null,
 ): Promise<void> {
-  for (const item of translated) {
-    await db.translation.upsert({
+  if (translated.length === 0) return;
+  // One array transaction, not Promise.all: one connection per batch, and the batch lands
+  // atomically with the DONE marking that follows. Three concurrent slots × 20 upserts under
+  // Promise.all would exhaust the default pool.
+  const upserts = translated.map((item) =>
+    db.translation.upsert({
       where: {
         locale_entity_entityId: {
           locale,
@@ -367,6 +392,7 @@ export async function storeTranslations(
         reviewNote: null,
       },
       select: { id: true },
-    });
-  }
+    }),
+  );
+  await db.$transaction(upserts);
 }

@@ -51,47 +51,78 @@ export async function probeMemory(
   );
 }
 
+export interface RememberInput {
+  locale: string;
+  entity: TranslatableEntity;
+  source: UnitPayload;
+  value: UnitPayload;
+  glossaryVersion: number;
+  modelVersion?: string | null;
+  promptVersion?: string | null;
+}
+
 /**
- * Record a translation for reuse.
+ * Record a batch of translations for reuse.
  *
- * Non-throwing: losing a memory entry costs a few tokens next time, and must never fail the run
+ * One array transaction rather than a write per unit: the runner will soon run several batches
+ * concurrently, and a write per unit holds a connection per unit. The cost is that a failure loses
+ * the whole batch's memory rows — acceptable, because a lost memory row costs a few tokens next
+ * time and nothing else.
+ *
+ * Non-throwing, for the same reason as the singular: losing a memory entry must never fail the run
  * that produced it.
+ */
+export async function rememberTranslations(
+  db: PrismaClient,
+  inputs: RememberInput[],
+): Promise<void> {
+  if (inputs.length === 0) return;
+  try {
+    await db.$transaction(
+      inputs.map((input) => {
+        const hash = memoryHash(
+          input.entity,
+          input.source,
+          input.glossaryVersion,
+        );
+        return db.translationMemory.upsert({
+          where: {
+            locale_sourceHash: { locale: input.locale, sourceHash: hash },
+          },
+          create: {
+            locale: input.locale,
+            sourceHash: hash,
+            contextKind: input.entity,
+            value: input.value as object,
+            glossaryVersion: input.glossaryVersion,
+            modelVersion: input.modelVersion ?? null,
+            promptVersion: input.promptVersion ?? null,
+            lastUsedAt: new Date(),
+          },
+          update: { value: input.value as object, lastUsedAt: new Date() },
+          select: { id: true },
+        });
+      }),
+    );
+  } catch (error) {
+    logger.warn(
+      { error, count: inputs.length },
+      "translation memory write skipped",
+    );
+  }
+}
+
+/**
+ * Record one translation for reuse.
+ *
+ * Kept for the single-unit callers (review, repair); the plural does the work, so the two can
+ * never drift apart.
  */
 export async function rememberTranslation(
   db: PrismaClient,
-  input: {
-    locale: string;
-    entity: TranslatableEntity;
-    source: UnitPayload;
-    value: UnitPayload;
-    glossaryVersion: number;
-    modelVersion?: string | null;
-    promptVersion?: string | null;
-  },
+  input: RememberInput,
 ): Promise<void> {
-  const hash = memoryHash(input.entity, input.source, input.glossaryVersion);
-  try {
-    await db.translationMemory.upsert({
-      where: { locale_sourceHash: { locale: input.locale, sourceHash: hash } },
-      create: {
-        locale: input.locale,
-        sourceHash: hash,
-        contextKind: input.entity,
-        value: input.value as object,
-        glossaryVersion: input.glossaryVersion,
-        modelVersion: input.modelVersion ?? null,
-        promptVersion: input.promptVersion ?? null,
-        lastUsedAt: new Date(),
-      },
-      update: { value: input.value as object, lastUsedAt: new Date() },
-      select: { id: true },
-    });
-  } catch (error) {
-    logger.warn(
-      { error, locale: input.locale },
-      "translation memory write failed",
-    );
-  }
+  await rememberTranslations(db, [input]);
 }
 
 /** Count a reuse, so an admin can see how much the memory is actually saving. */
