@@ -21,6 +21,14 @@ describe("school.config", () => {
       expect(lc.passMark).toBeLessThanOrEqual(lc.questionCount);
     }
   });
+
+  it("carries AI request deadlines (spec-19 layer 0)", () => {
+    expect(schoolConfig.ai.requestTimeoutMs).toBeGreaterThanOrEqual(60_000);
+    expect(schoolConfig.ai.pingTimeoutMs).toBeGreaterThanOrEqual(30_000);
+    expect(schoolConfig.ai.pingTimeoutMs).toBeLessThan(
+      schoolConfig.ai.requestTimeoutMs,
+    );
+  });
 });
 
 describe("locale formatting", () => {
