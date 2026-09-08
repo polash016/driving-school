@@ -29,6 +29,14 @@ describe("school.config", () => {
       schoolConfig.ai.requestTimeoutMs,
     );
   });
+
+  it("translation batch fits the output cap with headroom, and slots are bounded (spec-19a)", () => {
+    const { translationBatchSize, translationMaxTokens, translationParallelSlots } = schoolConfig.ai;
+    // ~255 completion tokens per Spanish question at p90; 300 leaves margin for verbose models.
+    expect(translationBatchSize * 300).toBeLessThanOrEqual(translationMaxTokens);
+    expect(translationParallelSlots).toBeGreaterThanOrEqual(1);
+    expect(translationParallelSlots).toBeLessThanOrEqual(4); // default Prisma pool is 5 on 2 vCPUs
+  });
 });
 
 describe("locale formatting", () => {

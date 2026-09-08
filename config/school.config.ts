@@ -83,6 +83,14 @@ export const schoolConfigSchema = z
       requestTimeoutMs: z.number().int().positive(),
       /** "Test connection" budget. A healthy OmniRoute ping measured 7–13 s; 29.7 s under load. */
       pingTimeoutMs: z.number().int().positive(),
+      /** Units per translation call. 20 fits the output window with headroom for Latin scripts;
+       *  non-Latin scripts start at half and the runner halves further on truncation. */
+      translationBatchSize: z.number().int().min(1).max(50),
+      /** Output cap per translation call. Must not exceed the routed model's own cap — Gemini 2.0
+       *  Flash-Lite rejects >8192 with a non-retryable 400. Raise only after verifying the route. */
+      translationMaxTokens: z.number().int().min(1024),
+      /** Batches in flight inside one run. Keep ≤ (DB pool − 2). */
+      translationParallelSlots: z.number().int().min(1).max(8),
     }),
     /**
      * Where uploaded question images live (spec-06 amendment D3). The driver is config, not code,
@@ -156,6 +164,9 @@ export const schoolConfig: SchoolConfig = Object.freeze(
       dailyBudgetUsd: 20,
       requestTimeoutMs: 180_000,
       pingTimeoutMs: 60_000,
+      translationBatchSize: 20,
+      translationMaxTokens: 8192,
+      translationParallelSlots: 3,
     },
     storage: {
       driver: "local",
