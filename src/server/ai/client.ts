@@ -166,6 +166,9 @@ export async function aiJson<TVars, T>(opts: {
   userContent?: ProviderMessage["content"];
   temperature?: number;
   maxTokens?: number;
+  /** Caller cancellation — the i18n worker passes its shutdown signal through here. */
+  signal?: AbortSignal;
+  timeoutMs?: number;
 }): Promise<AiChatResult<T>> {
   const started = Date.now();
   const messages: ProviderMessage[] = [
@@ -184,6 +187,8 @@ export async function aiJson<TVars, T>(opts: {
         temperature: opts.temperature ?? 0.4,
         maxTokens: opts.maxTokens ?? 4096,
         json: true,
+        ...(opts.signal ? { signal: opts.signal } : {}),
+        ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}),
       },
     ),
   );
@@ -229,7 +234,10 @@ export async function aiJson<TVars, T>(opts: {
 }
 
 /** Embedding call for KB ingestion / search (spec-05). Dimension must match KbChunk vector(1536). */
-export async function aiEmbed(texts: string[]): Promise<number[][]> {
+export async function aiEmbed(
+  texts: string[],
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
+): Promise<number[][]> {
   const { result } = await withFallback("embedding", async (route) => {
     const adapter = adapterFor(route.kind);
     if (!adapter.embed) {
@@ -241,7 +249,12 @@ export async function aiEmbed(texts: string[]): Promise<number[][]> {
     }
     return adapter.embed(
       { apiKey: route.apiKey, baseUrl: route.baseUrl },
-      { model: route.model, input: texts },
+      {
+        model: route.model,
+        input: texts,
+        ...(options.signal ? { signal: options.signal } : {}),
+        ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
+      },
     );
   });
   return result;
