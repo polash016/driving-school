@@ -7,6 +7,7 @@ import { logger } from "@/lib/logger";
 import { AUDIT, auditLog } from "@/server/audit";
 import { extractAll, pendingUnits, pruneOrphans } from "./extract";
 import { invalidateMessages } from "./catalogue";
+import { ESTIMATED_USD_PER_1K_TOKENS } from "./run-math";
 import {
   BATCH_SIZE,
   storeTranslations,
@@ -41,8 +42,6 @@ const MAX_ATTEMPTS = 3;
  */
 const ESTIMATED_PROMPT_TOKENS_PER_UNIT = 420;
 const ESTIMATED_COMPLETION_TOKENS_PER_UNIT = 260;
-/** A mid-range rate; the point of the number is order of magnitude, not precision. */
-const ESTIMATED_USD_PER_1K_TOKENS = 0.0006;
 
 export interface RunPlan {
   runId: string;
