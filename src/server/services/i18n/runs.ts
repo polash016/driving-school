@@ -7,12 +7,13 @@ import { logger } from "@/lib/logger";
 import { AUDIT, auditLog } from "@/server/audit";
 import { extractAll, pendingUnits, pruneOrphans } from "./extract";
 import { invalidateMessages } from "./catalogue";
-import { ESTIMATED_USD_PER_1K_TOKENS } from "./run-math";
+import { batchRate, ESTIMATED_USD_PER_1K_TOKENS, ewmaRate } from "./run-math";
 import {
   BATCH_SIZE,
   storeTranslations,
   translateBatch,
   type LanguagePolicy,
+  type TranslatedUnit,
 } from "./translate";
 import type { TranslationUnit } from "./units";
 
@@ -100,6 +101,8 @@ export async function planRun(
     kind: TranslationRunKind;
     only?: TranslatableEntity[];
     startedById?: string | null;
+    /** Hand the run to the background worker. Without it this is a cost-free preview. */
+    enqueue?: boolean;
   },
 ): Promise<RunPlan> {
   const language = await languagePolicy(db, locale);
@@ -115,6 +118,20 @@ export async function planRun(
 
   const pending = await pendingUnits(db, locale, all);
 
+  if (input.enqueue) {
+    // At most one live plan per locale: an old cost-free preview must not be executable later
+    // against a bank that has since changed.
+    // Index: TranslationRun[locale, status, createdAt].
+    await db.translationRun.updateMany({
+      where: { locale, status: "PENDING", enqueuedAt: null },
+      data: {
+        status: "CANCELLED",
+        error: "superseded",
+        finishedAt: new Date(),
+      },
+    });
+  }
+
   const run = await db.translationRun.create({
     data: {
       locale,
@@ -122,6 +139,7 @@ export async function planRun(
       status: "PENDING",
       plannedUnits: pending.length,
       startedById: input.startedById ?? null,
+      ...(input.enqueue ? { enqueuedAt: new Date() } : {}),
       estimatedUsd:
         ((pending.length *
           (ESTIMATED_PROMPT_TOKENS_PER_UNIT +
@@ -242,6 +260,16 @@ export async function deriveVariantTranslations(
   return derived;
 }
 
+export type StopReason =
+  | "finished"
+  | "budget"
+  | "paused"
+  | "cancelled"
+  | "aborted"
+  | "lostLease"
+  | "notClaimed"
+  | "localeBusy";
+
 export interface RunProgress {
   runId: string;
   status: string;
@@ -251,6 +279,15 @@ export interface RunProgress {
   flagged: number;
   memoryHits: number;
   done: boolean;
+  /** Why this call returned. Every caller spreads `progressOf` and overrides this. */
+  stopReason: StopReason;
+}
+
+/** Lease keepalive cadence: a quarter of the lease, so three missed ticks still hold it. */
+const KEEPALIVE_MS = (LEASE_MINUTES * 60_000) / 4;
+
+function leaseUntil(from = Date.now()): Date {
+  return new Date(from + LEASE_MINUTES * 60_000);
 }
 
 /**
@@ -259,6 +296,21 @@ export interface RunProgress {
  * Claims the run under a lease first, so two runners (a script and an admin action, say) cannot
  * translate the same units twice. `maxUnits` lets a caller take a bounded slice and come back —
  * which is how the admin screen makes progress without holding a request open for ten minutes.
+ *
+ * Spec-19 hardened it for the unattended worker, which calls it with no bound and stays in here for
+ * hours. Four things the attended callers never noticed:
+ *
+ * 1. The lease used to be extended only AFTER a batch. A batch is up to three provider calls, and
+ *    one call on the self-hosted model has been measured at 29.7 s — so a QA'd batch routinely
+ *    outlived a 2-minute lease, and the runner never found out. Now a keepalive refreshes it from
+ *    inside the batch, and every write to the run row is guarded on `leaseOwner`.
+ * 2. A partial claim used to translate the whole batch: `updateMany` reported 3 of 5 rows won and
+ *    the code carried on with all 5. Now the claim stamps `claimedBy` and the runner re-reads
+ *    exactly the rows it holds.
+ * 3. Jobs a killed process left RUNNING were never re-queued, and completion only counted QUEUED —
+ *    so a `kill -9` produced a COMPLETED run with units silently untranslated.
+ * 4. There was no way to ask it to stop. `pauseRequested`/`cancelRequested` are read between
+ *    batches, and an `AbortSignal` covers worker shutdown mid-batch.
  */
 export async function executeRun(
   db: PrismaClient,
@@ -267,186 +319,350 @@ export async function executeRun(
     leaseOwner: string;
     maxUnits?: number;
     onProgress?: (progress: RunProgress) => void;
+    /** Worker shutdown. Checked between batches and threaded into every provider call. */
+    signal?: AbortSignal;
   },
 ): Promise<RunProgress> {
   const now = new Date();
-  const claimed = await db.translationRun.updateMany({
-    where: {
-      id: runId,
-      status: { in: ["PENDING", "PAUSED", "RUNNING"] },
-      OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lt: now } }],
-    },
-    data: {
-      status: "RUNNING",
-      leaseOwner: options.leaseOwner,
-      // Extending the lease each batch IS the heartbeat: a run whose lease has lapsed was
-      // abandoned, and another runner may take it over.
-      leaseExpiresAt: new Date(now.getTime() + LEASE_MINUTES * 60_000),
-      startedAt: now,
-    },
-  });
-
   const run = await db.translationRun.findUniqueOrThrow({
     where: { id: runId },
     select: {
       id: true,
       locale: true,
+      kind: true,
       status: true,
-      plannedUnits: true,
-      translatedUnits: true,
-      failedUnits: true,
-      flaggedUnits: true,
-      memoryHits: true,
-      leaseOwner: true,
+      startedAt: true,
     },
   });
 
-  if (claimed.count !== 1 && run.leaseOwner !== options.leaseOwner) {
-    // Someone else is on it. Not an error — report where they have got to.
-    return {
-      runId,
-      status: run.status,
-      planned: run.plannedUnits,
-      completed: run.translatedUnits,
-      failed: run.failedUnits,
-      flagged: run.flaggedUnits,
-      memoryHits: run.memoryHits,
-      done: false,
-    };
+  // One live run per locale, whatever the entry point (worker, admin slice, CLI). Two runs
+  // planned for the same language each hold a job per unit, and would translate them twice.
+  // Index: TranslationRun[locale, status, createdAt].
+  const busy = await db.translationRun.findFirst({
+    where: {
+      locale: run.locale,
+      id: { not: runId },
+      status: "RUNNING",
+      leaseExpiresAt: { gt: now },
+    },
+    select: { id: true },
+  });
+  if (busy)
+    return { ...(await progressOf(db, runId)), stopReason: "localeBusy" };
+
+  // Index: TranslationRun[status, leaseExpiresAt].
+  const claimed = await db.translationRun.updateMany({
+    where: {
+      id: runId,
+      status: { in: ["PENDING", "PAUSED", "RUNNING"] },
+      pauseRequested: false,
+      cancelRequested: false,
+      OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lt: now } }],
+    },
+    data: {
+      status: "RUNNING",
+      leaseOwner: options.leaseOwner,
+      leaseExpiresAt: leaseUntil(now.getTime()),
+      heartbeatAt: now,
+      ...(run.startedAt ? {} : { startedAt: now }),
+    },
+  });
+  if (claimed.count !== 1) {
+    // Someone else is on it, or an admin asked for a pause. Not an error — report where it is.
+    return { ...(await progressOf(db, runId)), stopReason: "notClaimed" };
   }
 
+  // The lease is exclusive from here. Anything a dead runner left RUNNING goes back to the queue —
+  // attempts are kept, so a unit that keeps killing its runner still reaches SKIPPED.
+  // Index: TranslationJob[runId, state, entity].
+  await db.translationJob.updateMany({
+    where: { runId, state: "RUNNING" },
+    data: { state: "QUEUED", startedAt: null, claimedBy: null },
+  });
+
   const language = await languagePolicy(db, run.locale);
-  let processed = 0;
   const budget = options.maxUnits ?? Number.POSITIVE_INFINITY;
   const translatedMasterIds: string[] = [];
+  let processed = 0;
+  let lostLease = false;
+  let stopReason: StopReason = "finished";
 
-  for (;;) {
-    if (processed >= budget) break;
-
-    // A batch that failed on a provider outage is worth another go; one that has failed three
-    // times is a real problem with that unit, and is left alone so the run can finish.
-    await db.translationJob.updateMany({
-      where: { runId, state: "FAILED", attempts: { lt: MAX_ATTEMPTS } },
-      data: { state: "QUEUED", error: null },
-    });
-    await db.translationJob.updateMany({
-      where: { runId, state: "FAILED", attempts: { gte: MAX_ATTEMPTS } },
-      data: { state: "SKIPPED" },
-    });
-
-    // One entity kind at a time, so a batch shares a prompt shape.
-    const jobs = await db.translationJob.findMany({
-      where: { runId, state: "QUEUED" },
-      orderBy: [{ entity: "asc" }, { id: "asc" }],
-      take: Math.min(BATCH_SIZE, budget - processed),
-      select: { id: true, entity: true, entityId: true },
-    });
-    if (jobs.length === 0) break;
-
-    const entity = jobs[0].entity;
-    const batch = jobs.filter((job) => job.entity === entity);
-
-    const claimedJobs = await db.translationJob.updateMany({
-      where: { id: { in: batch.map((job) => job.id) }, state: "QUEUED" },
-      data: {
-        state: "RUNNING",
-        startedAt: new Date(),
-        attempts: { increment: 1 },
-      },
-    });
-    if (claimedJobs.count === 0) continue;
-
-    // Re-extract just this slice, so the source is read fresh rather than trusted from plan time.
-    const units = await unitsFor(
-      db,
-      language,
-      entity,
-      batch.map((job) => job.entityId),
-    );
-
-    try {
-      const translated = await translateBatch(db, language, units);
-      await storeTranslations(db, run.locale, translated, runId);
-
-      const flagged = translated.filter(
-        (item) => item.status !== "MACHINE",
-      ).length;
-      const memoryHits = translated.filter((item) => item.fromMemory).length;
-      const promptTokens = translated.reduce(
-        (sum, item) => sum + item.promptTokens,
-        0,
+  // Keepalive IS the heartbeat: a batch on the slow self-hosted model routinely outlives a 2-minute
+  // lease, and the lease used to be extended only after a batch. Owner-guarded, so a runner that
+  // has already lost the lease learns it here instead of overwriting the new owner's state.
+  const keepalive = setInterval(() => {
+    void db.translationRun
+      .updateMany({
+        where: { id: runId, leaseOwner: options.leaseOwner },
+        data: { leaseExpiresAt: leaseUntil(), heartbeatAt: new Date() },
+      })
+      .then((result) => {
+        if (result.count === 0) lostLease = true;
+      })
+      .catch((error: unknown) =>
+        logger.warn({ error, runId }, "lease keepalive failed"),
       );
-      const completionTokens = translated.reduce(
-        (sum, item) => sum + item.completionTokens,
-        0,
-      );
+  }, KEEPALIVE_MS);
 
-      if (entity === "MASTER_ITEM") {
-        translatedMasterIds.push(
-          ...translated.map((item) => item.unit.entityId),
-        );
+  try {
+    for (;;) {
+      if (lostLease) {
+        stopReason = "lostLease";
+        break;
+      }
+      if (options.signal?.aborted) {
+        stopReason = "aborted";
+        break;
+      }
+      if (processed >= budget) {
+        stopReason = "budget";
+        break;
       }
 
-      const doneIds = new Set(translated.map((item) => item.unit.entityId));
-      await db.translationJob.updateMany({
-        where: { runId, entityId: { in: [...doneIds] }, state: "RUNNING" },
-        data: { state: "DONE", finishedAt: new Date() },
+      const flags = await db.translationRun.findUniqueOrThrow({
+        where: { id: runId },
+        select: { pauseRequested: true, cancelRequested: true },
       });
-      // Anything the model silently dropped stays FAILED rather than vanishing.
+      if (flags.cancelRequested) {
+        stopReason = "cancelled";
+        break;
+      }
+      if (flags.pauseRequested) {
+        stopReason = "paused";
+        break;
+      }
+
+      // A batch that failed on a provider outage is worth another go; one that has failed three
+      // times is a real problem with that unit, and is left alone so the run can finish.
+      // Index: TranslationJob[runId, state, entity].
       await db.translationJob.updateMany({
-        where: {
-          runId,
-          id: { in: batch.map((job) => job.id) },
-          state: "RUNNING",
-        },
-        data: {
-          state: "FAILED",
-          error: "no translation returned",
-          finishedAt: new Date(),
-        },
+        where: { runId, state: "FAILED", attempts: { lt: MAX_ATTEMPTS } },
+        data: { state: "QUEUED", error: null },
+      });
+      await db.translationJob.updateMany({
+        where: { runId, state: "FAILED", attempts: { gte: MAX_ATTEMPTS } },
+        data: { state: "SKIPPED" },
       });
 
-      await db.translationRun.update({
-        where: { id: runId },
-        data: {
-          translatedUnits: { increment: translated.length },
-          flaggedUnits: { increment: flagged },
-          memoryHits: { increment: memoryHits },
-          promptTokens: { increment: promptTokens },
-          completionTokens: { increment: completionTokens },
-          leaseExpiresAt: new Date(Date.now() + LEASE_MINUTES * 60_000),
-        },
-        select: { id: true },
+      // One entity kind at a time, so a batch shares a prompt shape.
+      // Index: TranslationJob[runId, state, entity].
+      const jobs = await db.translationJob.findMany({
+        where: { runId, state: "QUEUED" },
+        orderBy: [{ entity: "asc" }, { id: "asc" }],
+        take: Math.min(BATCH_SIZE, budget - processed),
+        select: { id: true, entity: true, entityId: true },
       });
-      processed += batch.length;
-    } catch (error) {
-      // One bad batch must not end a run of three thousand. Record it and carry on.
-      logger.error({ error, runId, entity }, "translation batch failed");
+      if (jobs.length === 0) {
+        stopReason = "finished";
+        break;
+      }
+
+      const entity = jobs[0].entity;
+      const wanted = jobs
+        .filter((job) => job.entity === entity)
+        .map((job) => job.id);
       await db.translationJob.updateMany({
-        where: {
-          runId,
-          id: { in: batch.map((job) => job.id) },
+        where: { id: { in: wanted }, state: "QUEUED" },
+        data: {
           state: "RUNNING",
-        },
-        data: {
-          state: "FAILED",
-          error:
-            error instanceof Error ? error.message.slice(0, 300) : "unknown",
-          finishedAt: new Date(),
+          startedAt: new Date(),
+          attempts: { increment: 1 },
+          claimedBy: options.leaseOwner,
         },
       });
-      await db.translationRun.update({
-        where: { id: runId },
-        data: {
-          failedUnits: { increment: batch.length },
-          leaseExpiresAt: new Date(Date.now() + LEASE_MINUTES * 60_000),
+      // Exactly what THIS runner won — another runner may have taken part of the batch. Prisma has
+      // no `updateManyAndReturn` here, which is why the claim stamps an owner and we read it back.
+      const batch = await db.translationJob.findMany({
+        where: {
+          id: { in: wanted },
+          state: "RUNNING",
+          claimedBy: options.leaseOwner,
         },
-        select: { id: true },
+        select: { id: true, entity: true, entityId: true },
       });
-      processed += batch.length;
+      if (batch.length === 0) continue;
+
+      // Re-extract just this slice, so the source is read fresh rather than trusted from plan time.
+      const units = await unitsFor(
+        db,
+        language,
+        entity,
+        batch.map((job) => job.entityId),
+      );
+      const batchStarted = Date.now();
+
+      try {
+        const outcome =
+          run.kind === "REPAIR"
+            ? await repairSlice(
+                db,
+                run.locale,
+                language,
+                units,
+                runId,
+                options.signal,
+              )
+            : await translateSlice(
+                db,
+                run.locale,
+                language,
+                units,
+                runId,
+                options.signal,
+              );
+        const { translated, superseded } = outcome;
+
+        const flagged = translated.filter(
+          (item) => item.status !== "MACHINE",
+        ).length;
+        const memoryHits = translated.filter((item) => item.fromMemory).length;
+        const promptTokens = translated.reduce(
+          (sum, item) => sum + item.promptTokens,
+          0,
+        );
+        const completionTokens = translated.reduce(
+          (sum, item) => sum + item.completionTokens,
+          0,
+        );
+        if (entity === "MASTER_ITEM") {
+          translatedMasterIds.push(
+            ...translated.map((item) => item.unit.entityId),
+          );
+        }
+
+        const doneIds = new Set(
+          translated
+            .map((item) => item.unit.entityId)
+            .filter((id) => !superseded.has(id)),
+        );
+        await db.translationJob.updateMany({
+          where: {
+            runId,
+            entityId: { in: [...doneIds] },
+            state: "RUNNING",
+            claimedBy: options.leaseOwner,
+          },
+          data: { state: "DONE", finishedAt: new Date() },
+        });
+        if (superseded.size > 0) {
+          await db.translationJob.updateMany({
+            where: {
+              runId,
+              entityId: { in: [...superseded] },
+              state: "RUNNING",
+              claimedBy: options.leaseOwner,
+            },
+            data: {
+              state: "SKIPPED",
+              error: "superseded",
+              finishedAt: new Date(),
+            },
+          });
+        }
+        // Anything the model silently dropped stays FAILED rather than vanishing.
+        await db.translationJob.updateMany({
+          where: {
+            runId,
+            id: { in: batch.map((job) => job.id) },
+            state: "RUNNING",
+            claimedBy: options.leaseOwner,
+          },
+          data: {
+            state: "FAILED",
+            error: "no translation returned",
+            finishedAt: new Date(),
+          },
+        });
+
+        const modelUnits = translated.length - memoryHits;
+        const previous = await db.translationRun.findUniqueOrThrow({
+          where: { id: runId },
+          select: { rateUnitsPerMin: true },
+        });
+        const updated = await db.translationRun.updateMany({
+          where: { id: runId, leaseOwner: options.leaseOwner },
+          data: {
+            translatedUnits: { increment: translated.length },
+            flaggedUnits: { increment: flagged },
+            memoryHits: { increment: memoryHits },
+            promptTokens: { increment: promptTokens },
+            completionTokens: { increment: completionTokens },
+            leaseExpiresAt: leaseUntil(),
+            heartbeatAt: new Date(),
+            // A batch served entirely from memory says nothing about how fast the model is.
+            ...(modelUnits > 0
+              ? {
+                  rateUnitsPerMin: ewmaRate(
+                    previous.rateUnitsPerMin,
+                    batchRate(modelUnits, batchStarted, Date.now()),
+                  ),
+                  modelBatches: { increment: 1 },
+                }
+              : {}),
+          },
+        });
+        if (updated.count === 0) lostLease = true;
+        processed += batch.length;
+      } catch (error) {
+        if (options.signal?.aborted) {
+          // A deploy is not the unit's fault: hand the batch back without charging an attempt.
+          await db.translationJob.updateMany({
+            where: {
+              runId,
+              id: { in: batch.map((job) => job.id) },
+              state: "RUNNING",
+              claimedBy: options.leaseOwner,
+            },
+            data: {
+              state: "QUEUED",
+              startedAt: null,
+              claimedBy: null,
+              attempts: { decrement: 1 },
+            },
+          });
+          stopReason = "aborted";
+          break;
+        }
+        // One bad batch must not end a run of three thousand. Record it and carry on.
+        logger.error({ error, runId, entity }, "translation batch failed");
+        await db.translationJob.updateMany({
+          where: {
+            runId,
+            id: { in: batch.map((job) => job.id) },
+            state: "RUNNING",
+            claimedBy: options.leaseOwner,
+          },
+          data: {
+            state: "FAILED",
+            error:
+              error instanceof Error ? error.message.slice(0, 300) : "unknown",
+            finishedAt: new Date(),
+          },
+        });
+        const updated = await db.translationRun.updateMany({
+          where: { id: runId, leaseOwner: options.leaseOwner },
+          data: {
+            failedUnits: { increment: batch.length },
+            leaseExpiresAt: leaseUntil(),
+            heartbeatAt: new Date(),
+          },
+        });
+        if (updated.count === 0) lostLease = true;
+        processed += batch.length;
+      }
+
+      options.onProgress?.({ ...(await progressOf(db, runId)), stopReason });
     }
+  } finally {
+    clearInterval(keepalive);
+  }
 
-    options.onProgress?.(await progressOf(db, runId));
+  if (stopReason === "lostLease") {
+    logger.warn(
+      { runId, leaseOwner: options.leaseOwner },
+      "lost the lease — leaving the run to its new owner",
+    );
+    return { ...(await progressOf(db, runId)), stopReason };
   }
 
   // Push approved question translations out to the variants students are served.
@@ -455,43 +671,110 @@ export async function executeRun(
   }
   await invalidateMessages(run.locale);
 
+  const release = { leaseOwner: null, leaseExpiresAt: null };
+  if (stopReason === "cancelled") {
+    // Index: TranslationJob[runId, state, entity].
+    await db.translationJob.updateMany({
+      where: { runId, state: { in: ["QUEUED", "RUNNING"] } },
+      data: { state: "SKIPPED", error: "cancelled", finishedAt: new Date() },
+    });
+    await db.translationRun.updateMany({
+      where: { id: runId, leaseOwner: options.leaseOwner },
+      data: {
+        status: "CANCELLED",
+        finishedAt: new Date(),
+        cancelRequested: false,
+        ...release,
+      },
+    });
+    return { ...(await progressOf(db, runId)), stopReason };
+  }
+
+  // RUNNING counts too: a job this runner could not finish is not a finished run.
+  // Index: TranslationJob[runId, state, entity].
   const remaining = await db.translationJob.count({
-    where: { runId, state: "QUEUED" },
+    where: { runId, state: { in: ["QUEUED", "RUNNING"] } },
   });
-  const finished = remaining === 0;
-  if (finished) {
-    await db.translationRun.update({
-      where: { id: runId },
+  if (remaining === 0) {
+    await db.translationRun.updateMany({
+      where: { id: runId, leaseOwner: options.leaseOwner },
       data: {
         status: "COMPLETED",
         finishedAt: new Date(),
-        leaseOwner: null,
-        leaseExpiresAt: null,
+        // Nothing left to pause; a stale flag would only confuse the run board.
+        pauseRequested: false,
+        ...release,
       },
-      select: { id: true },
     });
-    await db.language.update({
-      where: { code: run.locale },
-      data: { lastSyncedAt: new Date() },
-      select: { code: true },
-    });
-    await auditLog({
-      actorId: null,
-      action: AUDIT.translationRunFinished,
-      entityType: "TranslationRun",
-      entityId: runId,
-      meta: { locale: run.locale },
-    });
-  } else {
-    await db.translationRun.update({
-      where: { id: runId },
-      data: { status: "PAUSED", leaseOwner: null, leaseExpiresAt: null },
-      select: { id: true },
-    });
+    // Only a whole-language pass may claim the language is in sync. A SINGLE_ENTITY slice, a
+    // REPAIR or a SAMPLE finishing does not mean every unit is current.
+    if (run.kind === "SYNC" || run.kind === "FULL") {
+      await db.language.update({
+        where: { code: run.locale },
+        data: { lastSyncedAt: new Date() },
+        select: { code: true },
+      });
+    }
+    if (run.kind !== "SAMPLE") {
+      await auditLog({
+        actorId: null,
+        action: AUDIT.translationRunFinished,
+        entityType: "TranslationRun",
+        entityId: runId,
+        meta: { locale: run.locale, kind: run.kind },
+      });
+    }
+    return { ...(await progressOf(db, runId)), stopReason: "finished" };
   }
 
-  return progressOf(db, runId);
+  // `pauseRequested` is deliberately NOT cleared here: an admin's pause must outlive the runner
+  // that honoured it, or the worker would re-claim the run on its very next tick. Only a resume
+  // clears it. A bounded slice ending never set the flag in the first place.
+  await db.translationRun.updateMany({
+    where: { id: runId, leaseOwner: options.leaseOwner },
+    data: { status: "PAUSED", ...release },
+  });
+  return { ...(await progressOf(db, runId)), stopReason };
 }
+
+interface SliceOutcome {
+  translated: TranslatedUnit[];
+  /** Units whose row was approved/edited/re-sourced while the batch ran; never overwritten. */
+  superseded: Set<string>;
+}
+
+async function translateSlice(
+  db: PrismaClient,
+  locale: string,
+  language: LanguagePolicy,
+  units: TranslationUnit[],
+  runId: string,
+  signal: AbortSignal | undefined,
+): Promise<SliceOutcome> {
+  const translated = await translateBatch(
+    db,
+    language,
+    units,
+    signal ? { signal } : {},
+  );
+  await storeTranslations(db, locale, translated, runId);
+  return { translated, superseded: new Set() };
+}
+
+// `repairSlice` is added in Task 16; until then it is a stub that throws so a REPAIR run cannot
+// silently take the normal path. The parameter list is the contract Task 16 fills in, so it stays.
+/* eslint-disable @typescript-eslint/no-unused-vars */
+async function repairSlice(
+  _db: PrismaClient,
+  _locale: string,
+  _language: LanguagePolicy,
+  _units: TranslationUnit[],
+  _runId: string,
+  _signal: AbortSignal | undefined,
+): Promise<SliceOutcome> {
+  throw new Error("REPAIR runs land in Phase 2 (Task 16)");
+}
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 async function unitsFor(
   db: PrismaClient,
@@ -523,8 +806,10 @@ export async function progressOf(
       memoryHits: true,
     },
   });
+  // A job left RUNNING by a killed process is outstanding work, not finished work.
+  // Index: TranslationJob[runId, state, entity].
   const remaining = await db.translationJob.count({
-    where: { runId, state: "QUEUED" },
+    where: { runId, state: { in: ["QUEUED", "RUNNING"] } },
   });
   return {
     runId: run.id,
@@ -535,5 +820,8 @@ export async function progressOf(
     flagged: run.flaggedUnits,
     memoryHits: run.memoryHits,
     done: remaining === 0,
+    // A plain progress read has no stop of its own to report; every caller inside `executeRun`
+    // spreads this and overrides it with the reason it actually stopped.
+    stopReason: "finished",
   };
 }

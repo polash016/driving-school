@@ -124,6 +124,8 @@ export async function translateBatch(
   db: PrismaClient,
   language: LanguagePolicy,
   units: TranslationUnit[],
+  /** Worker shutdown, threaded into every provider call this batch makes. */
+  options: { signal?: AbortSignal } = {},
 ): Promise<TranslatedUnit[]> {
   if (units.length === 0) return [];
 
@@ -196,6 +198,7 @@ export async function translateBatch(
     schema: translationResponseSchema,
     temperature: 0.2,
     maxTokens: 8192,
+    ...(options.signal ? { signal: options.signal } : {}),
   });
 
   const byId = new Map(response.data.units.map((entry) => [entry.id, entry]));
@@ -271,6 +274,7 @@ export async function translateBatch(
       locale: language.code,
       languageName: language.englishName,
       units: qaInputs,
+      ...(options.signal ? { signal: options.signal } : {}),
     });
 
     for (const candidate of sampled) {
@@ -337,6 +341,8 @@ export async function storeTranslations(
         semanticScore: item.semanticScore,
         qaFlags: item.qaFlags,
         runId,
+        // A fresh translation is a fresh repair budget.
+        repairAttempts: 0,
       },
       update: {
         value: item.value as object,
@@ -352,6 +358,8 @@ export async function storeTranslations(
         semanticScore: item.semanticScore,
         qaFlags: item.qaFlags,
         runId,
+        // A fresh translation is a fresh repair budget.
+        repairAttempts: 0,
         // A re-translation supersedes any earlier review.
         reviewedById: null,
         reviewedAt: null,
