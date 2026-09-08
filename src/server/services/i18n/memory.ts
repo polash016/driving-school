@@ -106,8 +106,8 @@ export async function rememberTranslations(
     );
   } catch (error) {
     logger.warn(
-      { error, count: inputs.length },
-      "translation memory write skipped",
+      { error, locale: inputs[0].locale, count: inputs.length },
+      "translation memory batch write failed",
     );
   }
 }

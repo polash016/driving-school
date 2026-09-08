@@ -338,9 +338,11 @@ export async function storeTranslations(
   runId: string | null,
 ): Promise<void> {
   if (translated.length === 0) return;
-  // One array transaction, not Promise.all: one connection per batch, and the batch lands
-  // atomically with the DONE marking that follows. Three concurrent slots × 20 upserts under
-  // Promise.all would exhaust the default pool.
+  // One array transaction, not a write per unit: it holds one connection for the batch instead
+  // of one per unit, which matters once the runner runs several batches concurrently (3 slots ×
+  // BATCH_SIZE writes would queue past a small default pool — physical CPUs × 2 + 1, so 5 on a
+  // 2-vCPU host — and time out at `pool_timeout`). It also lands all-or-nothing, so the DONE
+  // marking the runner does next can never be true of a half-written batch.
   const upserts = translated.map((item) =>
     db.translation.upsert({
       where: {

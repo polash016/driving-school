@@ -312,12 +312,13 @@ async function retireExhausted(
     data: { state: "SKIPPED" },
   });
   if (retired.count === 0) return 0;
-  await db.translationRun.updateMany({
+  const updated = await db.translationRun.updateMany({
     where: { id: runId, leaseOwner },
     data: { failedUnits: { increment: retired.count } },
   });
   // Returned so the runner's in-memory counters stay level with the row without re-reading it.
-  return retired.count;
+  // The row did not move if the lease is gone; do not let the caller's counter claim it did.
+  return updated.count === 0 ? 0 : retired.count;
 }
 
 /**
@@ -435,8 +436,10 @@ export async function executeRun(
     failed: run.failedUnits,
     memoryHits: run.memoryHits,
   };
-  const snapshot = (stopReason: StopReason): RunProgress => ({
+  const snapshot = (reason: StopReason): RunProgress => ({
     runId,
+    // Per-batch only: the run is claimed and the loop is still going, by definition. Terminal
+    // reads go through progressOf, which reports the real status and counts outstanding jobs.
     status: "RUNNING",
     planned: run.plannedUnits,
     completed: counters.translated,
@@ -444,7 +447,7 @@ export async function executeRun(
     flagged: counters.flagged,
     memoryHits: counters.memoryHits,
     done: false,
-    stopReason,
+    stopReason: reason,
   });
 
   // Keepalive IS the heartbeat: a batch on the slow self-hosted model routinely outlives a 2-minute
@@ -662,10 +665,15 @@ export async function executeRun(
               : {}),
           },
         });
-        if (updated.count === 0) lostLease = true;
-        counters.translated += translated.length - superseded.size;
-        counters.flagged += flagged;
-        counters.memoryHits += memoryHits;
+        if (updated.count === 0) {
+          lostLease = true;
+        } else {
+          // Only what the row actually took: a runner that has lost the lease wrote nothing, and
+          // its counters must not report progress the database does not have.
+          counters.translated += translated.length - superseded.size;
+          counters.flagged += flagged;
+          counters.memoryHits += memoryHits;
+        }
         processed += batch.length;
       } catch (error) {
         if (options.signal?.aborted) {
@@ -726,8 +734,9 @@ export async function executeRun(
   // The loop retires exhausted jobs at the top of each pass, which the last failure of a run
   // never reaches: it stops on the budget, a pause, or an empty queue instead. Once more here, so
   // every terminal failure is SKIPPED and counted exactly once whatever ended the run.
+  // Final sweep; the terminal return reads progressOf, not counters.
   if (stopReason !== "lostLease")
-    counters.failed += await retireExhausted(db, runId, options.leaseOwner);
+    await retireExhausted(db, runId, options.leaseOwner);
 
   if (stopReason === "lostLease") {
     logger.warn(

@@ -183,6 +183,14 @@ describe("storeTranslations", () => {
       ),
     ).toEqual(["topic-1", "topic-2", "topic-3"]);
   });
+
+  it("issues no transaction for an empty batch", async () => {
+    const { stub, db } = stubDb();
+    await storeTranslations(db, "es", [], "run1");
+
+    expect(stub.$transaction).not.toHaveBeenCalled();
+    expect(stub.translation.upsert).not.toHaveBeenCalled();
+  });
 });
 
 describe("translateBatch rejections", () => {
@@ -242,5 +250,17 @@ describe("translation memory writes", () => {
     const hashOf = (n: number) => memoryHash("TOPIC", topicUnit(n).en, 1);
     expect(written).toEqual([hashOf(1), hashOf(3)]);
     expect(written).not.toContain(hashOf(2));
+  });
+
+  it("never fails the batch when the memory write does", async () => {
+    const { stub, db } = stubDb();
+    stubTranslation();
+    // A lost memory row costs a few tokens next time; failing the run over it costs the batch.
+    stub.$transaction.mockRejectedValueOnce(new Error("pool timeout"));
+
+    const out = await translateBatch(db, language, [topicUnit(1)], {});
+
+    expect(out).toHaveLength(1);
+    expect(out[0].status).toBe("MACHINE");
   });
 });
