@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { ProviderError, ProviderTruncatedError } from "@/server/ai/providers";
 
@@ -62,10 +62,14 @@ const prompt = {
 };
 
 describe("withFallback", () => {
+  beforeEach(() => {
+    chat1.mockReset();
+    chat2.mockReset();
+  });
+
   it("rethrows ProviderTruncatedError unwrapped and never tries route 2", async () => {
     const truncated = new ProviderTruncatedError(8192, 8192);
-    chat1.mockReset().mockRejectedValueOnce(truncated);
-    chat2.mockReset();
+    chat1.mockRejectedValueOnce(truncated);
 
     await expect(
       aiJson({
@@ -80,10 +84,8 @@ describe("withFallback", () => {
   });
 
   it("a retryable ProviderError still moves to route 2", async () => {
-    chat1
-      .mockReset()
-      .mockRejectedValueOnce(new ProviderError("down", 503, true));
-    chat2.mockReset().mockResolvedValueOnce({
+    chat1.mockRejectedValueOnce(new ProviderError("down", 503, true));
+    chat2.mockResolvedValueOnce({
       text: '{"ok":true}',
       model: "m2",
       promptTokens: 1,

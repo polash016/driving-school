@@ -100,6 +100,7 @@ export const googleAdapter: ProviderAdapter = {
           parts: toGeminiParts(message.content),
         }));
     const timeoutMs = request.timeoutMs ?? schoolConfig.ai.requestTimeoutMs;
+    const maxTokens = request.maxTokens ?? 4096;
 
     const response = await fetchWithDeadline(
       `${base}/models/${request.model}:generateContent?key=${credentials.apiKey}`,
@@ -113,7 +114,7 @@ export const googleAdapter: ProviderAdapter = {
           contents,
           generationConfig: {
             temperature: request.temperature ?? 0.4,
-            maxOutputTokens: request.maxTokens ?? 4096,
+            maxOutputTokens: maxTokens,
             ...(request.json ? { responseMimeType: "application/json" } : {}),
           },
         }),
@@ -128,10 +129,19 @@ export const googleAdapter: ProviderAdapter = {
     const candidate = parsed.candidates[0];
     if (candidate.finishReason === "MAX_TOKENS")
       throw new ProviderTruncatedError(
-        request.maxTokens,
+        maxTokens,
         parsed.usageMetadata?.candidatesTokenCount ?? 0,
       );
-    const text = (candidate.content?.parts ?? [])
+    // SAFETY, RECITATION, or a STOP with nothing generated: not truncation, just nothing to
+    // return. Left unchecked this silently became "" and surfaced downstream as a misleading
+    // "response failed contract validation" instead of naming what Gemini actually said.
+    if (!candidate.content?.parts?.length)
+      throw new ProviderError(
+        `no content returned (finishReason ${candidate.finishReason ?? "unset"})`,
+        502,
+        false,
+      );
+    const text = candidate.content.parts
       .map((part) => part.text ?? "")
       .join("");
 
@@ -186,7 +196,8 @@ export const googleAdapter: ProviderAdapter = {
     await this.chat(credentials, {
       model,
       messages: [{ role: "user", content: "ping" }],
-      maxTokens: 1,
+      // No maxTokens: a 1-token cap makes every ping finish on MAX_TOKENS, which is now a
+      // ProviderTruncatedError. The model stops on its own after "ping"; the cap is a ceiling, not a target.
       timeoutMs: options?.timeoutMs ?? schoolConfig.ai.pingTimeoutMs,
     });
   },

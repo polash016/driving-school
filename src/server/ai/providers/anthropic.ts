@@ -21,9 +21,9 @@ const API_VERSION = "2023-06-01";
 
 const responseSchema = z.object({
   model: z.string().optional(),
-  content: z
-    .array(z.object({ type: z.string(), text: z.string().optional() }))
-    .min(1),
+  // No `.min(1)`: a `max_tokens` finish can arrive with an empty `content` array (nothing
+  // produced before the cap), and `.map().join("")` below already tolerates that.
+  content: z.array(z.object({ type: z.string(), text: z.string().optional() })),
   stop_reason: z.string().optional(),
   usage: z
     .object({
@@ -45,6 +45,7 @@ export const anthropicAdapter: ProviderAdapter = {
       (message) => message.role !== "system",
     );
     const timeoutMs = request.timeoutMs ?? schoolConfig.ai.requestTimeoutMs;
+    const maxTokens = request.maxTokens ?? 4096;
 
     const response = await fetchWithDeadline(
       `${base}/messages`,
@@ -57,7 +58,7 @@ export const anthropicAdapter: ProviderAdapter = {
         },
         body: JSON.stringify({
           model: request.model,
-          max_tokens: request.maxTokens ?? 4096,
+          max_tokens: maxTokens,
           temperature: request.temperature ?? 0.4,
           ...(system && typeof system.content === "string"
             ? { system: system.content }
@@ -96,7 +97,7 @@ export const anthropicAdapter: ProviderAdapter = {
 
     if (parsed.stop_reason === "max_tokens")
       throw new ProviderTruncatedError(
-        request.maxTokens,
+        maxTokens,
         parsed.usage?.output_tokens ?? 0,
       );
 
@@ -112,7 +113,8 @@ export const anthropicAdapter: ProviderAdapter = {
     await this.chat(credentials, {
       model,
       messages: [{ role: "user", content: "ping" }],
-      maxTokens: 1,
+      // No maxTokens: a 1-token cap makes every ping finish on MAX_TOKENS, which is now a
+      // ProviderTruncatedError. The model stops on its own after "ping"; the cap is a ceiling, not a target.
       timeoutMs: options?.timeoutMs ?? schoolConfig.ai.pingTimeoutMs,
     });
   },

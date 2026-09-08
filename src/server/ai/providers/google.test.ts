@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ProviderTruncatedError } from "./types";
+import { ProviderError, ProviderTruncatedError } from "./types";
 import { googleAdapter } from "./google";
 
 /**
@@ -7,9 +7,17 @@ import { googleAdapter } from "./google";
  * produced nothing before the cap) or with `content.parts` holding a partial fragment. Both must
  * surface as a typed, non-retryable ProviderTruncatedError — never as a ZodError from a schema
  * that assumed `content.parts` always exists.
+ *
+ * A non-MAX_TOKENS finish with no parts (SAFETY, RECITATION, an empty STOP) is a different
+ * failure — not truncation, just nothing to return — and must not be swallowed into a silent "".
  */
 
 const CREDENTIALS = { apiKey: "AIza-test-12345678", baseUrl: null };
+
+/** A fetch stub that always answers 200 with the given JSON body. */
+function respondWith(body: unknown) {
+  return vi.fn(async () => new Response(JSON.stringify(body), { status: 200 }));
+}
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -17,19 +25,10 @@ describe("google adapter", () => {
   it("a MAX_TOKENS candidate with no content.parts throws ProviderTruncatedError, not a ZodError", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(
-        async () =>
-          new Response(
-            JSON.stringify({
-              candidates: [{ finishReason: "MAX_TOKENS" }],
-              usageMetadata: {
-                promptTokenCount: 10,
-                candidatesTokenCount: 8192,
-              },
-            }),
-            { status: 200 },
-          ),
-      ),
+      respondWith({
+        candidates: [{ finishReason: "MAX_TOKENS" }],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 8192 },
+      }),
     );
 
     await expect(
@@ -42,6 +41,7 @@ describe("google adapter", () => {
       (e: unknown) =>
         e instanceof ProviderTruncatedError &&
         e.completionTokens === 8192 &&
+        e.maxTokens === 8192 &&
         !e.retryable,
     );
   });
@@ -49,24 +49,15 @@ describe("google adapter", () => {
   it("a MAX_TOKENS candidate with partial parts throws ProviderTruncatedError", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(
-        async () =>
-          new Response(
-            JSON.stringify({
-              candidates: [
-                {
-                  finishReason: "MAX_TOKENS",
-                  content: { parts: [{ text: '{"units":[' }] },
-                },
-              ],
-              usageMetadata: {
-                promptTokenCount: 10,
-                candidatesTokenCount: 8192,
-              },
-            }),
-            { status: 200 },
-          ),
-      ),
+      respondWith({
+        candidates: [
+          {
+            finishReason: "MAX_TOKENS",
+            content: { parts: [{ text: '{"units":[' }] },
+          },
+        ],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 8192 },
+      }),
     );
 
     await expect(
@@ -79,7 +70,31 @@ describe("google adapter", () => {
       (e: unknown) =>
         e instanceof ProviderTruncatedError &&
         e.completionTokens === 8192 &&
+        e.maxTokens === 8192 &&
         !e.retryable,
+    );
+  });
+
+  it("a SAFETY candidate with no parts throws a ProviderError naming the finish reason", async () => {
+    vi.stubGlobal(
+      "fetch",
+      respondWith({
+        candidates: [{ finishReason: "SAFETY" }],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 0 },
+      }),
+    );
+
+    await expect(
+      googleAdapter.chat(CREDENTIALS, {
+        model: "gemini-test",
+        messages: [{ role: "user", content: "x" }],
+      }),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof ProviderError &&
+        !(e instanceof ProviderTruncatedError) &&
+        !e.retryable &&
+        e.message.includes("SAFETY"),
     );
   });
 
@@ -113,21 +128,15 @@ describe("google adapter", () => {
   it("a STOP candidate parses as before", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(
-        async () =>
-          new Response(
-            JSON.stringify({
-              candidates: [
-                {
-                  finishReason: "STOP",
-                  content: { parts: [{ text: "hello " }, { text: "world" }] },
-                },
-              ],
-              usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 2 },
-            }),
-            { status: 200 },
-          ),
-      ),
+      respondWith({
+        candidates: [
+          {
+            finishReason: "STOP",
+            content: { parts: [{ text: "hello " }, { text: "world" }] },
+          },
+        ],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 2 },
+      }),
     );
 
     const result = await googleAdapter.chat(CREDENTIALS, {
@@ -138,5 +147,29 @@ describe("google adapter", () => {
     expect(result.text).toBe("hello world");
     expect(result.promptTokens).toBe(10);
     expect(result.completionTokens).toBe(2);
+  });
+
+  it("ping resolves on a STOP answer and does not send a 1-token cap", async () => {
+    let sentBody: { generationConfig?: { maxOutputTokens?: number } } = {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        sentBody = JSON.parse(String(init.body));
+        return new Response(
+          JSON.stringify({
+            candidates: [
+              { content: { parts: [{ text: "pong" }] }, finishReason: "STOP" },
+            ],
+            usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 },
+          }),
+          { status: 200 },
+        );
+      }),
+    );
+
+    await expect(
+      googleAdapter.ping(CREDENTIALS, "gemini-test"),
+    ).resolves.toBeUndefined();
+    expect(sentBody.generationConfig?.maxOutputTokens).not.toBe(1);
   });
 });

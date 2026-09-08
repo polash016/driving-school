@@ -24,7 +24,7 @@ const chatSchema = z.object({
   choices: z
     .array(
       z.object({
-        message: z.object({ content: z.string() }),
+        message: z.object({ content: z.string().nullable() }),
         finish_reason: z.string().nullable().optional(),
       }),
     )
@@ -54,6 +54,7 @@ export const openAiCompatibleAdapter: ProviderAdapter = {
 
   async chat(credentials, request: ChatRequest): Promise<ChatResponse> {
     const timeoutMs = request.timeoutMs ?? schoolConfig.ai.requestTimeoutMs;
+    const maxTokens = request.maxTokens ?? 4096;
     const response = await fetchWithDeadline(
       endpoint(credentials, "/chat/completions"),
       {
@@ -69,7 +70,7 @@ export const openAiCompatibleAdapter: ProviderAdapter = {
           // which answers 200 with text/event-stream that no JSON parser can read.
           stream: false,
           temperature: request.temperature ?? 0.4,
-          max_tokens: request.maxTokens ?? 4096,
+          max_tokens: maxTokens,
           ...(request.json ? { response_format: { type: "json_object" } } : {}),
         }),
       },
@@ -83,12 +84,12 @@ export const openAiCompatibleAdapter: ProviderAdapter = {
     const choice = parsed.choices[0];
     if (choice.finish_reason === "length")
       throw new ProviderTruncatedError(
-        request.maxTokens,
+        maxTokens,
         parsed.usage?.completion_tokens ?? 0,
       );
 
     return {
-      text: choice.message.content,
+      text: choice.message.content ?? "",
       model: parsed.model ?? request.model,
       promptTokens: parsed.usage?.prompt_tokens ?? 0,
       completionTokens: parsed.usage?.completion_tokens ?? 0,

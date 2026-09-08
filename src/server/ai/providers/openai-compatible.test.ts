@@ -27,6 +27,11 @@ const COMPLETION = {
   usage: { prompt_tokens: 17, completion_tokens: 1 },
 };
 
+/** A fetch stub that always answers 200 with the given JSON body. */
+function respondWith(body: unknown) {
+  return vi.fn(async () => new Response(JSON.stringify(body), { status: 200 }));
+}
+
 /** A gateway that behaves like OmniRoute: it streams unless the caller opts out explicitly. */
 function streamsUnlessTold() {
   return vi.fn(async (_url: string, init: RequestInit) => {
@@ -165,23 +170,17 @@ describe("openai-compatible adapter", () => {
   it("maps finish_reason=length to a non-retryable ProviderTruncatedError", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(
-        async () =>
-          new Response(
-            JSON.stringify({
-              ...COMPLETION,
-              choices: [
-                {
-                  index: 0,
-                  finish_reason: "length",
-                  message: { role: "assistant", content: '{"units":[{' },
-                },
-              ],
-              usage: { prompt_tokens: 10, completion_tokens: 4096 },
-            }),
-            { status: 200 },
-          ),
-      ),
+      respondWith({
+        ...COMPLETION,
+        choices: [
+          {
+            index: 0,
+            finish_reason: "length",
+            message: { role: "assistant", content: '{"units":[{' },
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 4096 },
+      }),
     );
 
     await expect(
@@ -200,25 +199,51 @@ describe("openai-compatible adapter", () => {
     );
   });
 
+  // OpenRouter and some gateways answer a length finish with `content: null` rather than a
+  // partial string — the schema must not require a string ahead of the truncation check.
+  it("finish_reason=length with content null is a ProviderTruncatedError, not a ZodError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      respondWith({
+        ...COMPLETION,
+        choices: [
+          {
+            index: 0,
+            finish_reason: "length",
+            message: { role: "assistant", content: null },
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 4096 },
+      }),
+    );
+
+    await expect(
+      openAiCompatibleAdapter.chat(CREDENTIALS, {
+        model: "m",
+        messages: [{ role: "user", content: "x" }],
+        maxTokens: 4096,
+      }),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof ProviderTruncatedError &&
+        !e.retryable &&
+        e.completionTokens === 4096,
+    );
+  });
+
   it("finish_reason=stop is not an error", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(
-        async () =>
-          new Response(
-            JSON.stringify({
-              ...COMPLETION,
-              choices: [
-                {
-                  index: 0,
-                  finish_reason: "stop",
-                  message: { role: "assistant", content: "hello" },
-                },
-              ],
-            }),
-            { status: 200 },
-          ),
-      ),
+      respondWith({
+        ...COMPLETION,
+        choices: [
+          {
+            index: 0,
+            finish_reason: "stop",
+            message: { role: "assistant", content: "hello" },
+          },
+        ],
+      }),
     );
 
     const result = await openAiCompatibleAdapter.chat(CREDENTIALS, {

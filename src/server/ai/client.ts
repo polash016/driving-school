@@ -133,6 +133,7 @@ async function withFallback<T>(
       return { result: await run(candidate), candidate };
     } catch (error) {
       // A truncation must reach the runner as itself: it halves the batch, it does not try route 2.
+      // Not logged or recorded here: the runner logs the halving, and the class carries the cause.
       if (error instanceof ProviderTruncatedError) throw error;
 
       const retryable =
