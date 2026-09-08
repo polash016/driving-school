@@ -227,8 +227,8 @@ or an architecture decision is made that isn't captured in a spec — it gets an
   different papers; a retry gets a third. `TaskSetMember` is unique on `masterItemId`, so every
   approved question lives in exactly one slice — coverage is provable by one COUNT, and finishing
   all sets means finishing the bank.
-- **Rejected:** *fixed 45-question sets* (identical, memorisable papers — the exact leak the school
-  wants to avoid) and *shape-only sets* (unleakable, but coverage is never provable and #7 vs #12
+- **Rejected:** _fixed 45-question sets_ (identical, memorisable papers — the exact leak the school
+  wants to avoid) and _shape-only sets_ (unleakable, but coverage is never provable and #7 vs #12
   differ only by random seed, making the numbered grid decoration).
 - **This is leak-proof with today's single-variant bank.** `publish.ts` writes exactly one
   `TEMPLATE` variant per master item and nothing has ever written an `AI_VARIATION`, so "the same
@@ -257,7 +257,7 @@ or an architecture decision is made that isn't captured in a spec — it gets an
   with See all. Headline stats stay at two cards; the streak and readiness gauge move to the
   statistics page. Norwegian: **Oppgavesett / Øving / Skiltest**.
 - **Sign test is unchanged** — one tap into a sign run. `startQuizInput.itemType` stays in the
-  engine; only the Theory and Image *tiles* are gone.
+  engine; only the Theory and Image _tiles_ are gone.
 - **Impact:** new `specs/spec-16-task-sets.md` and `specs/spec-17-ai-variants.md`; amendments
   appended to specs 08 and 09; new Prisma models `TaskSet`, `TaskSetMember`, `TaskSetBuild`,
   `TaskSetProgress`, enum `TaskSetStatus`, `AttemptMode.TASK_SET`, `ExamAttempt.taskSetId`. New
@@ -324,7 +324,7 @@ or an architecture decision is made that isn't captured in a spec — it gets an
   translucent surface, and a blurred layer under a long grid is the most expensive thing on the
   page.
 - **Accessibility is enforced, not hoped for.** `prefers-reduced-transparency`, `prefers-contrast:
-  more` and `@supports not (backdrop-filter)` each collapse the glass to an opaque surface. All
+more` and `@supports not (backdrop-filter)` each collapse the glass to an opaque surface. All
   three verified by reading the computed style, not by reading the CSS.
 - **Two real defects were found by measuring rather than assuming:**
   1. **`ring-1` silently erased every card shadow.** Tailwind's ring utilities compose into
@@ -351,3 +351,41 @@ or an architecture decision is made that isn't captured in a spec — it gets an
   demoed with production-shaped data instead of hand-written rows.
 - **Approved by:** developer (design chosen from mockups; hover/shadow/data follow-ups requested
   and delivered in the same pass)
+
+## 2026-09-09 · spec-19 · Unattended translation: deviations from the spec, and one superseded spec
+
+- **`repairAttempts` lives on `Translation`, not `TranslationJob`** as spec-19 §Data model states. A
+  job is scoped to one run, so a per-job counter hands every new REPAIR run a fresh 3-attempt
+  budget — the ceiling would never bind and the repair chain could loop for ever. On the
+  translation row the budget persists across runs, and any fresh (non-repair) translation resets it
+  to 0, which is the correct semantics anyway: new text deserves new attempts.
+- **Four additive columns beyond the spec.** `TranslationRun.enqueuedAt` is the worker gate — the
+  worker claims only runs an admin explicitly started, so today's cost-free "Plan" preview stays
+  cost-free. `pauseRequested` is needed because `PAUSED` already means "a bounded slice ended" and
+  cannot also mean "an admin stopped this". `rateUnitsPerMin` + `modelBatches` carry an EWMA of
+  throughput: an ETA computed from a `finishedAt` window flickers to "unknown" on any slow batch and
+  swings wildly when a batch is served from translation memory. `TranslationJob.claimedBy` records
+  which runner won each job — Prisma 6.19's generated client here has no `updateManyAndReturn`, so
+  an exact partial claim needs an owner column.
+- **Four defects in the EXISTING runner are fixed as part of Phase 1**, because an unattended worker
+  exposes all of them immediately and the spec's own acceptance items cannot pass otherwise:
+  1. The 2-minute lease was extended only _after_ a batch, but a QA'd batch on the self-hosted model
+     routinely takes longer — so a live run could be taken over mid-batch and both runners wrote
+     status. Now an in-batch keepalive holds the lease and every write is guarded on `leaseOwner`.
+  2. `RUNNING` jobs orphaned by a crash were never re-queued and completion counted only `QUEUED`,
+     so after a `kill -9` a run reported COMPLETED with units silently missing. Now they are
+     re-queued on claim and completion waits for both states.
+  3. Two runs for the same locale could each hold a job for the same unit and translate it twice.
+     Now `executeRun` refuses to start while another run for that locale holds a live lease.
+  4. A partial job claim still translated the whole batch. Now the batch is re-read by `claimedBy`.
+- **Spec-14's "worker as a docker-compose service" is superseded by a pm2 app** for this
+  deployment: the VPS user `ai-dev` is not in the `docker` group, so a container worker cannot run
+  there. Spec-14 is unimplemented; its brief should be amended when it is picked up.
+- **`ecosystem.config.cjs` is committed to the repo AND kept on the VPS.** The repo file is the
+  reproducible definition of both processes; the deploy backs up the server's copy and reconciles
+  the two rather than silently overwriting a file that was hand-edited in production.
+- **`ai.pingTimeoutMs` defaults to 60 s, not the 20 s first proposed.** A healthy OmniRoute ping was
+  measured at 7–13 s, and 29.7 s under load — a 20 s budget would report healthy providers as
+  broken, which is the bug `eb9a48e` had just fixed.
+- **Approved by:** developer (plan approved 2026-09-09; subagent-driven execution on branch
+  `spec-19-translation-automation`)
