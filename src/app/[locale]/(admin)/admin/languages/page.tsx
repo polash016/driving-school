@@ -5,10 +5,12 @@ import {
 } from "@/components/admin/languages/language-board";
 import { requireUser } from "@/server/auth/require-user";
 import { db } from "@/server/db";
+import { keys, redis } from "@/server/redis";
 import {
   languageCoverage,
   listLanguages,
 } from "@/server/services/i18n/languages";
+import { latestRunFor } from "@/server/services/i18n/run-control";
 
 /**
  * Languages (spec-15): what the school offers, how far each one has got, and the two switches
@@ -29,22 +31,18 @@ export default async function LanguagesPage({
   ]);
 
   const rows: LanguageRow[] = await Promise.all(
-    languages.map(async (language) => ({
-      ...language,
-      coverage: await languageCoverage(db, language.code),
-    })),
+    languages.map(async (language) => {
+      // Index: TranslationRun[locale, status, createdAt] serves latestRunFor; coverage is its own
+      // cached read. Both per language, both bounded by the handful of languages a school offers.
+      const [coverage, latestRun] = await Promise.all([
+        languageCoverage(db, language.code),
+        latestRunFor(db, language.code),
+      ]);
+      return { ...language, coverage, latestRun };
+    }),
   );
 
-  const running = await db.translationRun.findFirst({
-    where: { status: { in: ["RUNNING", "PAUSED"] } },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      locale: true,
-      plannedUnits: true,
-      translatedUnits: true,
-    },
-  });
+  const workerOnline = await isWorkerOnline();
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-8">
@@ -55,19 +53,20 @@ export default async function LanguagesPage({
         <p className="text-sm/relaxed text-muted-foreground">{t("subtitle")}</p>
       </header>
 
-      <LanguageBoard
-        languages={rows}
-        activeRun={
-          running
-            ? {
-                id: running.id,
-                locale: running.locale,
-                planned: running.plannedUnits,
-                done: running.translatedUnits,
-              }
-            : null
-        }
-      />
+      <LanguageBoard languages={rows} workerOnline={workerOnline} />
     </div>
   );
+}
+
+/**
+ * The worker sets this key every poll with a 3×poll TTL, so its presence means one is alive.
+ * Redis being down must never take the board down — it degrades to "offline", which is exactly
+ * what an admin would conclude anyway.
+ */
+async function isWorkerOnline(): Promise<boolean> {
+  try {
+    return Boolean(await redis.get(keys.i18nWorker()));
+  } catch {
+    return false;
+  }
 }

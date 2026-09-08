@@ -2,7 +2,9 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { ConflictError } from "@/lib/errors";
 import { requireUser } from "@/server/auth/require-user";
+import type { SessionUser } from "@/server/authz";
 import type { ActionResult } from "@/server/contracts/common";
 import { db } from "@/server/db";
 import { toActionError } from "@/server/http/action-result";
@@ -10,6 +12,14 @@ import {
   createLanguage,
   updateLanguage,
 } from "@/server/services/i18n/languages";
+import {
+  requestCancel,
+  requestPause,
+  resumeRun,
+  runDetail,
+  startBackgroundRun,
+  type RunDetail,
+} from "@/server/services/i18n/run-control";
 import {
   bulkApproveTranslations,
   editTranslation,
@@ -20,6 +30,10 @@ import {
   planRun,
   type RunProgress,
 } from "@/server/services/i18n/runs";
+import {
+  sampleResults,
+  type SampleResultsView,
+} from "@/server/services/i18n/sample";
 import type { TranslatableEntity } from "@prisma/client";
 
 /**
@@ -94,6 +108,8 @@ export async function updateLanguageAction(
 
 export interface PlanOutcome {
   runId: string;
+  /** Which language the plan is for — the board shares one plan card across every row. */
+  locale: string;
   plannedUnits: number;
   estimatedUsd: number;
   byEntity: Record<string, number>;
@@ -120,6 +136,7 @@ export async function planRunAction(
       ok: true,
       data: {
         runId: plan.runId,
+        locale: plan.locale,
         plannedUnits: plan.plannedUnits,
         estimatedUsd: plan.estimatedUsd,
         byEntity: plan.byEntity,
@@ -144,6 +161,12 @@ export async function runSliceAction(
   const user = await requireUser("ADMIN");
   try {
     const runId = String(formData.get("runId") ?? "");
+    const run = await db.translationRun.findUnique({
+      where: { id: runId },
+      select: { enqueuedAt: true },
+    });
+    if (run?.enqueuedAt)
+      throw new ConflictError({ runId }, "admin.languages.errors.runEnqueued");
     const progress = await executeRun(db, runId, {
       leaseOwner: `admin-${user.id.slice(0, 8)}-${randomUUID().slice(0, 6)}`,
       maxUnits: Number(formData.get("maxUnits") ?? 25),
@@ -224,6 +247,155 @@ export async function editTranslationAction(
     });
     revalidatePath(`/admin/languages/${formData.get("code") ?? ""}`);
     return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export interface StartOutcome {
+  runId: string;
+  /** Carried back so the board knows which language the run it just queued belongs to. */
+  locale: string;
+  plannedUnits: number;
+  estimatedUsd: number;
+}
+
+/** Plan AND enqueue in one act — the worker picks it up on its next poll. */
+export async function startBackgroundRunAction(
+  _prev: ActionResult<StartOutcome> | undefined,
+  formData: FormData,
+): Promise<ActionResult<StartOutcome>> {
+  const user = await requireUser("ADMIN");
+  try {
+    const only = optionalString(formData, "only");
+    const plan = await startBackgroundRun(db, user, {
+      locale: String(formData.get("code") ?? ""),
+      ...(only ? { only: [only as TranslatableEntity] } : {}),
+    });
+    revalidatePath("/admin/languages");
+    revalidatePath(`/admin/languages/${plan.locale}`);
+    return {
+      ok: true,
+      data: {
+        runId: plan.runId,
+        locale: plan.locale,
+        plannedUnits: plan.plannedUnits,
+        estimatedUsd: plan.estimatedUsd,
+      },
+    };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+/**
+ * Re-translate what QA flagged, in the background.
+ *
+ * The worker chains a repair after every run of its own accord; this is the way back in when that
+ * chain stopped — a repair that fixed nothing (the provider was down) deliberately does not plan
+ * another, so somebody has to say "try again" once it is back.
+ */
+export async function startRepairRunAction(
+  _prev: ActionResult<StartOutcome> | undefined,
+  formData: FormData,
+): Promise<ActionResult<StartOutcome>> {
+  const user = await requireUser("ADMIN");
+  try {
+    const plan = await startBackgroundRun(db, user, {
+      locale: String(formData.get("code") ?? ""),
+      kind: "REPAIR",
+    });
+    revalidatePath("/admin/languages");
+    revalidatePath(`/admin/languages/${plan.locale}`);
+    return {
+      ok: true,
+      data: {
+        runId: plan.runId,
+        locale: plan.locale,
+        plannedUnits: plan.plannedUnits,
+        estimatedUsd: plan.estimatedUsd,
+      },
+    };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+/**
+ * Translate five units as a dry run.
+ *
+ * The cheapest way to find out that a glossary term or a style note is wrong. Five units is about
+ * a minute of a reviewer's attention and a fraction of a cent; the alternative is discovering it
+ * three thousand units later, after the whole language has been written in the wrong register.
+ */
+export async function startSampleRunAction(
+  _prev: ActionResult<StartOutcome> | undefined,
+  formData: FormData,
+): Promise<ActionResult<StartOutcome>> {
+  const user = await requireUser("ADMIN");
+  try {
+    const plan = await startBackgroundRun(db, user, {
+      locale: String(formData.get("code") ?? ""),
+      kind: "SAMPLE",
+    });
+    return {
+      ok: true,
+      data: {
+        runId: plan.runId,
+        locale: plan.locale,
+        plannedUnits: plan.plannedUnits,
+        estimatedUsd: plan.estimatedUsd,
+      },
+    };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+/** Read-only, no revalidation: polled every 3 s by the sample panel until the run is terminal. */
+export async function sampleResultsAction(
+  runId: string,
+): Promise<ActionResult<SampleResultsView>> {
+  await requireUser("ADMIN");
+  try {
+    return { ok: true, data: await sampleResults(db, runId) };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+function runControl(fn: (actor: SessionUser, runId: string) => Promise<void>) {
+  return async (
+    _prev: ActionResult | undefined,
+    formData: FormData,
+  ): Promise<ActionResult> => {
+    const user = await requireUser("ADMIN");
+    try {
+      await fn(user, String(formData.get("runId") ?? ""));
+      revalidatePath("/admin/languages");
+      return { ok: true };
+    } catch (error) {
+      return toActionError(error);
+    }
+  };
+}
+export const pauseRunAction = runControl((actor, runId) =>
+  requestPause(db, actor, runId),
+);
+export const resumeRunAction = runControl((actor, runId) =>
+  resumeRun(db, actor, runId),
+);
+export const cancelRunAction = runControl((actor, runId) =>
+  requestCancel(db, actor, runId),
+);
+
+/** Read-only, no revalidation: polled every 3 s by the progress panel. */
+export async function runDetailAction(
+  runId: string,
+): Promise<ActionResult<RunDetail>> {
+  await requireUser("ADMIN");
+  try {
+    return { ok: true, data: await runDetail(db, runId) };
   } catch (error) {
     return toActionError(error);
   }

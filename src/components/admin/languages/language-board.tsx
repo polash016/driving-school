@@ -6,9 +6,16 @@ import {
   addLanguageAction,
   planRunAction,
   runSliceAction,
+  startBackgroundRunAction,
+  startRepairRunAction,
+  startSampleRunAction,
   updateLanguageAction,
   type PlanOutcome,
+  type StartOutcome,
 } from "@/app/[locale]/(admin)/admin/languages/actions";
+import { RunPanel } from "@/components/admin/languages/run-panel";
+import { isRunLive } from "@/components/admin/languages/run-view";
+import { SampleResults } from "@/components/admin/languages/sample-results";
 import { FormAlert } from "@/components/auth/form-alert";
 import { SubmitButton } from "@/components/auth/submit-button";
 import { Button } from "@/components/ui/button";
@@ -16,6 +23,8 @@ import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/server/contracts/common";
+import type { Blocker } from "@/server/services/i18n/languages";
+import type { RunDetail } from "@/server/services/i18n/run-control";
 import type { RunProgress } from "@/server/services/i18n/runs";
 
 export interface LanguageRow {
@@ -34,8 +43,12 @@ export interface LanguageRow {
     ready: number;
     total: number;
     flagged: number;
+    /** What is standing between this language and students — empty exactly when `complete`. */
+    blockers: Blocker[];
     complete: boolean;
   };
+  /** The newest background run for this language, live or finished — null if there has never been one. */
+  latestRun: RunDetail | null;
 }
 
 /**
@@ -47,15 +60,11 @@ export interface LanguageRow {
  */
 export function LanguageBoard({
   languages,
-  activeRun,
+  workerOnline,
 }: {
   languages: LanguageRow[];
-  activeRun: {
-    id: string;
-    locale: string;
-    planned: number;
-    done: number;
-  } | null;
+  /** The background worker reported in recently — without it an enqueued run just waits. */
+  workerOnline: boolean;
 }) {
   const t = useTranslations("admin.languages");
   const tErrors = useTranslations();
@@ -77,16 +86,68 @@ export function LanguageBoard({
     ActionResult<RunProgress> | undefined,
     FormData
   >(runSliceAction, undefined);
+  const [startState, startAction] = useActionState<
+    ActionResult<StartOutcome> | undefined,
+    FormData
+  >(startBackgroundRunAction, undefined);
+  const [repairState, repairAction] = useActionState<
+    ActionResult<StartOutcome> | undefined,
+    FormData
+  >(startRepairRunAction, undefined);
+  const [sampleState, sampleAction] = useActionState<
+    ActionResult<StartOutcome> | undefined,
+    FormData
+  >(startSampleRunAction, undefined);
 
-  const error = [addState, updateState, planState, runState].find(
-    (state) => state?.ok === false,
-  );
+  const error = [
+    addState,
+    updateState,
+    planState,
+    runState,
+    startState,
+    repairState,
+    sampleState,
+  ].find((state) => state?.ok === false);
+  // Both actions enqueue a background run, so both report it the same way.
+  const queued = startState?.ok
+    ? startState.data
+    : repairState?.ok
+      ? repairState.data
+      : null;
+  // The sample panel renders the translation itself, so it needs the language's own reading
+  // direction — an Arabic sample laid out left-to-right is unreadable to the person judging it.
+  const sample = sampleState?.ok ? sampleState.data : null;
+  const sampleDirection =
+    languages.find((language) => language.code === sample?.locale)?.direction ??
+    "LTR";
 
   return (
     <div className="space-y-5">
       {error?.ok === false ? (
         <FormAlert>{tErrors(error.messageKey)}</FormAlert>
       ) : null}
+
+      {queued ? (
+        <FormAlert tone="success">
+          {t("startQueued", {
+            count: queued.plannedUnits,
+            cost: queued.estimatedUsd.toFixed(2),
+          })}
+        </FormAlert>
+      ) : null}
+
+      <p className="flex flex-wrap items-center gap-2 text-xs">
+        <span
+          className={cn(
+            "rounded-full px-2 py-0.5",
+            workerOnline
+              ? "bg-[var(--status-success-soft)] text-[var(--status-success-strong)]"
+              : "bg-muted text-muted-foreground",
+          )}
+        >
+          {workerOnline ? t("workerOnline") : t("workerOffline")}
+        </span>
+      </p>
 
       <ul className="space-y-3">
         {languages.map((language) => (
@@ -177,6 +238,18 @@ export function LanguageBoard({
                           style={{ width: `${language.coverage.percent}%` }}
                         />
                       </div>
+                      {/* The percentage says how far off; this says what of. The same list the
+                          language's own page turns into links. */}
+                      {language.coverage.blockers.length > 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          {language.coverage.blockers
+                            .map(
+                              (blocker) =>
+                                `${blocker.count} ${t(`readiness.kinds.${blocker.kind}`)}`,
+                            )
+                            .join(" · ")}
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
@@ -192,6 +265,45 @@ export function LanguageBoard({
                           pendingLabel={t("planning")}
                         />
                       </form>
+
+                      {/* Hidden while a run is live: startBackgroundRun would only refuse it, and
+                          the panel below already carries pause, resume and cancel. */}
+                      {!isRunLive(language.latestRun) ? (
+                        <form action={startAction}>
+                          <input
+                            type="hidden"
+                            name="code"
+                            value={language.code}
+                          />
+                          <SubmitButton
+                            className="h-9"
+                            label={t("startBackground")}
+                            pendingLabel={t("starting")}
+                          />
+                        </form>
+                      ) : null}
+
+                      {/* The way back in when the repair chain stopped: a repair that fixed
+                          nothing does not plan another, so an admin restarts it by hand. Only
+                          offered when there is something flagged to repair. */}
+                      {!isRunLive(language.latestRun) &&
+                      language.coverage.flagged > 0 ? (
+                        <form action={repairAction}>
+                          <input
+                            type="hidden"
+                            name="code"
+                            value={language.code}
+                          />
+                          <SubmitButton
+                            className="h-9"
+                            variant="outline"
+                            label={t("repairFlagged", {
+                              count: language.coverage.flagged,
+                            })}
+                            pendingLabel={t("starting")}
+                          />
+                        </form>
+                      ) : null}
 
                       <form action={updateAction}>
                         <input
@@ -250,6 +362,24 @@ export function LanguageBoard({
                         </span>
                       ) : null}
                     </div>
+
+                    {!isRunLive(language.latestRun) ? (
+                      <p className="text-xs text-muted-foreground">
+                        {workerOnline
+                          ? t("startBackgroundNote")
+                          : t("workerOfflineNote")}
+                      </p>
+                    ) : null}
+
+                    {/* Keyed by run id: the detail is panel state, so a different run has to
+                        remount rather than merge into a poll already in flight. */}
+                    {language.latestRun ? (
+                      <RunPanel
+                        key={language.latestRun.runId}
+                        initial={language.latestRun}
+                        workerOnline={workerOnline}
+                      />
+                    ) : null}
                   </>
                 ) : null}
               </CardContent>
@@ -272,22 +402,54 @@ export function LanguageBoard({
                 .map(([entity, count]) => `${entity}: ${count}`)
                 .join(" · ")}
             </p>
-            <form
-              action={runAction}
-              className="flex flex-wrap items-center gap-2"
-            >
-              <input type="hidden" name="runId" value={planState.data.runId} />
-              <input type="hidden" name="maxUnits" value="25" />
-              <SubmitButton
-                label={t("translateSlice")}
-                pendingLabel={t("translating")}
-              />
-              <span className="text-xs text-muted-foreground">
-                {t("sliceNote")}
-              </span>
-            </form>
+            <div className="flex flex-wrap items-center gap-2">
+              <form action={runAction}>
+                <input
+                  type="hidden"
+                  name="runId"
+                  value={planState.data.runId}
+                />
+                <input type="hidden" name="maxUnits" value="25" />
+                <SubmitButton
+                  label={t("translateSlice")}
+                  pendingLabel={t("translating")}
+                />
+              </form>
+
+              {/* The cheapest way to find out the glossary or the style note is wrong: five units
+                  across the different kinds of content, read before anyone commits to the bill. */}
+              <form action={sampleAction}>
+                <input
+                  type="hidden"
+                  name="code"
+                  value={planState.data.locale}
+                />
+                <SubmitButton
+                  variant="outline"
+                  label={t("sampleFirst")}
+                  pendingLabel={t("starting")}
+                />
+              </form>
+            </div>
+            <p className="text-xs text-muted-foreground">{t("sliceNote")}</p>
+            <p className="text-xs text-muted-foreground">{t("sampleNote")}</p>
           </CardContent>
         </Card>
+      ) : null}
+
+      {/* Keyed by run id, like the progress panel: a second sample is a different run and has to
+          remount rather than merge into a poll already in flight. */}
+      {sample && sample.plannedUnits > 0 ? (
+        <SampleResults
+          key={sample.runId}
+          runId={sample.runId}
+          code={sample.locale}
+          direction={sampleDirection}
+        />
+      ) : null}
+
+      {sample && sample.plannedUnits === 0 ? (
+        <FormAlert tone="success">{t("nothingToDo")}</FormAlert>
       ) : null}
 
       {planState?.ok && planState.data.plannedUnits === 0 ? (
@@ -303,16 +465,6 @@ export function LanguageBoard({
             failed: runState.data.failed,
           })}
         </FormAlert>
-      ) : null}
-
-      {activeRun ? (
-        <p className="text-xs text-muted-foreground">
-          {t("activeRun", {
-            locale: activeRun.locale,
-            done: activeRun.done,
-            planned: activeRun.planned,
-          })}
-        </p>
       ) : null}
 
       {adding ? (

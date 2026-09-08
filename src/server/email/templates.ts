@@ -137,3 +137,100 @@ export async function inviteEmail(
     }),
   };
 }
+
+/**
+ * Run outcome mail (spec-19).
+ *
+ * A full language is a multi-hour run, so nobody is watching when it lands. These three say what
+ * happened in one line and hand over a link to the language's own page, which is where every
+ * follow-up action lives — review the flagged rows, restart a stalled repair, read the error.
+ *
+ * The link is built for the RECIPIENT's locale, not the run's: the admin reading this is a
+ * Norwegian school's staff member, and the language being translated is the one they are least
+ * likely to read the admin panel in.
+ */
+export async function runFinishedEmail(
+  locale: Locale,
+  to: string,
+  p: {
+    language: string;
+    url: string;
+    completed: number;
+    flagged: number;
+    failed: number;
+  },
+): Promise<MailMessage> {
+  const translate = await t(locale);
+  return {
+    to,
+    subject: translate("i18nRun.finished.subject", { language: p.language }),
+    ...render({
+      heading: translate("i18nRun.finished.heading", { language: p.language }),
+      body: translate("i18nRun.finished.body", {
+        completed: String(p.completed),
+        flagged: String(p.flagged),
+        failed: String(p.failed),
+      }),
+      ctaLabel: translate("i18nRun.cta"),
+      ctaUrl: p.url,
+      footer: translate("i18nRun.footer"),
+      fallback: translate("common.linkFallback"),
+    }),
+  };
+}
+
+export async function runFailedEmail(
+  locale: Locale,
+  to: string,
+  p: { language: string; url: string; error: string },
+): Promise<MailMessage> {
+  const translate = await t(locale);
+  return {
+    to,
+    subject: translate("i18nRun.failed.subject", { language: p.language }),
+    ...render({
+      heading: translate("i18nRun.failed.heading"),
+      // Truncated: a worker error can carry a whole provider payload, and a mail body is not
+      // where anybody debugs one. The full text is on the run row and in the logs.
+      body: translate("i18nRun.failed.body", { error: p.error.slice(0, 200) }),
+      ctaLabel: translate("i18nRun.cta"),
+      ctaUrl: p.url,
+      footer: translate("i18nRun.footer"),
+      fallback: translate("common.linkFallback"),
+    }),
+  };
+}
+
+/**
+ * The end of a repair chain, in both of its shapes.
+ *
+ * `stalled` is the one worth telling apart: the repair fixed nothing at all, which almost always
+ * means the AI provider was down rather than that the units are unfixable — so the admin is told
+ * to start it again rather than to go and review three hundred rows by hand.
+ */
+export async function repairOutcomeEmail(
+  locale: Locale,
+  to: string,
+  p: { language: string; url: string; remaining: number; stalled: boolean },
+): Promise<MailMessage> {
+  const translate = await t(locale);
+  const remaining = String(p.remaining);
+  return {
+    to,
+    subject: translate("i18nRun.repair.subject", {
+      language: p.language,
+      remaining,
+    }),
+    ...render({
+      heading: translate("i18nRun.repair.heading"),
+      body: translate(
+        p.stalled ? "i18nRun.repair.bodyStalled" : "i18nRun.repair.body",
+        { remaining },
+      ),
+      ctaLabel: translate("i18nRun.cta"),
+      ctaUrl: p.url,
+      footer: translate("i18nRun.footer"),
+      fallback: translate("common.linkFallback"),
+    }),
+  };
+}

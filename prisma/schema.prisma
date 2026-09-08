@@ -1141,6 +1141,10 @@ enum TranslationRunKind {
   FULL
   SYNC
   SINGLE_ENTITY
+  /// Re-translates NEEDS_REVIEW units with the QA finding fed back (spec-19).
+  REPAIR
+  /// ~5 units across entity kinds, shown beside the source before a full run (spec-19).
+  SAMPLE
 }
 
 enum TranslationRunStatus {
@@ -1248,6 +1252,9 @@ model Translation {
   completionTokens Int?
   /// True when this came from translation memory rather than a fresh call.
   fromMemory       Boolean @default(false)
+  /// REPAIR passes consumed on this row. Reset to 0 by any fresh (non-repair) translation. The
+  /// 3-attempt ceiling must persist across repair runs, which is why this is not on the job.
+  repairAttempts   Int     @default(0)
 
   /// Structural + semantic QA output: what was checked and what it found.
   qaReport      Json?
@@ -1336,6 +1343,19 @@ model TranslationRun {
   promptTokens     Int                  @default(0)
   completionTokens Int                  @default(0)
   estimatedUsd     Float                @default(0)
+  /// Set when an admin (or the worker itself) puts the run in the background queue. The worker
+  /// claims ONLY runs with this set — a plan without it is a cost-free preview and stays one.
+  enqueuedAt       DateTime?
+  /// Liveness, distinct from the lease (a lock): written by the keepalive while a batch runs.
+  heartbeatAt      DateTime?
+  /// Cooperative flags read between batches. An admin pause must survive the claim query, and
+  /// `PAUSED` alone cannot carry that — it already means "a bounded slice ended".
+  pauseRequested   Boolean              @default(false)
+  cancelRequested  Boolean              @default(false)
+  /// EWMA of model-translated units per minute (memory hits excluded). Null until measured.
+  rateUnitsPerMin  Float?
+  /// Batches that reached the model — the ETA is shown only once this is ≥ 2.
+  modelBatches     Int                  @default(0)
   error            String?
   /// The lock. A run whose lease has lapsed can be taken over — which is what makes a killed
   /// script recoverable without Redis and without a queue.
@@ -1368,6 +1388,9 @@ model TranslationJob {
   sourceHash String
   state      TranslationJobState @default(QUEUED)
   attempts   Int                 @default(0)
+  /// Lease owner that claimed this job. Lets a runner learn exactly which of a batch it won when
+  /// another runner took part of it (Prisma here has no updateManyAndReturn).
+  claimedBy  String?
   error      String?
   startedAt  DateTime?
   finishedAt DateTime?

@@ -74,6 +74,15 @@ export const schoolConfigSchema = z
         translation: z.string().min(1),
       }),
       dailyBudgetUsd: z.number().positive(),
+      /**
+       * Deadline on every provider request (spec-19 layer 0). A person reloads a hung page; an
+       * unattended worker has nobody to give up, so the adapter must. Generous on purpose: the
+       * self-hosted model measured 0.5 s one day and 29.7 s the next for the same call, and a
+       * 5-unit translation batch asks for 8192 tokens.
+       */
+      requestTimeoutMs: z.number().int().positive(),
+      /** "Test connection" budget. A healthy OmniRoute ping measured 7–13 s; 29.7 s under load. */
+      pingTimeoutMs: z.number().int().positive(),
     }),
     /**
      * Where uploaded question images live (spec-06 amendment D3). The driver is config, not code,
@@ -145,6 +154,8 @@ export const schoolConfig: SchoolConfig = Object.freeze(
         translation: "translation-default",
       },
       dailyBudgetUsd: 20,
+      requestTimeoutMs: 180_000,
+      pingTimeoutMs: 60_000,
     },
     storage: {
       driver: "local",

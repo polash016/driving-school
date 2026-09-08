@@ -501,6 +501,7 @@ erDiagram
   Int promptTokens "nullable"
   Int completionTokens "nullable"
   Boolean fromMemory
+  Int repairAttempts
   Json qaReport "nullable"
   Float semanticScore "nullable"
   String qaFlags
@@ -545,6 +546,12 @@ erDiagram
   Int promptTokens
   Int completionTokens
   Float estimatedUsd
+  DateTime enqueuedAt "nullable"
+  DateTime heartbeatAt "nullable"
+  Boolean pauseRequested
+  Boolean cancelRequested
+  Float rateUnitsPerMin "nullable"
+  Int modelBatches
   String error "nullable"
   String leaseOwner "nullable"
   DateTime leaseExpiresAt "nullable"
@@ -562,6 +569,7 @@ erDiagram
   String sourceHash
   TranslationJobState state
   Int attempts
+  String claimedBy "nullable"
   String error "nullable"
   DateTime startedAt "nullable"
   DateTime finishedAt "nullable"
@@ -1361,6 +1369,9 @@ Properties as follows:
 - `promptTokens`:
 - `completionTokens`:
 - `fromMemory`: True when this came from translation memory rather than a fresh call.
+- `repairAttempts`
+  > REPAIR passes consumed on this row. Reset to 0 by any fresh (non-repair) translation. The
+  > 3-attempt ceiling must persist across repair runs, which is why this is not on the job.
 - `qaReport`: Structural + semantic QA output: what was checked and what it found.
 - `semanticScore`
   > Cosine between the source stem and the back-translated stem. Its own scale — deliberately
@@ -1429,6 +1440,16 @@ Properties as follows:
 - `promptTokens`:
 - `completionTokens`:
 - `estimatedUsd`:
+- `enqueuedAt`
+  > Set when an admin (or the worker itself) puts the run in the background queue. The worker
+  > claims ONLY runs with this set — a plan without it is a cost-free preview and stays one.
+- `heartbeatAt`: Liveness, distinct from the lease (a lock): written by the keepalive while a batch runs.
+- `pauseRequested`
+  > Cooperative flags read between batches. An admin pause must survive the claim query, and
+  > `PAUSED` alone cannot carry that — it already means "a bounded slice ended".
+- `cancelRequested`:
+- `rateUnitsPerMin`: EWMA of model-translated units per minute (memory hits excluded). Null until measured.
+- `modelBatches`: Batches that reached the model — the ETA is shown only once this is ≥ 2.
 - `error`:
 - `leaseOwner`
   > The lock. A run whose lease has lapsed can be taken over — which is what makes a killed
@@ -1454,6 +1475,9 @@ Properties as follows:
 - `sourceHash`:
 - `state`:
 - `attempts`:
+- `claimedBy`
+  > Lease owner that claimed this job. Lets a runner learn exactly which of a batch it won when
+  > another runner took part of it (Prisma here has no updateManyAndReturn).
 - `error`:
 - `startedAt`:
 - `finishedAt`:

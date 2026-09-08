@@ -570,13 +570,51 @@
       "translateSlice": "Translate 25",
       "translating": "Translating…",
       "sliceNote": "A slice at a time, so the page never hangs. Use pnpm i18n:translate for a whole language.",
+      "sampleFirst": "Translate 5 as a sample",
+      "sampleNote": "Five units spread across questions, topics, signs and interface text — enough to see whether the glossary and the style note are right before committing to the whole language.",
+      "sample": {
+        "title": "Sample translation",
+        "waiting": "Queued — the worker picks it up on its next check",
+        "working": "Translating…",
+        "done": "{count} translated",
+        "stopped": "The sample stopped before it finished",
+        "empty": "Nothing left to sample — every unit is already translated from the current source text.",
+        "pending": "Not translated yet."
+      },
       "runProgress": "{completed} of {planned} translated · {flagged} held for review · {failed} failed.",
-      "activeRun": "A run for {locale} is in progress: {done} of {planned}.",
+      "startBackground": "Start in background",
+      "starting": "Starting…",
+      "startQueued": "Queued: {count} unit(s), roughly ${cost}. The worker picks it up on its next check.",
+      "startBackgroundNote": "The worker takes it from here — you can close this page.",
+      "repairFlagged": "Repair {count} flagged in background",
+      "workerOfflineNote": "No worker is online; the run waits until one starts, or translate 25 now.",
+      "workerOnline": "Background worker online",
+      "workerOffline": "Background worker offline",
       "turnApprovalOn": "Require approval",
       "turnApprovalOff": "Stop requiring approval",
       "show": "Show to students",
       "hide": "Hide from students",
       "showBlocked": "Available at 100% — currently {percent}%.",
+      "readiness": {
+        "title": "Blocking publication",
+        "ready": "Nothing blocks publishing — every unit is servable.",
+        "kinds": {
+          "UNTRANSLATED": "untranslated",
+          "FAILED": "gave up after 3 tries",
+          "FLAGGED": "held by a check",
+          "AWAITING_APPROVAL": "awaiting approval"
+        },
+        "hints": {
+          "UNTRANSLATED": "start a run",
+          "FAILED": "see why, then re-run",
+          "FLAGGED": "repair or review",
+          "AWAITING_APPROVAL": "approve, or turn approval off"
+        },
+        "listTitle": "Not translated yet",
+        "listTitleFailed": "The machine gave up on these",
+        "listEmpty": "Nothing left in this group.",
+        "listMore": "Showing the first {count}."
+      },
       "addLanguage": "Add a language",
       "addTitle": "New language",
       "code": "Language code",
@@ -630,7 +668,12 @@
         "alreadyExists": "That language has already been added.",
         "builtInExists": "English and Norwegian are built in and cannot be added again.",
         "notComplete": "This language is not fully translated yet, so students cannot see it.",
-        "editRejected": "That correction did not pass the checks — an option key, a number or a placeholder does not match the source."
+        "editRejected": "That correction did not pass the checks — an option key, a number or a placeholder does not match the source.",
+        "runActive": "A background run is already in progress for this language.",
+        "runNotRunning": "That run is not running.",
+        "runNotPaused": "That run is not paused.",
+        "runFinished": "That run has already finished.",
+        "runEnqueued": "The background worker owns this run — pause it there instead."
       },
       "inEveryLanguage": "This question in every language",
       "field": "Field",
@@ -641,7 +684,55 @@
       "autoApprove": "Auto-approve",
       "autoApproveOn": "On — clean translations go live as soon as they are written",
       "autoApproveOff": "Off — a person approves each one before students see it",
-      "autoApproveNote": "Either way, anything a check flags waits for a person."
+      "autoApproveNote": "Either way, anything a check flags waits for a person.",
+      "run": {
+        "title": "{kind} run",
+        "kinds": {
+          "FULL": "Full",
+          "SYNC": "Sync",
+          "SINGLE_ENTITY": "Single kind",
+          "REPAIR": "Repair",
+          "SAMPLE": "Sample"
+        },
+        "status": {
+          "pending": "Queued",
+          "running": "Running",
+          "paused": "Paused",
+          "completed": "Completed",
+          "failed": "Failed",
+          "cancelled": "Cancelled",
+          "pausing": "Pausing after this batch",
+          "cancelling": "Cancelling after this batch",
+          "stale": "Worker not responding"
+        },
+        "progressLabel": "Run progress",
+        "completed": "Done",
+        "flagged": "Held for review",
+        "failed": "Failed",
+        "memory": "From memory",
+        "rate": "Rate",
+        "perMinute": "{rate} / min",
+        "eta": "Time left",
+        "estimating": "estimating…",
+        "cost": "Cost",
+        "costValue": "${spent} of ~${estimate}",
+        "heartbeat": "Last heartbeat",
+        "skipped": "{count} given up",
+        "seconds": "{value}s",
+        "minutes": "{value} min",
+        "hours": "{value} h {rest} min",
+        "staleHint": "The worker has not reported in for over three minutes. When it returns it resumes exactly where it stopped — nothing is lost.",
+        "workerOffline": "No worker is online right now; this run resumes when one starts.",
+        "errorLabel": "Worker error: {message}",
+        "pause": "Pause",
+        "pausing": "Pausing…",
+        "resume": "Resume",
+        "resuming": "Resuming…",
+        "cancel": "Cancel run",
+        "cancelling": "Cancelling…",
+        "forceCancel": "Force cancel (worker gone)",
+        "forceCancelling": "Cancelling…"
+      }
     },
     "images": {
       "title": "Images",
@@ -760,6 +851,26 @@
       "body": "{school} has invited you to practise for the theory test. Create your account to get started.",
       "cta": "Create your account",
       "footer": "This invitation is personal and can only be used once."
+    },
+    "i18nRun": {
+      "cta": "Open the language",
+      "footer": "Sent by the translation worker.",
+      "finished": {
+        "subject": "{language} translation finished",
+        "heading": "{language} is translated",
+        "body": "{completed} units translated · {flagged} held for review · {failed} failed."
+      },
+      "failed": {
+        "subject": "{language} translation run failed",
+        "heading": "The run stopped",
+        "body": "The worker gave up on this run: {error}. It can be started again from the language page."
+      },
+      "repair": {
+        "subject": "{language}: {remaining} translations need a reviewer",
+        "heading": "Repair is done with what it can do",
+        "body": "{remaining} units failed automated repair three times and are waiting in the review queue.",
+        "bodyStalled": "The repair run could not fix anything — usually the AI provider is unavailable. {remaining} units are still held. Start it again from the language page when the provider is back."
+      }
     }
   },
   "history": {

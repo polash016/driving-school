@@ -85,6 +85,75 @@ export const translateUnitsPrompt: PromptTemplate<{
 };
 
 /**
+ * Repair a translation an automated check refused (spec-19).
+ *
+ * The difference from `translateUnitsPrompt` is the whole point: the model is shown its own
+ * previous attempt and the exact finding against it — `NUMBER_DRIFT: "80, 11, 1 to 60, 11, 1"` —
+ * rather than being asked to translate the same source again and hoping for a different result.
+ * A check that produced a detail string produced the most useful sentence anyone could write into
+ * this prompt, and it is free.
+ *
+ * Run at temperature 0 and always re-QA'd: repair raises scrutiny, it never lowers it. Three
+ * attempts, then it is a human's problem — the flagged pile is what this exists to drain, and
+ * draining it by lowering the bar would defeat the purpose.
+ */
+export const translateRepairPrompt: PromptTemplate<{
+  targetLanguage: string;
+  targetCode: string;
+  styleNote: string;
+  glossaryBlock: string;
+  unitsJson: string;
+}> = {
+  id: "translation.repair",
+  version: "1.0.0",
+  render: ({
+    targetLanguage,
+    targetCode,
+    styleNote,
+    glossaryBlock,
+    unitsJson,
+  }) =>
+    [
+      `You are repairing driving-theory translations into ${targetLanguage} (${targetCode}) that automated checks rejected.`,
+      "Each item carries the English source, the Norwegian legal source, the PREVIOUS translation, and the exact PROBLEMS the checks found — a code and, where possible, what changed (source value → translated value). Some carry a human reviewer's note.",
+      "Fix every listed problem. Keep everything that was not a problem: same meaning, same register, same option order and keys. Do not paraphrase for its own sake.",
+      "HARD RULES — breaking any of these makes the repair worthless:",
+      "1. Return strict JSON with the same ids in the same order.",
+      "2. Option keys are byte-exact copies of the source keys.",
+      "3. Never change a number, unit, or § reference.",
+      "4. Preserve {placeholder} and {{slot}} tokens exactly.",
+      "5. Institution names stay untranslated.",
+      "6. The correct option must remain the only defensible answer.",
+      "7. Write for a learner driver: plain, precise, no jargon.",
+      "IF YOU CANNOT FIX AN ITEM FAITHFULLY, SAY SO in its `issue` field and return the previous translation unchanged for it.",
+      styleNote ? `STYLE: ${styleNote}` : "",
+      glossaryBlock,
+      "Return exactly this shape:",
+      JSON.stringify(
+        {
+          units: [
+            {
+              id: "…",
+              value: {
+                stem: "…",
+                options: [{ key: "a", text: "…" }],
+                explanation: "…",
+              },
+              issue: "optional",
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      "ITEMS:",
+      unitsJson,
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+};
+
+/**
  * Literal back-translation, for the QA pass.
  *
  * Routed at the `validation` task so it can run on a *different* model from the one that produced

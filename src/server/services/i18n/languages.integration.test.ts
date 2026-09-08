@@ -4,8 +4,19 @@ import { ConflictError, ValidationError } from "@/lib/errors";
 import type { SessionUser } from "@/server/authz";
 import { db } from "@/server/db";
 import { redis } from "@/server/redis";
-import { createLanguage, languageCoverage, updateLanguage } from "./languages";
-import { reviewTranslation } from "./review";
+import {
+  createLanguage,
+  languageCoverage,
+  untranslatedUnits,
+  updateLanguage,
+} from "./languages";
+import { MAX_REPAIR_ATTEMPTS } from "./repair";
+import {
+  bulkApproveInputSchema,
+  bulkApproveTranslations,
+  reviewQueue,
+  reviewTranslation,
+} from "./review";
 
 /**
  * The rules that must hold against a real database (spec-15): a runtime language is always served
@@ -122,6 +133,37 @@ d("the coverage gate", () => {
     expect(
       coverage.byEntity.some((entry) => entry.entity === "UI_MESSAGE"),
     ).toBe(true);
+  });
+
+  it("names what is blocking, and the names add up to the shortfall", async () => {
+    const coverage = await languageCoverage(db, CODE);
+    // The partition, against a real extraction rather than a fixture: every unit that is not
+    // servable is counted in exactly one bucket.
+    expect(coverage.blockers.reduce((sum, b) => sum + b.count, 0)).toBe(
+      coverage.total - coverage.ready,
+    );
+    // And `complete` is that list being empty — not a second opinion about it. This is the
+    // agreement `updateLanguage`'s gate depends on.
+    expect(coverage.complete).toBe(coverage.blockers.length === 0);
+    expect(coverage.complete).toBe(coverage.ready === coverage.total);
+    // Nothing is translated yet, so the whole language sits in one bucket.
+    expect(coverage.blockers).toEqual([
+      { kind: "UNTRANSLATED", count: coverage.total },
+    ]);
+  });
+
+  it("lists the units behind the untranslated blocker, which have no row to review", async () => {
+    const units = await untranslatedUnits(db, CODE, { limit: 5 });
+    expect(units.length).toBe(5);
+    // The review queue is built on `translation.findMany`, so it cannot show these at all.
+    expect(await reviewQueue(db, CODE, { limit: 5 })).toEqual([]);
+    for (const unit of units) {
+      expect(unit.label.length).toBeGreaterThan(0);
+      expect(unit.failed).toBe(false);
+    }
+    // No run has failed here, so asking for the failures returns none rather than a slice of
+    // whatever happened to be first.
+    expect(await untranslatedUnits(db, CODE, { only: "FAILED" })).toEqual([]);
   });
 
   it("counts only what a student can actually see", async () => {
@@ -252,5 +294,115 @@ d("the coverage gate", () => {
 
     await updateLanguage(db, actor, { code: CODE, requiresApproval: true });
     await db.translation.delete({ where: { id: row.id } });
+  });
+});
+
+/**
+ * The invariant the whole of spec-19 is built to protect.
+ *
+ * Auto-repair exists to clear the flagged pile by making the machine fix its own mistakes — never
+ * by lowering the bar. So the one thing that must NOT have moved while phase 2 was built is this:
+ * bulk approve still refuses anything a check flagged, including a unit the machine has already
+ * spent its whole repair budget on. A row at the ceiling is the strongest possible temptation to
+ * wave through, and it is exactly the row a human has to read.
+ */
+d("bulk approve after auto-repair", () => {
+  it("still refuses a flagged unit, even one the machine has given up on", async () => {
+    const topics = await db.topic.findMany({
+      where: { deletedAt: null },
+      take: 2,
+      orderBy: { id: "asc" },
+      select: { id: true },
+    });
+    expect(topics.length).toBe(2);
+
+    const clean = await db.translation.create({
+      data: {
+        locale: CODE,
+        entity: "TOPIC",
+        entityId: topics[0].id,
+        value: { name: "Limpio" },
+        status: "MACHINE",
+        sourceHash: "clean-hash",
+        qaFlags: [],
+      },
+      select: { id: true },
+    });
+    // Three repair attempts spent and still wrong: the machine is out of road, and this is where
+    // a reviewer takes over — not where the bar drops.
+    const flagged = await db.translation.create({
+      data: {
+        locale: CODE,
+        entity: "TOPIC",
+        entityId: topics[1].id,
+        value: { name: "Marcado" },
+        status: "NEEDS_REVIEW",
+        sourceHash: "flagged-hash",
+        qaFlags: ["NUMBER_DRIFT"],
+        repairAttempts: MAX_REPAIR_ATTEMPTS,
+      },
+      select: { id: true },
+    });
+
+    expect(await bulkApproveTranslations(db, actor, { locale: CODE })).toEqual({
+      approved: 1,
+      skipped: 1,
+    });
+
+    const after = await db.translation.findMany({
+      where: { id: { in: [clean.id, flagged.id] } },
+      select: {
+        id: true,
+        status: true,
+        qaFlags: true,
+        repairAttempts: true,
+        reviewedById: true,
+        reviewedAt: true,
+      },
+    });
+    const byId = new Map(after.map((row) => [row.id, row]));
+
+    expect(byId.get(clean.id)).toMatchObject({
+      status: "APPROVED",
+      reviewedById: actor.id,
+    });
+    // Untouched in every respect — not the status, not the flag, not the attempt count, and no
+    // reviewer stamped onto it.
+    expect(byId.get(flagged.id)).toMatchObject({
+      status: "NEEDS_REVIEW",
+      qaFlags: ["NUMBER_DRIFT"],
+      repairAttempts: MAX_REPAIR_ATTEMPTS,
+      reviewedById: null,
+      reviewedAt: null,
+    });
+
+    await db.translation.deleteMany({
+      where: { id: { in: [clean.id, flagged.id] } },
+    });
+  });
+});
+
+/**
+ * And there is no way to ask for the other behaviour: `includeFlagged` is `z.literal(false)`, so
+ * the escape hatch cannot be opened from a form, a fetch, or a future caller who means well.
+ */
+describe("the bulk approve contract", () => {
+  it("has no opt-out from refusing flagged units", () => {
+    expect(() =>
+      bulkApproveInputSchema.parse({ locale: "es", includeFlagged: true }),
+    ).toThrow();
+    // And it is refused *because of* includeFlagged, not incidentally by some other rule.
+    const refused = bulkApproveInputSchema.safeParse({
+      locale: "es",
+      includeFlagged: true,
+    });
+    expect(refused.success).toBe(false);
+    expect(
+      refused.error?.issues.map((issue) => issue.path.join(".")),
+    ).toContain("includeFlagged");
+    expect(bulkApproveInputSchema.parse({ locale: "es" })).toEqual({
+      locale: "es",
+      includeFlagged: false,
+    });
   });
 });

@@ -1,7 +1,11 @@
 import { z } from "zod";
+import { schoolConfig } from "../../../../config/school.config";
 import {
   classify,
+  fetchWithDeadline,
   ProviderError,
+  readJson,
+  readText,
   type ChatRequest,
   type ChatResponse,
   type EmbedRequest,
@@ -86,8 +90,9 @@ export const googleAdapter: ProviderAdapter = {
           role: "user",
           parts: toGeminiParts(message.content),
         }));
+    const timeoutMs = request.timeoutMs ?? schoolConfig.ai.requestTimeoutMs;
 
-    const response = await fetch(
+    const response = await fetchWithDeadline(
       `${base}/models/${request.model}:generateContent?key=${credentials.apiKey}`,
       {
         method: "POST",
@@ -104,10 +109,12 @@ export const googleAdapter: ProviderAdapter = {
           },
         }),
       },
+      { timeoutMs, ...(request.signal ? { signal: request.signal } : {}) },
     );
 
-    if (!response.ok) throw classify(response.status, await response.text());
-    const parsed = responseSchema.parse(await response.json());
+    if (!response.ok)
+      throw classify(response.status, await readText(response, timeoutMs));
+    const parsed = responseSchema.parse(await readJson(response, timeoutMs));
 
     return {
       text: parsed.candidates[0].content.parts
@@ -121,7 +128,8 @@ export const googleAdapter: ProviderAdapter = {
 
   async embed(credentials, request: EmbedRequest): Promise<number[][]> {
     const base = (credentials.baseUrl ?? DEFAULT_BASE).replace(/\/$/, "");
-    const response = await fetch(
+    const timeoutMs = request.timeoutMs ?? schoolConfig.ai.requestTimeoutMs;
+    const response = await fetchWithDeadline(
       `${base}/models/${request.model}:batchEmbedContents?key=${credentials.apiKey}`,
       {
         method: "POST",
@@ -134,10 +142,12 @@ export const googleAdapter: ProviderAdapter = {
           })),
         }),
       },
+      { timeoutMs, ...(request.signal ? { signal: request.signal } : {}) },
     );
-    if (!response.ok) throw classify(response.status, await response.text());
+    if (!response.ok)
+      throw classify(response.status, await readText(response, timeoutMs));
     const vectors = embedSchema
-      .parse(await response.json())
+      .parse(await readJson(response, timeoutMs))
       .embeddings.map((row) => row.values);
 
     // Fail loudly rather than writing a vector the column cannot hold: a silent dimension
@@ -155,11 +165,12 @@ export const googleAdapter: ProviderAdapter = {
     return vectors;
   },
 
-  async ping(credentials, model): Promise<void> {
+  async ping(credentials, model, options): Promise<void> {
     await this.chat(credentials, {
       model,
       messages: [{ role: "user", content: "ping" }],
       maxTokens: 1,
+      timeoutMs: options?.timeoutMs ?? schoolConfig.ai.pingTimeoutMs,
     });
   },
 };

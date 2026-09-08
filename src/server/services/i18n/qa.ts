@@ -111,6 +111,8 @@ export async function semanticCheck(input: {
   locale: string;
   languageName: string;
   units: QaInput[];
+  /** Worker shutdown. An aborted call is rethrown rather than recorded as a QA verdict. */
+  signal?: AbortSignal;
 }): Promise<Map<string, QaResult>> {
   const results = new Map<string, QaResult>();
   if (input.units.length === 0) return results;
@@ -129,9 +131,12 @@ export async function semanticCheck(input: {
       schema: backTranslationSchema,
       temperature: 0,
       maxTokens: 8192,
+      ...(input.signal ? { signal: input.signal } : {}),
     });
     back = response.data;
   } catch (error) {
+    // A shutdown must not be recorded as a QA verdict on a translation that was fine.
+    if (input.signal?.aborted) throw error;
     logger.warn(
       { error, locale: input.locale },
       "back-translation unavailable — flagging for review",
@@ -191,8 +196,13 @@ export async function semanticCheck(input: {
 
   let vectors: number[][];
   try {
-    vectors = texts.length > 0 ? await aiEmbed(texts) : [];
+    vectors =
+      texts.length > 0
+        ? await aiEmbed(texts, input.signal ? { signal: input.signal } : {})
+        : [];
   } catch (error) {
+    // A shutdown must not be recorded as a QA verdict on a translation that was fine.
+    if (input.signal?.aborted) throw error;
     logger.warn(
       { error, locale: input.locale },
       "QA embeddings unavailable — flagging for review",
