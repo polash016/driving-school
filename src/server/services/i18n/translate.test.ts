@@ -264,3 +264,148 @@ describe("translation memory writes", () => {
     expect(out[0].status).toBe("MACHINE");
   });
 });
+
+/**
+ * spec-19a Task 6: an advisory finding must not spend a back-translation on its own.
+ *
+ * `language.qaSampleRate` is 0 for every case here, so nothing is sampled unless something
+ * *forces* it. The observable for "the semantic check ran" is a second `aiJson` call carrying
+ * `task: "validation"` — that is the first thing `semanticCheck` does (a back-translation),
+ * ahead of any embedding call.
+ */
+describe("translateBatch semantic-check sampling", () => {
+  /**
+   * Answers both calls `translateBatch` can make through the gateway: `task: "translation"`
+   * returns the crafted `byId` values (falling back to an untouched echo of the source for any
+   * id not listed); `task: "validation"` (the back-translation inside `semanticCheck`) just
+   * echoes the translated value back, since these tests only care THAT it was called.
+   */
+  function mockGateway(
+    byId: Record<string, Record<string, string>>,
+    flagged: string[] = [],
+  ) {
+    aiJson.mockImplementation(
+      async (opts: {
+        task: string;
+        vars: { unitsJson: string };
+      }): Promise<{
+        data: { units: Array<Record<string, unknown>> };
+        modelVersion: string;
+        promptVersion: string;
+        usage: { promptTokens: number; completionTokens: number };
+        providerLabel: string;
+      }> => {
+        const items = JSON.parse(opts.vars.unitsJson) as Array<{
+          id: string;
+          value?: Record<string, string>;
+          en?: Record<string, string>;
+        }>;
+        if (opts.task === "translation") {
+          return {
+            data: {
+              units: items.map((item) => ({
+                id: item.id,
+                value: byId[item.id] ?? item.en,
+                ...(flagged.includes(item.id)
+                  ? { issue: "two options would read the same" }
+                  : {}),
+              })),
+            },
+            modelVersion: "stub-model",
+            promptVersion: "translation.units@1.0.0",
+            usage: { promptTokens: 100, completionTokens: 100 },
+            providerLabel: "stub",
+          };
+        }
+        // The back-translation: echo the translated value straight back. What it says does not
+        // matter to these tests — only that the call happened.
+        return {
+          data: {
+            units: items.map((item) => ({ id: item.id, value: item.value })),
+          },
+          modelVersion: "stub-model",
+          promptVersion: "qa.backTranslation@1.0.0",
+          usage: { promptTokens: 100, completionTokens: 100 },
+          providerLabel: "stub",
+        };
+      },
+    );
+    aiEmbed.mockImplementation(async (texts: string[]) =>
+      texts.map(() => [1, 0, 0]),
+    );
+  }
+
+  function validationCalls() {
+    return aiJson.mock.calls.filter(
+      (call) => (call[0] as { task: string }).task === "validation",
+    );
+  }
+
+  it("LENGTH_OUTLIER alone does not force a semantic check", async () => {
+    const { db } = stubDb();
+    const unit = {
+      entity: "TOPIC" as const,
+      entityId: "topic-long",
+      en: {
+        name: "Roundabouts",
+        description:
+          "How to give way politely and safely when entering a busy " +
+          "roundabout during peak traffic hours in the city center, every day.",
+      },
+      label: "Roundabouts",
+      sourceHash: "hash-long",
+    };
+    // A ~15-char echo of a ~120-char source: well past the 0.4 ratio LENGTH_OUTLIER (advisory,
+    // not blocking) fires on, but clearly not identical to the source, so UNTRANSLATED does not.
+    mockGateway({ "topic-long": { name: "ES", description: "Muy breve." } });
+
+    const out = await translateBatch(db, language, [unit], {});
+
+    expect(aiJson).toHaveBeenCalledTimes(1);
+    expect((aiJson.mock.calls[0][0] as { task: string }).task).toBe(
+      "translation",
+    );
+    expect(validationCalls()).toHaveLength(0);
+    expect(out[0].qaFlags).toContain("LENGTH_OUTLIER");
+    expect(out[0].status).toBe("MACHINE");
+  });
+
+  it("a blocking finding still forces the semantic check at qaSampleRate 0", async () => {
+    const { db } = stubDb();
+    // Echoes the source's words but changes "1" to "2" — NUMBER_DRIFT (blocking) fires, nothing
+    // else does.
+    mockGateway({
+      "topic-1": {
+        name: "Roundabouts 1",
+        description: "How to give way when entering a roundabout, part 2.",
+      },
+    });
+
+    const out = await translateBatch(db, language, [topicUnit(1)], {});
+
+    expect(validationCalls()).toHaveLength(1);
+    expect(out[0].qaFlags).toContain("NUMBER_DRIFT");
+    expect(out[0].status).toBe("NEEDS_REVIEW");
+  });
+
+  it("a model-raised issue forces the semantic check", async () => {
+    const { db } = stubDb();
+    // A faithful translation (numbers, structure all intact) but the model flags its own doubt.
+    mockGateway(
+      {
+        "topic-1": {
+          name: "ES Roundabouts 1",
+          description:
+            "ES Cómo ceder el paso al entrar en una rotonda, parte 1.",
+        },
+      },
+      ["topic-1"],
+    );
+
+    const out = await translateBatch(db, language, [topicUnit(1)], {});
+
+    expect(validationCalls()).toHaveLength(1);
+    expect(out[0].qaFlags).toContain("MODEL_FLAGGED");
+    expect(out[0].status).toBe("NEEDS_REVIEW");
+  });
+});

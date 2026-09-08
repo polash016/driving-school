@@ -15,7 +15,7 @@ import {
 } from "./memory";
 import { semanticCheck, type QaInput } from "./qa";
 import { memoryHash, type TranslationUnit, type UnitPayload } from "./units";
-import { allCodes, checkTranslation } from "./validation";
+import { allCodes, blockingCodes, checkTranslation } from "./validation";
 
 /**
  * Translating a batch of units (spec-15).
@@ -76,6 +76,12 @@ export interface TranslatedUnit {
   providerLabel: string | null;
   promptTokens: number;
   completionTokens: number;
+  /**
+   * Transient: whether a BLOCKING finding or the model's own doubt requires the semantic pass
+   * regardless of the language's sample rate. Never written by `storeTranslations` — it exists
+   * only to steer the sampling filter below, not to be persisted.
+   */
+  forceQa?: boolean;
 }
 
 /** Strip the payload down to the keys the source actually had, so nothing invented sneaks in. */
@@ -253,6 +259,11 @@ export async function translateBatch(
     const flags = allCodes(check);
     // The model saying it could not translate faithfully is worth more than any check we wrote.
     if (entry.issue) flags.push("MODEL_FLAGGED");
+    // Only a BLOCKING finding (or the model's own doubt) is worth spending a back-translation on
+    // for certain. An advisory finding like LENGTH_OUTLIER stays in qaFlags below either way — it
+    // still forces the sample if the language's qaSampleRate happens to land on it — but it does
+    // not, on its own, override the sample rate.
+    const forceQa = blockingCodes(check).length > 0 || Boolean(entry.issue);
 
     fresh.push({
       unit,
@@ -271,14 +282,17 @@ export async function translateBatch(
       providerLabel: response.providerLabel,
       promptTokens: perUnitPrompt,
       completionTokens: perUnitCompletion,
+      forceQa,
     });
   }
 
-  // 3. The semantic pass, on the share this language asks for. Anything the structural gate
-  //    already flagged is checked regardless — those are the ones most worth understanding.
+  // 3. The semantic pass, on the share this language asks for. Only a BLOCKING finding (or the
+  //    model's own doubt) forces the expensive semantic pass regardless of the sample rate —
+  //    advisory codes such as LENGTH_OUTLIER stay in qaFlags for the reviewer and the
+  //    bulk-approve guard, but they do not spend a back-translation on their own.
   const sampled = fresh.filter(
     (candidate, position) =>
-      candidate.qaFlags.length > 0 ||
+      candidate.forceQa === true ||
       language.qaSampleRate >= 1 ||
       position / Math.max(1, fresh.length) < language.qaSampleRate,
   );
