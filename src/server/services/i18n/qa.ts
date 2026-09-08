@@ -30,6 +30,25 @@ import type { TranslatableEntity } from "@prisma/client";
  * and the route table makes "a different model" a setting rather than a code change.
  */
 
+/** Google's batchEmbedContents accepts at most 100 requests per call. */
+const EMBED_CHUNK = 100;
+
+async function embedAll(
+  texts: string[],
+  signal?: AbortSignal,
+): Promise<number[][]> {
+  const vectors: number[][] = [];
+  for (let start = 0; start < texts.length; start += EMBED_CHUNK) {
+    vectors.push(
+      ...(await aiEmbed(
+        texts.slice(start, start + EMBED_CHUNK),
+        signal ? { signal } : {},
+      )),
+    );
+  }
+  return vectors;
+}
+
 /**
  * Below this, the stem is flagged and a human looks at it.
  *
@@ -196,10 +215,8 @@ export async function semanticCheck(input: {
 
   let vectors: number[][];
   try {
-    vectors =
-      texts.length > 0
-        ? await aiEmbed(texts, input.signal ? { signal: input.signal } : {})
-        : [];
+    // Chunked: a 20-unit question batch is 200 texts, twice Google's per-call cap.
+    vectors = texts.length > 0 ? await embedAll(texts, input.signal) : [];
   } catch (error) {
     // A shutdown must not be recorded as a QA verdict on a translation that was fine.
     if (input.signal?.aborted) throw error;
