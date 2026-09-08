@@ -584,6 +584,26 @@
       "show": "Show to students",
       "hide": "Hide from students",
       "showBlocked": "Available at 100% — currently {percent}%.",
+      "readiness": {
+        "title": "Blocking publication",
+        "ready": "Nothing blocks publishing — every unit is servable.",
+        "kinds": {
+          "UNTRANSLATED": "untranslated",
+          "FAILED": "gave up after 3 tries",
+          "FLAGGED": "held by a check",
+          "AWAITING_APPROVAL": "awaiting approval"
+        },
+        "hints": {
+          "UNTRANSLATED": "start a run",
+          "FAILED": "see why, then re-run",
+          "FLAGGED": "repair or review",
+          "AWAITING_APPROVAL": "approve, or turn approval off"
+        },
+        "listTitle": "Not translated yet",
+        "listTitleFailed": "The machine gave up on these",
+        "listEmpty": "Nothing left in this group.",
+        "listMore": "Showing the first {count}."
+      },
       "addLanguage": "Add a language",
       "addTitle": "New language",
       "code": "Language code",

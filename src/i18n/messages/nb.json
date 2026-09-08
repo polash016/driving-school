@@ -584,6 +584,26 @@
       "show": "Vis for elevene",
       "hide": "Skjul for elevene",
       "showBlocked": "Tilgjengelig ved 100 % — nå {percent} %.",
+      "readiness": {
+        "title": "Hindrer publisering",
+        "ready": "Ingenting hindrer publisering — hver enhet kan vises.",
+        "kinds": {
+          "UNTRANSLATED": "uoversatt",
+          "FAILED": "oppgitt etter 3 forsøk",
+          "FLAGGED": "holdt av en kontroll",
+          "AWAITING_APPROVAL": "venter på godkjenning"
+        },
+        "hints": {
+          "UNTRANSLATED": "start en kjøring",
+          "FAILED": "se hvorfor, kjør igjen",
+          "FLAGGED": "reparer eller vurder",
+          "AWAITING_APPROVAL": "godkjenn, eller slå av godkjenning"
+        },
+        "listTitle": "Ikke oversatt ennå",
+        "listTitleFailed": "Maskinen ga opp disse",
+        "listEmpty": "Ingenting igjen i denne gruppen.",
+        "listMore": "Viser de første {count}."
+      },
       "addLanguage": "Legg til et språk",
       "addTitle": "Nytt språk",
       "code": "Språkkode",

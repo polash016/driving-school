@@ -20,6 +20,7 @@ import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/server/contracts/common";
+import type { Blocker } from "@/server/services/i18n/languages";
 import type { RunDetail } from "@/server/services/i18n/run-control";
 import type { RunProgress } from "@/server/services/i18n/runs";
 
@@ -39,6 +40,8 @@ export interface LanguageRow {
     ready: number;
     total: number;
     flagged: number;
+    /** What is standing between this language and students — empty exactly when `complete`. */
+    blockers: Blocker[];
     complete: boolean;
   };
   /** The newest background run for this language, live or finished — null if there has never been one. */
@@ -221,6 +224,18 @@ export function LanguageBoard({
                           style={{ width: `${language.coverage.percent}%` }}
                         />
                       </div>
+                      {/* The percentage says how far off; this says what of. The same list the
+                          language's own page turns into links. */}
+                      {language.coverage.blockers.length > 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          {language.coverage.blockers
+                            .map(
+                              (blocker) =>
+                                `${blocker.count} ${t(`readiness.kinds.${blocker.kind}`)}`,
+                            )
+                            .join(" · ")}
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
