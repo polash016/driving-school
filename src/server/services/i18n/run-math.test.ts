@@ -52,8 +52,25 @@ describe("RunRateMeter", () => {
     meter.observe(5, 0, 10_000);
     meter.observe(5, 500, 10_200);
     const rate = meter.observe(5, 1_000, 10_400);
-    // 15 units over ~10.4 s ≈ 86/min — not the ~30/min a single slot sees.
+    // Raw aggregate is 15 units over ~10.4 s ≈ 86/min; observe() returns that folded through the
+    // EWMA (scaled up during warm-up), landing in the same neighborhood — not the ~30/min a
+    // single slot sees.
     expect(rate).toBeGreaterThan(60);
+    expect(rate).toBeLessThan(100);
+  });
+
+  it("a resumed run keeps its stored rate through warm-up", () => {
+    const meter = new RunRateMeter(86, 3);
+    // Three slots each translate 5 units over the same 10-second window, same as above, but this
+    // run resumed with a stored rate of 86/min — warm-up must scale toward the truth, not reseed.
+    for (const rate of [
+      meter.observe(5, 0, 10_000),
+      meter.observe(5, 500, 10_200),
+      meter.observe(5, 1_000, 10_400),
+    ]) {
+      expect(rate).toBeGreaterThan(86 * 0.85);
+      expect(rate).toBeLessThan(86 * 1.15);
+    }
   });
 
   it("keeps at most 2x slots observations", () => {

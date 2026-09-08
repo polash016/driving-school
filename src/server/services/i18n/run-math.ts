@@ -57,9 +57,12 @@ export function heartbeatStale(heartbeatAt: Date | null, now: Date): boolean {
  * The window spans the earliest start to the latest finish among recent batches, so concurrent
  * work is counted once against the wall time it actually took.
  *
- * The window needs one observation per slot before it reflects genuine concurrency — until then,
- * each observation is treated as a fresh first reading (not folded via EWMA) so those partial,
- * artificially-low warm-up rates never get smoothed into the run's real EWMA baseline.
+ * Warm-up: right after construction (or after a resume) the window holds fewer than `slots`
+ * batches, so the aggregate is short by exactly that ratio — one slot's worth of work standing in
+ * for all of them. Rather than disable smoothing during warm-up (which would throw away a resumed
+ * run's stored rate the moment concurrent batches start finishing), the observed reading is scaled
+ * up by `slots / window.length` before it is folded through the ordinary EWMA line, so a resumed
+ * run's rate erodes gracefully toward the true throughput instead of being reset to ~1/slots of it.
  *
  * `observe` is synchronous on purpose: JavaScript's single thread makes it atomic between slots,
  * which is what lets the runner drop the two-query read-modify-write it used to do per batch.
@@ -90,19 +93,27 @@ export class RunRateMeter {
     startedAtMs: number,
     finishedAtMs: number,
   ): number {
+    // A batch served entirely from memory says nothing about model speed.
+    if (modelUnits <= 0) return this.ewma ?? 0;
+
     this.window.push({ units: modelUnits, startedAtMs, finishedAtMs });
     // Two rounds of every slot: enough to smooth a slow batch, short enough to track a real change.
     const keep = Math.max(2, this.slots * 2);
     while (this.window.length > keep) this.window.shift();
 
     const earliest = Math.min(...this.window.map((entry) => entry.startedAtMs));
-    const span = Math.max(finishedAtMs - earliest, 1000);
-    const observed =
+    const latest = Math.max(...this.window.map((entry) => entry.finishedAtMs));
+    const span = Math.max(latest - earliest, 1000);
+    let observed =
       this.window.reduce((sum, entry) => sum + entry.units, 0) /
       (span / 60_000);
+    // Warm-up: the window holds only `window.length` of `slots` batches in flight, so the
+    // aggregate is short by that ratio. Scale it up rather than dropping the smoothing —
+    // discarding `this.ewma` here would throw away a resumed run's stored rate.
+    if (this.window.length < this.slots)
+      observed *= this.slots / this.window.length;
 
-    const warm = this.window.length >= this.slots;
-    this.ewma = warm ? ewmaRate(this.ewma, observed) : ewmaRate(null, observed);
+    this.ewma = ewmaRate(this.ewma, observed);
     return this.ewma;
   }
 }
