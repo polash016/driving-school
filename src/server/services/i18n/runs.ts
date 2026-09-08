@@ -7,6 +7,7 @@ import { logger } from "@/lib/logger";
 import { AUDIT, auditLog } from "@/server/audit";
 import { extractAll, pendingUnits, pruneOrphans } from "./extract";
 import { invalidateMessages } from "./catalogue";
+import { repairBatch, repairContextFor, storeRepairs } from "./repair";
 import { batchRate, ESTIMATED_USD_PER_1K_TOKENS, ewmaRate } from "./run-math";
 import {
   BATCH_SIZE,
@@ -761,20 +762,47 @@ async function translateSlice(
   return { translated, superseded: new Set() };
 }
 
-// `repairSlice` is added in Task 16; until then it is a stub that throws so a REPAIR run cannot
-// silently take the normal path. The parameter list is the contract Task 16 fills in, so it stays.
-/* eslint-disable @typescript-eslint/no-unused-vars */
+/**
+ * A REPAIR slice.
+ *
+ * Three things separate it from `translateSlice`, and all three are safety, not style:
+ * `qaSampleRate: 1` — every repaired unit is QA'd whatever the language asks for, because repair
+ * raises scrutiny and never lowers it; the context is read fresh so the prompt carries the finding
+ * that is on the row right now; and `storeRepairs` writes conditionally, so a reviewer who
+ * approved the row while this batch was in the model keeps their answer.
+ */
 async function repairSlice(
-  _db: PrismaClient,
-  _locale: string,
-  _language: LanguagePolicy,
-  _units: TranslationUnit[],
-  _runId: string,
-  _signal: AbortSignal | undefined,
+  db: PrismaClient,
+  locale: string,
+  language: LanguagePolicy,
+  units: TranslationUnit[],
+  runId: string,
+  signal: AbortSignal | undefined,
 ): Promise<SliceOutcome> {
-  throw new Error("REPAIR runs land in Phase 2 (Task 16)");
+  if (units.length === 0) return { translated: [], superseded: new Set() };
+  const context = await repairContextFor(
+    db,
+    locale,
+    units[0].entity,
+    units.map((unit) => unit.entityId),
+  );
+  const { translated, consumed } = await repairBatch(
+    db,
+    { ...language, qaSampleRate: 1 },
+    units,
+    context,
+    signal ? { signal } : {},
+  );
+  const superseded = await storeRepairs(
+    db,
+    locale,
+    translated,
+    runId,
+    consumed,
+    language.glossaryVersion,
+  );
+  return { translated, superseded };
 }
-/* eslint-enable @typescript-eslint/no-unused-vars */
 
 async function unitsFor(
   db: PrismaClient,

@@ -26,7 +26,8 @@ import { allCodes, checkTranslation } from "./validation";
 /** Units per model call. Small enough that one malformed object does not cost the batch. */
 export const BATCH_SIZE = 5;
 
-const translationResponseSchema = z.object({
+/** The shape every translation call — fresh or repair — must come back in. */
+export const translationResponseSchema = z.object({
   units: z.array(
     z.object({
       id: z.string(),
@@ -73,7 +74,7 @@ export interface TranslatedUnit {
 }
 
 /** Strip the payload down to the keys the source actually had, so nothing invented sneaks in. */
-function shapeLike(
+export function shapeLike(
   source: UnitPayload,
   candidate: Record<string, unknown>,
 ): UnitPayload {
