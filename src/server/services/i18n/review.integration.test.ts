@@ -3,11 +3,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { SessionUser } from "@/server/authz";
 import { db } from "@/server/db";
 import { redis } from "@/server/redis";
+import { extractAll } from "./extract";
 import {
   bulkApproveInputSchema,
   bulkApproveTranslations,
   flagCounts,
 } from "./review";
+import type { TranslationUnit } from "./units";
 
 /**
  * Bulk approve, scoped to the flags a reviewer consented to (spec-19).
@@ -20,6 +22,12 @@ import {
  * So the thing that has to hold against a real database is the partition. Consent is per flag
  * CODE, but approval is decided per ROW over ALL of its flags: a unit flagged both
  * `QA_UNAVAILABLE` and `NUMBER_DRIFT` must survive a reviewer consenting to the first.
+ *
+ * And staleness, which only became reachable when a sweep could touch a flagged row: the resolver
+ * serves on status alone, so an approved row whose English has moved is served to students against
+ * text it was never translated from. Every fixture here is therefore built from a REAL extracted
+ * unit and its real hash — a fixture with an invented hash would be stale, and would pass this
+ * file by never being approved at all.
  */
 const enabled = Boolean(process.env.TEST_DATABASE_URL);
 const d = describe.skipIf(!enabled);
@@ -32,15 +40,19 @@ const actor: SessionUser = {
   email: `review-${RUN}@example.no`,
 };
 
-/** The four rows the whole partition is argued over, by the flags they carry. */
+/** The rows the whole partition is argued over, by the flags they carry. */
 const rowIds: {
   clean: string;
   infra: string;
   mixed: string;
   quality: string;
+  stale: string;
   master?: string;
   variant?: string;
-} = { clean: "", infra: "", mixed: "", quality: "" };
+} = { clean: "", infra: "", mixed: "", quality: "", stale: "" };
+
+/** Every current unit, with the hash a fresh translation would carry. */
+let units: TranslationUnit[] = [];
 
 beforeAll(async () => {
   if (!enabled) return;
@@ -65,39 +77,51 @@ beforeAll(async () => {
     },
   });
 
-  // Synthetic entity ids: nothing here reads the source side, and a fixture that does not depend
-  // on how many topics happen to be seeded is one that cannot fail for the wrong reason.
+  // Real units and their real hashes. UI messages, because there are hundreds of them and they do
+  // not depend on how much question content happens to be seeded.
+  const language = await db.language.findUniqueOrThrow({
+    where: { code: CODE },
+    select: { glossaryVersion: true },
+  });
+  units = await extractAll(db, { glossaryVersion: language.glossaryVersion });
+  const messages = units.filter((unit) => unit.entity === "UI_MESSAGE");
+  expect(messages.length).toBeGreaterThan(5);
+
   const make = async (
-    entityId: string,
+    unit: TranslationUnit,
     status: "MACHINE" | "NEEDS_REVIEW",
     qaFlags: string[],
+    sourceHash: string = unit.sourceHash,
   ) =>
     (
       await db.translation.create({
         data: {
           locale: CODE,
-          entity: "TOPIC",
-          entityId,
-          value: { name: `Row ${qaFlags.join("+") || "clean"}` },
+          entity: unit.entity,
+          entityId: unit.entityId,
+          value: { text: `Row ${qaFlags.join("+") || "clean"}` },
           status,
-          sourceHash: `hash-${entityId}`,
+          sourceHash,
           qaFlags,
         },
         select: { id: true },
       })
     ).id;
 
-  rowIds.clean = await make(`topic-${RUN}-clean`, "MACHINE", []);
-  rowIds.infra = await make(`topic-${RUN}-infra`, "NEEDS_REVIEW", [
-    "QA_UNAVAILABLE",
-  ]);
-  rowIds.mixed = await make(`topic-${RUN}-mixed`, "NEEDS_REVIEW", [
+  rowIds.clean = await make(messages[0], "MACHINE", []);
+  rowIds.infra = await make(messages[1], "NEEDS_REVIEW", ["QA_UNAVAILABLE"]);
+  rowIds.mixed = await make(messages[2], "NEEDS_REVIEW", [
     "QA_UNAVAILABLE",
     "NUMBER_DRIFT",
   ]);
-  rowIds.quality = await make(`topic-${RUN}-quality`, "NEEDS_REVIEW", [
-    "NUMBER_DRIFT",
-  ]);
+  rowIds.quality = await make(messages[3], "NEEDS_REVIEW", ["NUMBER_DRIFT"]);
+  // Translated from English that has since moved on. Fully consented to, and still not approvable.
+  rowIds.stale = await make(
+    messages[4],
+    "NEEDS_REVIEW",
+    ["QA_UNAVAILABLE"],
+    "stale",
+  );
 });
 
 afterAll(async () => {
@@ -124,10 +148,12 @@ async function statusOf(id: string): Promise<string> {
 d("what a check is currently holding back", () => {
   it("counts each code and says whether it is a statement about the translation", async () => {
     const counts = await flagCounts(db, CODE);
-    // Sorted worst-first, so the two-row codes lead and the tie is broken by name.
+    // Worst first. QA_UNAVAILABLE holds three rows, one of which is stale and one of which also
+    // carries a NUMBER_DRIFT — which is exactly why the screen says "held by this check" rather
+    // than promising that ticking it releases three.
     expect(counts).toEqual([
+      { code: "QA_UNAVAILABLE", count: 3, quality: false },
       { code: "NUMBER_DRIFT", count: 2, quality: true },
-      { code: "QA_UNAVAILABLE", count: 2, quality: false },
     ]);
   });
 });
@@ -139,7 +165,7 @@ d("bulk approve with nothing consented to", () => {
         locale: CODE,
         allowFlags: [],
       }),
-    ).toEqual({ approved: 1, skipped: 3 });
+    ).toEqual({ approved: 1, skipped: 4 });
 
     expect(await statusOf(rowIds.clean)).toBe("APPROVED");
     expect(await statusOf(rowIds.infra)).toBe("NEEDS_REVIEW");
@@ -152,7 +178,7 @@ d("bulk approve with nothing consented to", () => {
     // behaviour it was written against.
     expect(await bulkApproveTranslations(db, actor, { locale: CODE })).toEqual({
       approved: 0,
-      skipped: 3,
+      skipped: 4,
     });
   });
 });
@@ -164,7 +190,7 @@ d("bulk approve scoped to a flag", () => {
         locale: CODE,
         allowFlags: ["QA_UNAVAILABLE"],
       }),
-    ).toEqual({ approved: 1, skipped: 2 });
+    ).toEqual({ approved: 1, skipped: 3 });
 
     expect(await statusOf(rowIds.infra)).toBe("APPROVED");
     // The row that matters: consenting to "the check could not run" must not carry a changed
@@ -196,10 +222,44 @@ d("bulk approve scoped to a flag", () => {
   });
 });
 
+d("a row whose English has moved on", () => {
+  it("is never approved, however completely its flags were consented to", async () => {
+    // The reviewer ticked the only code this row carries, so nothing about the consent rule is
+    // holding it back — the source hash is.
+    expect(
+      await bulkApproveTranslations(db, actor, {
+        locale: CODE,
+        allowFlags: ["QA_UNAVAILABLE", "NUMBER_DRIFT"],
+      }),
+    ).toEqual({ approved: 2, skipped: 1 });
+
+    expect(await statusOf(rowIds.mixed)).toBe("APPROVED");
+    expect(await statusOf(rowIds.quality)).toBe("APPROVED");
+    // Coverage already treats it as untranslated, but the resolver serves on status alone: an
+    // APPROVED stale row would be shown to a student against English it was not translated from.
+    expect(await statusOf(rowIds.stale)).toBe("NEEDS_REVIEW");
+
+    const row = await db.translation.findUniqueOrThrow({
+      where: { id: rowIds.stale },
+      select: { reviewedById: true, reviewedAt: true, sourceHash: true },
+    });
+    expect(row).toMatchObject({
+      reviewedById: null,
+      reviewedAt: null,
+      sourceHash: "stale",
+    });
+  });
+});
+
 d("a flagged question that gets approved", () => {
   it("still reaches the variants students are actually served", async () => {
+    const masterUnits = units.filter((unit) => unit.entity === "MASTER_ITEM");
+    expect(masterUnits.length).toBeGreaterThan(0);
     const master = await db.masterItem.findFirstOrThrow({
-      where: { variants: { some: { isActive: true } } },
+      where: {
+        id: { in: masterUnits.map((unit) => unit.entityId) },
+        variants: { some: { isActive: true } },
+      },
       select: {
         id: true,
         version: true,
@@ -213,6 +273,7 @@ d("a flagged question that gets approved", () => {
       (candidate) => candidate.masterVersion === master.version,
     );
     expect(variant).toBeDefined();
+    const masterUnit = masterUnits.find((unit) => unit.entityId === master.id)!;
 
     rowIds.master = (
       await db.translation.create({
@@ -222,7 +283,7 @@ d("a flagged question that gets approved", () => {
           entityId: master.id,
           value: { stem: "Spørsmål", options: [], explanation: "" },
           status: "NEEDS_REVIEW",
-          sourceHash: `hash-${master.id}`,
+          sourceHash: masterUnit.sourceHash,
           qaFlags: ["QA_UNAVAILABLE"],
         },
         select: { id: true },
@@ -234,7 +295,7 @@ d("a flagged question that gets approved", () => {
         locale: CODE,
         allowFlags: ["QA_UNAVAILABLE"],
       }),
-    ).toEqual({ approved: 1, skipped: 2 });
+    ).toEqual({ approved: 1, skipped: 1 });
 
     // The derivation is the point: an approved question that never reaches its variants is not
     // served to anybody, so bulk approve has to do it too.
@@ -258,7 +319,7 @@ d("a flagged question that gets approved", () => {
         locale: CODE,
         allowFlags: [],
       }),
-    ).toEqual({ approved: 0, skipped: 2 });
+    ).toEqual({ approved: 0, skipped: 1 });
   });
 });
 

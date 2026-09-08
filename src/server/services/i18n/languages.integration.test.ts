@@ -12,7 +12,6 @@ import {
 } from "./languages";
 import { MAX_REPAIR_ATTEMPTS } from "./repair";
 import {
-  bulkApproveInputSchema,
   bulkApproveTranslations,
   reviewQueue,
   reviewTranslation,
@@ -308,12 +307,20 @@ d("the coverage gate", () => {
  */
 d("bulk approve after auto-repair", () => {
   it("still refuses a flagged unit, even one the machine has given up on", async () => {
-    const topics = await db.topic.findMany({
-      where: { deletedAt: null },
-      take: 2,
-      orderBy: { id: "asc" },
-      select: { id: true },
+    // Real hashes: bulk approve refuses a row whose source has moved, so an invented hash would
+    // make this pass for the wrong reason — nothing approved, and the flag never tested.
+    const { extractAll } = await import("./extract");
+    const language = await db.language.findUniqueOrThrow({
+      where: { code: CODE },
+      select: { glossaryVersion: true },
     });
+    const units = await extractAll(db, {
+      glossaryVersion: language.glossaryVersion,
+    });
+    const topics = units
+      .filter((unit) => unit.entity === "TOPIC")
+      .slice(0, 2)
+      .map((unit) => ({ id: unit.entityId, sourceHash: unit.sourceHash }));
     expect(topics.length).toBe(2);
 
     const clean = await db.translation.create({
@@ -323,7 +330,7 @@ d("bulk approve after auto-repair", () => {
         entityId: topics[0].id,
         value: { name: "Limpio" },
         status: "MACHINE",
-        sourceHash: "clean-hash",
+        sourceHash: topics[0].sourceHash,
         qaFlags: [],
       },
       select: { id: true },
@@ -337,7 +344,7 @@ d("bulk approve after auto-repair", () => {
         entityId: topics[1].id,
         value: { name: "Marcado" },
         status: "NEEDS_REVIEW",
-        sourceHash: "flagged-hash",
+        sourceHash: topics[1].sourceHash,
         qaFlags: ["NUMBER_DRIFT"],
         repairAttempts: MAX_REPAIR_ATTEMPTS,
       },
@@ -379,23 +386,5 @@ d("bulk approve after auto-repair", () => {
     await db.translation.deleteMany({
       where: { id: { in: [clean.id, flagged.id] } },
     });
-  });
-});
-
-/**
- * And the only way to reach anything flagged is to name the flag: `allowFlags` defaults to the
- * empty list, so a form, a fetch, or a future caller who means well all get the old behaviour.
- * The contract itself is pinned in `review.integration.test.ts`.
- */
-describe("the bulk approve contract", () => {
-  it("consents to nothing unless a reviewer says otherwise", () => {
-    expect(bulkApproveInputSchema.parse({ locale: "es" })).toEqual({
-      locale: "es",
-      allowFlags: [],
-    });
-    // The old boolean escape hatch is gone rather than renamed.
-    expect(() =>
-      bulkApproveInputSchema.parse({ locale: "es", includeFlagged: true }),
-    ).toThrow();
   });
 });

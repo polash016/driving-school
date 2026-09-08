@@ -57,8 +57,10 @@ because 16 is leak-proof without it. Specs 08 and 09 carry amendments; rationale
 
 ⚙️ **Spec-19 was approved 2026-09-08**, after using spec-15 in anger. The engine works, but there
 was no way to _finish_: the admin screen advances 25 units a click, and QA-flagged units are served
-under no policy — so turning off "requires approval" does not help, bulk approve refuses flagged rows
-by design, and the flagged pile can only be cleared one at a time. Spec-19 adds a background worker
+under no policy — so turning off "requires approval" does not help, and bulk approve refused every
+flagged row, so the flagged pile could only be cleared one at a time. (Amendment B, 2026-09-09:
+bulk approve is now scoped to the flag codes a reviewer ticks, and a row is approved only when
+every flag it carries was consented to — see [DECISIONS.md](../DECISIONS.md).) Spec-19 adds a background worker
 and makes the machine repair its own QA failures rather than lowering the bar. Three phases, each
 shippable alone.
 

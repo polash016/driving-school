@@ -8,6 +8,7 @@ import { ConflictError, NotFoundError } from "@/lib/errors";
 import { AUDIT, auditLog } from "@/server/audit";
 import type { SessionUser } from "@/server/authz";
 import { invalidateMessages } from "./catalogue";
+import { extractAll } from "./extract";
 import { rememberTranslation } from "./memory";
 import { deriveVariantTranslations } from "./runs";
 import type { UnitPayload } from "./units";
@@ -162,10 +163,27 @@ export async function flagCounts(
     .sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
 }
 
+/**
+ * The kinds of unit a reviewer can narrow a bulk approve to.
+ *
+ * Exactly what `extractAll` emits, and deliberately NOT the whole `TranslatableEntity` enum:
+ * `ITEM_VARIANT` is derived from its master and has no source of its own to compare against, so
+ * naming one here could only approve a row nobody ever read. A free-form string would have let a
+ * crafted POST do precisely that.
+ */
+export const bulkApproveEntitySchema = z.enum([
+  "UI_MESSAGE",
+  "MASTER_ITEM",
+  "TOPIC",
+  "LICENSE_CLASS",
+  "SIGN",
+  "KB_SOURCE",
+]);
+
 export const bulkApproveInputSchema = z
   .object({
     locale: z.string().min(2),
-    entity: z.string().optional(),
+    entity: bulkApproveEntitySchema.optional(),
     /**
      * Flag codes the reviewer has explicitly consented to. A row is approved only when EVERY one
      * of its flags appears here, so consenting to an infrastructure code can never sweep up a
@@ -187,6 +205,11 @@ export const bulkApproveInputSchema = z
  * semantic check could not run, and that was never a statement about the translation"; it does
  * NOT say anything about a `NUMBER_DRIFT` sitting on the same row, which is why approval is
  * decided per ROW over ALL of its flags rather than per flag.
+ *
+ * Staleness is the other half of that honesty, and it only became reachable here. Until bulk
+ * approve could touch a flagged row, anything flagged reached APPROVED through `reviewQueue`,
+ * which renders the current English beside it — so a human saw the drift. A sweep does not, which
+ * is why the candidate set is intersected with the live source hashes.
  */
 export async function bulkApproveTranslations(
   db: PrismaClient,
@@ -195,23 +218,46 @@ export async function bulkApproveTranslations(
 ): Promise<{ approved: number; skipped: number }> {
   const input = bulkApproveInputSchema.parse(rawInput);
   const allowed = new Set(input.allowFlags);
-
-  // Index: Translation[locale, status, createdAt].
-  const candidates = await db.translation.findMany({
-    where: {
-      locale: input.locale,
-      status: { in: ["MACHINE", "NEEDS_REVIEW"] },
-      entity: input.entity
-        ? (input.entity as TranslatableEntity)
-        : ({ not: "ITEM_VARIANT" } as const),
-    },
-    select: { id: true, entity: true, entityId: true, qaFlags: true },
+  const language = await db.language.findUniqueOrThrow({
+    where: { code: input.locale },
+    select: { glossaryVersion: true },
   });
 
-  // `[].every()` is vacuously true, which is exactly right here: a row with no flags at all is
-  // approved under every consent set, including the empty one.
-  const targets = candidates.filter((row) =>
-    row.qaFlags.every((flag) => allowed.has(flag)),
+  const [candidates, units] = await Promise.all([
+    // Index: Translation[locale, status, createdAt].
+    db.translation.findMany({
+      where: {
+        locale: input.locale,
+        status: { in: ["MACHINE", "NEEDS_REVIEW"] },
+        entity: input.entity ?? ({ not: "ITEM_VARIANT" } as const),
+      },
+      select: {
+        id: true,
+        entity: true,
+        entityId: true,
+        status: true,
+        qaFlags: true,
+        sourceHash: true,
+      },
+    }),
+    extractAll(db, { glossaryVersion: language.glossaryVersion }),
+  ]);
+
+  // Never approve a row whose source has moved: coverage counts it untranslated, but the resolver
+  // serves on status alone, so an approved stale row reaches students against English it was not
+  // translated from.
+  const fresh = new Set(
+    units.map((unit) => `${unit.entity}:${unit.entityId}:${unit.sourceHash}`),
+  );
+
+  const targets = candidates.filter(
+    (row) =>
+      fresh.has(`${row.entity}:${row.entityId}:${row.sourceHash}`) &&
+      // `[].every()` is vacuously true, which is exactly right for a MACHINE row: nothing flagged
+      // it, so every consent set approves it. A NEEDS_REVIEW row with no flags is a writer bug
+      // rather than a clean row, and must never be swept up on a technicality.
+      (row.qaFlags.length > 0 || row.status === "MACHINE") &&
+      row.qaFlags.every((flag) => allowed.has(flag)),
   );
   const skipped = candidates.length - targets.length;
 

@@ -202,11 +202,12 @@ ENVIRONMENT_FALLBACK` on every render and disagreed between SSR and hydration.
 ## Phase 2 — auto-repair
 
 A translation that fails a QA check is stored `NEEDS_REVIEW`, and `NEEDS_REVIEW` is served under no
-policy, never counts towards coverage, and is deliberately refused by bulk approve. So before this,
-the flagged pile could only be cleared one unit at a time by a human. Phase 2 removes that wall by
-making the machine fix its own mistakes — never by lowering the bar.
+policy, never counts towards coverage, and is refused by bulk approve unless a reviewer names the
+very code that flagged it (amendment B, below). So before this, the flagged pile could only be
+cleared one unit at a time by a human. Phase 2 removes that wall by making the machine fix its own
+mistakes — never by lowering the bar.
 
-### ✅ The bar did not move — bulk approve still refuses flagged rows
+### ✅ The bar did not move — a quality finding is still not bulk-approvable
 
 The invariant the whole spec is built to protect, and the first thing to check after building
 something whose whole purpose is to shrink the flagged pile. Against the real database, with a
@@ -218,14 +219,13 @@ strongest possible temptation to wave through, and exactly the row a human has t
     bulkApproveTranslations → { approved: 1, skipped: 1 }
     flagged row after:  status NEEDS_REVIEW · qaFlags ["NUMBER_DRIFT"] · repairAttempts 3
                         reviewedById null · reviewedAt null      ← untouched in every respect
-✓ has no opt-out from refusing flagged units
-    includeFlagged is z.literal(false): the refusal is on the `includeFlagged` path itself,
-    not incidental to some other rule
 ```
 
-The plan's snippet for the second test used `{ locale: "x", includeFlagged: true }`, which throws —
-but on `locale`'s `min(2)`, so it would have passed without ever exercising `includeFlagged`. The
-fixture uses a valid locale and asserts the issue path, so the test proves what it claims.
+At the time this was written the refusal was categorical: `includeFlagged: z.literal(false)`, with
+a companion test asserting the refusal sat on the `includeFlagged` path rather than incidentally on
+`locale`'s `min(2)`. Amendment B replaced that boolean with per-code consent; the schema assertions
+now live in `review.integration.test.ts`, and the test above is unchanged because a `NUMBER_DRIFT`
+nobody consented to is still refused.
 
 ### ✅ Three safety rules, each with a test
 
@@ -454,3 +454,51 @@ pm2 logs teoripro-i18n-worker --lines 20
 
 Then confirm the board's chip reads **Background worker online**. `tsx` is a devDependency, so the
 VPS install must keep devDependencies or the worker cannot start.
+
+## Amendment B — bulk approve scoped to consented flag codes (2026-09-09)
+
+`QA_UNAVAILABLE` means the semantic check could not run — there was no `EMBEDDING` route at the
+time — which is not a statement about the translation. It was holding **405 rows** of one
+production language behind a one-at-a-time workflow. Bulk approve is now scoped: `allowFlags`
+replaces `includeFlagged`, the review screen lists every code still holding rows with the two
+non-quality codes pre-ticked, and a row is approved only when EVERY flag it carries was consented
+to. Decision and its consequences: [DECISIONS.md](../../DECISIONS.md).
+
+### ✅ The partition, against the real database
+
+`src/server/services/i18n/review.integration.test.ts` — 9 tests, run against `teoripro_test` (not
+skipped). Fixtures are five real extracted UI-message units with their real source hashes: one
+clean `MACHINE`, one `NEEDS_REVIEW` flagged only `QA_UNAVAILABLE`, one flagged
+`["QA_UNAVAILABLE", "NUMBER_DRIFT"]`, one flagged only `NUMBER_DRIFT`, and one flagged
+`QA_UNAVAILABLE` whose `sourceHash` is `"stale"`.
+
+```
+✓ flagCounts → [ { QA_UNAVAILABLE, 3, quality: false }, { NUMBER_DRIFT, 2, quality: true } ]
+✓ allowFlags: []                  → { approved: 1, skipped: 4 }   only the clean row moves
+✓ no allowFlags at all            → { approved: 0, skipped: 4 }   the default is the safe end
+✓ allowFlags: ["QA_UNAVAILABLE"]  → { approved: 1, skipped: 3 }
+      infra row  APPROVED · reviewedById set · qaFlags kept (consented to, not disproved)
+      mixed row  NEEDS_REVIEW   ← the row that matters: the NUMBER_DRIFT beside it holds it back
+      quality    NEEDS_REVIEW
+      stale      NEEDS_REVIEW
+✓ audit meta → { bulk: true, allowFlags: ["QA_UNAVAILABLE"] }
+✓ allowFlags: ["QA_UNAVAILABLE", "NUMBER_DRIFT"] → { approved: 2, skipped: 1 }
+      the one row left behind is the stale one, reviewedById/reviewedAt still null
+✓ an approved flagged MASTER_ITEM still derives its ITEM_VARIANT (variant row → APPROVED),
+  and the derived variant is never itself a bulk-approve candidate
+✓ schema: allowFlags defaults to [], `includeFlagged` is refused by .strict(), 33 codes is refused
+```
+
+### ✅ A row whose English has moved is never approved
+
+The failure this closes: `languageCoverage` treats a stale row as untranslated, but `loadOverlay`
+serves on `status` alone — so an APPROVED stale row is shown to students against English it was not
+translated from. Until bulk approve could touch a flagged row this was unreachable, because a
+flagged row only reached APPROVED through `reviewQueue`, which renders the current source beside it.
+Candidates are now intersected with `extractAll`'s live `entity:entityId:sourceHash` set. The test
+above ticks _every_ code the stale row carries and it is still refused, so the refusal is the hash
+and nothing else.
+
+Structural companion: the partition also requires `qaFlags.length > 0 || status === "MACHINE"`, so
+a future `NEEDS_REVIEW` writer that forgets to attach a flag cannot be auto-approved by a vacuously
+true `[].every()`.
