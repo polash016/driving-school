@@ -76,13 +76,20 @@ Additive only; no existing column changes meaning.
 A long-lived loop in `scripts/i18n-worker.ts`, run as a second pm2 app. It polls for claimable runs,
 executes them in slices, and never exits on its own. Error containment, outermost last:
 
-| Layer           | Contains                                                                             | State  |
-| --------------- | ------------------------------------------------------------------------------------ | ------ |
-| 1 · per-unit    | 3 attempts, then `SKIPPED` so one bad unit cannot stall a run                        | exists |
-| 2 · per-batch   | try/catch records the error; the run continues                                       | exists |
-| 3 · per-run     | a run that throws is marked `FAILED`; the worker moves to the next language          | new    |
-| 4 · worker loop | `unhandledRejection` / `uncaughtException` trapped, exponential backoff, never exits | new    |
-| 5 · pm2         | `autorestart`, and lease expiry means an abandoned run is reclaimed                  | new    |
+| Layer           | Contains                                                                             | State             |
+| --------------- | ------------------------------------------------------------------------------------ | ----------------- |
+| 0 · per-call    | an `AbortSignal` deadline on every provider request                                  | **missing today** |
+| 1 · per-unit    | 3 attempts, then `SKIPPED` so one bad unit cannot stall a run                        | exists            |
+| 2 · per-batch   | try/catch records the error; the run continues                                       | exists            |
+| 3 · per-run     | a run that throws is marked `FAILED`; the worker moves to the next language          | new               |
+| 4 · worker loop | `unhandledRejection` / `uncaughtException` trapped, exponential backoff, never exits | new               |
+| 5 · pm2         | `autorestart`, and lease expiry means an abandoned run is reclaimed                  | new               |
+
+**Layer 0 is a prerequisite, not a nicety.** No adapter sets a request timeout today — `fetch` is
+called with no `signal` anywhere in `src/server/ai/`. Attended use hides this, because a person
+gives up and reloads. An unattended worker has nobody to give up: one hung call blocks its run until
+the lease lapses, and every retry layer above it waits on a promise that never settles. The deadline
+belongs in the adapter, so every AI caller gains it, not only translation.
 
 `SIGTERM` finishes the current batch, releases the lease, and exits clean, so a deploy never orphans
 a run.
@@ -120,6 +127,9 @@ filtering the review queue.
       and re-translates **nothing** already done.
 - [ ] A batch that throws (provider 502) is recorded and the run continues; a run that throws is
       marked `FAILED` and the worker proceeds to the next language. The loop survives both.
+- [ ] A provider call that never returns is aborted by its deadline: the unit is recorded as failed,
+      the batch moves on, and the worker does not stall. Proven against a server that accepts the
+      connection and never responds — not merely against one that returns an error.
 - [ ] `SIGTERM` during a run releases the lease and exits within one batch; the run resumes on the
       next worker start.
 - [ ] The progress panel shows rate, ETA, cost against estimate and a per-entity breakdown, and
@@ -152,10 +162,18 @@ filtering the review queue.
 
 ## Notes
 
-- **The Ollama 502 rate matters here.** Measured 2026-09-08 against `ai.dsit.app`, roughly one call
-  in six returned 502 on the self-hosted models. Layer 1 absorbs it, but a second `TRANSLATION`
-  route should be configured as fallback before a full bank is run unattended, or a bad patch will
-  spend real units' attempt budgets on infrastructure noise.
+- **The self-hosted 502s do not apply to this pipeline.** An earlier draft of this spec called for a
+  fallback `TRANSLATION` route to absorb an apparent ~1-in-6 failure rate on `ai.dsit.app`. That was
+  a measurement artefact: the 502s were caused by a tiny `max_tokens`, not by the provider. Measured
+  interleaved (`eb9a48e`), `max_tokens: 1` succeeded 11/24 while the 4096 default succeeded 24/24.
+  Translation asks for **8192** (`translate.ts`), and QA the same, so neither ever meets that
+  failure mode. The retry layers still earn their place for genuine outages — but no fallback route
+  is needed on these grounds, and adding one for this reason would be cargo cult.
+- **Latency on the self-hosted models varies by two orders of magnitude.** The same call measured
+  0.5 s on 2026-09-07 and 29.7 s on 2026-09-08, on a gateway whose `/v1/models` answered in 0.3 s
+  throughout — so it is the model host under load, not the network. ETA must therefore be computed
+  from the run's own observed rate over a recent window, never from a constant, or the estimate will
+  be confidently wrong. This is also what makes layer 0 non-negotiable.
 - **Phases ship independently.** Phase 1 alone removes the wall; 2 and 3 are improvements on a
   working system.
 - Deployment adds one pm2 entry to the VPS `ecosystem.config.cjs` — see the deployment notes in
