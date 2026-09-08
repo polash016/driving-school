@@ -214,7 +214,11 @@ if (candidate.finishReason === "MAX_TOKENS")
 const text = (candidate.content?.parts ?? []).map((p) => p.text ?? "").join("");
 ```
 
-- [ ] **`anthropic.ts`** — `if (parsed.stop_reason === "max_tokens") throw new ProviderTruncatedError(request.maxTokens, parsed.usage?.output_tokens ?? 0);` (read its schema for the exact field names).
+- [ ] **`anthropic.ts`** — schema gains `stop_reason: z.string().optional()` and `content` drops its `.min(1)` (a `max_tokens` finish can arrive with an empty content block); after parse: `if (parsed.stop_reason === "max_tokens") throw new ProviderTruncatedError(maxTokens, parsed.usage?.output_tokens ?? 0);`.
+- [ ] **All three adapters** — hoist `const maxTokens = request.maxTokens ?? 4096;` and use it in both the request body and the error, so the error names the effective cap. `openai-compatible.ts` `message.content` becomes `z.string().nullable()` with `text: content ?? ""` (gateways send `null` on a `length` finish).
+- [ ] **Google: an empty candidate that is NOT `MAX_TOKENS` must still fail loudly** — after the truncation check: `if (!candidate.content?.parts?.length) throw new ProviderError(\`no content returned (finishReason ${candidate.finishReason ?? "unset"})\`, 502, false);`— otherwise a`SAFETY` block becomes a misleading "contract validation" error downstream.
+- [ ] **Pings (found in review, 2026-09-09):** `google.ts` and `anthropic.ts` `ping` still sent `maxTokens: 1`, which makes every health check finish on `MAX_TOKENS` — now a `ProviderTruncatedError`, so `testProvider` would persist `lastCheckOk: false` on healthy keys. Drop the cap in both, as `openai-compatible.ts` already does (`eb9a48e`): the model stops on its own after "ping". Test it.
+- [ ] Tests: new `anthropic.test.ts` mirroring `google.test.ts` (max_tokens with text, max_tokens with empty content, end_turn, ping without a cap); `google.test.ts` adds the SAFETY case and the ping case; `openai-compatible.test.ts` adds `length` with `content: null`.
 
 - [ ] **`client.ts` `withFallback`** — first line of the `catch`:
 
