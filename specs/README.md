@@ -28,7 +28,7 @@ Legend: ⬜ Not started · 📝 Planned (plan approved) · 🔨 In progress · �
 | 16  | [Task sets & student panel restructure](spec-16-task-sets.md) 🎯                   | 04, 05, 07, 08, 09 | ✅ Done (Opus) — deterministic partitioner; AI pass deferred                                                             | [plan](plans/spec-16-plan.md)              | [notes](notes/spec-16-notes.md) |
 | 17  | [AI variant generator](spec-17-ai-variants.md) 📌                                  | 04, 05, 07, 16     | ⬜ Spec approved 2026-09-03 — build after 16                                                                             | —                                          | —                               |
 | 18  | [Aurora visual language](spec-18-aurora-visual-language.md) ✨                     | 09, 16             | ✅ Done (Opus) — token-driven glass; a11y fallbacks verified                                                             | —                                          | [notes](notes/spec-18-notes.md) |
-| 19  | [Unattended translation & publish readiness](spec-19-translation-automation.md) ⚙️ | 15                 | 📝 Planned (Fable) — plan approved 2026-09-09; 23 tasks in four phases, subagent-driven                                  | [plan](plans/spec-19-plan.md)              | —                               |
+| 19  | [Unattended translation & publish readiness](spec-19-translation-automation.md) ⚙️ | 15                 | 🔨 In progress (Fable) — phase 0 ✅ (request deadline), phase 1 ✅ (worker, controls, live progress); repair next        | [plan](plans/spec-19-plan.md)              | [notes](notes/spec-19-notes.md) |
 
 **Handoff:** Fable phase complete — Opus sessions start at [docs/handoff-opus.md](../docs/handoff-opus.md) and execute 03 → 14.
 

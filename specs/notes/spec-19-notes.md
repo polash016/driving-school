@@ -1,0 +1,208 @@
+# Spec 19 — Unattended Translation & Publish Readiness · verification evidence
+
+**Status: phase 1 of 3 complete.** The request deadline (phase 0) and the background worker, run
+controls and live progress (phase 1) are implemented and verified (2026-09-09). Auto-repair
+(phase 2) and readiness/notifications/sample (phase 3) are the remaining work; see
+`specs/plans/spec-19-plan.md`.
+
+```
+pnpm test    # 472 passed (51 files)
+pnpm exec tsc --noEmit && pnpm exec eslint     # clean
+```
+
+Work is on branch `spec-19-translation-automation`, not yet merged.
+
+## Phase 0 — a deadline on every AI request
+
+### ✅ No provider request can hang for ever
+
+Before this, `fetch` was called with **no `signal` anywhere in `src/server/ai/`**. Attended use hid
+it — a person reloads a hung page — but an unattended worker has nobody to give up, and one hung
+call would block its run until the lease lapsed while every retry layer above waited on a promise
+that never settled.
+
+All five provider fetch sites now go through `fetchWithDeadline`. Verified by grep rather than by
+reading the diff: exactly one raw `fetch(` remains in the whole of `src/server/ai/`, and it is the
+one inside the wrapper.
+
+```
+src/server/ai/providers/types.ts:121:    return await fetch(url, { ...init, signal });
+```
+
+### ✅ Every way a request can die is retryable, including the ones that were not
+
+`asProviderError` maps `TimeoutError` → 504, `AbortError` → 499, and undici's
+`TypeError("fetch failed")` → 503, all **retryable**; a `ProviderError` passes through; anything
+unrecognised is returned untouched rather than swallowed (asserted with a `RangeError`).
+
+That last mapping fixes a real pre-existing bug, not just a theoretical one. `client.ts` computes
+`error instanceof ProviderError ? error.retryable : false`, so a provider that was genuinely **down**
+— ECONNREFUSED, DNS failure, TLS reset — surfaced as a bare `TypeError` and **stopped the fallback
+chain at the first route**, which is precisely the outage the chain exists for.
+
+The deadline is proven against a server that accepts the connection and never answers — a fetch stub
+whose promise can only be settled by the signal — not merely against one that returns an error:
+
+```
+✓ aborts a server that never responds and reports it as retryable   (<2s, deadline 120ms)
+✓ honours an outer signal (worker shutdown) as retryable too
+✓ maps a network failure (undici TypeError) to a retryable 503
+✓ passes a ProviderError through untouched and leaves unknown errors alone
+```
+
+A regression worth naming: `openai-compatible`'s `ping` still deliberately omits `maxTokens`. A
+1-token cap made the self-hosted gateway 502 on roughly half of all calls (measured 11/24 against
+24/24 at the default, interleaved to rule out warm-up) — see `eb9a48e`. `pingTimeoutMs` is 60 s, not
+the 20 s first proposed, because a healthy ping measured 7–13 s and 29.7 s under load.
+
+## Phase 1 — the worker, controls and progress
+
+### ✅ A crashed worker loses no completed work, and re-translates nothing
+
+The headline acceptance item, run for real against the live AI gateway rather than asserted from the
+unit test. A 32-unit run on a throwaway language, worker started, then the **actual node process**
+`kill -9`'d mid-batch (the first attempt at this killed only the `pnpm` wrapper and the real worker
+carried on — that run proved nothing and was discarded).
+
+State immediately after the hard kill — 5 units finished, 5 stranded mid-flight, the run still
+holding a dead worker's lease:
+
+```
+jobs:  DONE 5 · RUNNING 5 · QUEUED 22
+run:   status RUNNING · translatedUnits 5 · leaseOwner worker-ds-MS-7E27-692805-34a7fd
+```
+
+A second worker was started and **correctly declined to touch it** while the lease was still live
+(`leaseExpiresAt 08:23:24`, `now 08:22:27`, `expired: false`) — a runner must not steal a lease that
+has not lapsed. Once it lapsed, it claimed the run and finished it:
+
+```
+jobs:  DONE 32
+run:   status COMPLETED · translatedUnits 32 / 32 · leaseOwner null
+translations: 32
+```
+
+The five jobs stranded in `RUNNING` were re-queued and completed — before this change nothing ever
+re-queued them, and the run would have reported COMPLETED with those units silently missing, because
+completion counted only `QUEUED`.
+
+And the work already done was **not** redone. Comparing each pre-crash unit's `finishedAt` before and
+after, and the `updatedAt` of its translation:
+
+```
+UNCHANGED  cmt6tckkx000  2026-09-08 08:21:24.403
+UNCHANGED  cmt6tckl1000  2026-09-08 08:21:24.403
+UNCHANGED  cmt6tckl6000  2026-09-08 08:21:24.403
+UNCHANGED  cmt6tckl9000  2026-09-08 08:21:24.403
+UNCHANGED  cmt6tcklb000  2026-09-08 08:21:24.403
+
+Translation.updatedAt:  …kkx 08:21:24.386 · …l10 08:21:24.392 · …l60 08:21:24.394
+                        …l90 08:21:24.397 · …lb0 08:21:24.400   ← pre-crash, untouched
+                        …le0 08:23:34.246                        ← first unit of the recovered run
+```
+
+32 planned, 32 translation rows, zero duplicated spend.
+
+### ✅ Four defects in the existing runner, found before they could bite
+
+An adversarial review of the design against the real code found four faults that only an unattended
+worker exposes. All four are fixed in `executeRun`, and each has a test.
+
+1. **The lease was extended only _after_ a batch.** A batch is up to three provider calls, and on the
+   self-hosted model one call measured 29.7 s — so a QA'd batch routinely outlived the 2-minute
+   lease. Another runner could then claim the run while the first was still working, and because the
+   per-batch writes used `where: { id: runId }` with **no owner guard**, the first never learned it
+   had lost the lease and both wrote status. Now a keepalive refreshes the lease on an owner-guarded
+   `updateMany` every 30 s, and every run-row write is owner-guarded; `count === 0` sets `lostLease`
+   and the runner leaves the run to its new owner without touching it.
+2. **A partial job claim translated the whole batch.** The claim bailed only when `count === 0`, so
+   if another runner had taken 2 of 5, the code proceeded with all 5. Jobs now carry `claimedBy` and
+   the batch is re-read as exactly the rows this runner won.
+3. **Orphaned `RUNNING` jobs were never re-queued** (above).
+4. **No cooperative stop.** `pauseRequested`/`cancelRequested` are read between batches, and an
+   `AbortSignal` threads from the worker through `executeRun` → `translateBatch`/`semanticCheck` →
+   `aiJson`/`aiEmbed` → the adapter, so a deploy's SIGTERM aborts the in-flight call in milliseconds
+   instead of waiting out a 3-minute deadline.
+
+Two corrections were made to the plan during implementation, both recorded in `DECISIONS.md`:
+
+- **`executeRun` must NOT clear `pauseRequested` when it writes `PAUSED`.** The plan's code did, and
+  its own test contradicted it: an admin's pause has to outlive the runner that honoured it, or the
+  worker re-claims the run on its very next tick — which is the entire reason the flag exists
+  separately from the `PAUSED` status. Only `resumeRun` clears it. The test proves claimability
+  rather than the flag's value: `executeRun(..., { maxUnits: 0 })` returns `notClaimed` while paused
+  and `budget` (i.e. claimed) the moment resume lands.
+- **`workerTick` now guards `afterRun` on the success path** as it already did on the failure path.
+  It is inert today — `defaultAfterRun` only logs — but once `afterRun` sends mail (task 21), a
+  transport failure on a run that completed cleanly would have been logged as "run failed", had a
+  `FAILED` status attempted over it, and been reported twice.
+
+### ✅ Containment holds at every layer
+
+| Layer                                 | Covered by                                                                                                                 |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 0 · per-call deadline                 | `deadline.test.ts`, and the hanging-server test in `openai-compatible.test.ts`                                             |
+| 1 · per-unit, 3 attempts then SKIPPED | pre-existing, unchanged                                                                                                    |
+| 2 · per-batch try/catch               | pre-existing, plus the abort path returning the batch **without** charging an attempt                                      |
+| 3 · per-run FAILED, worker continues  | `worker.test.ts` — a throwing run is marked FAILED and the tick reports `"failed"` rather than throwing                    |
+| 4 · tick backoff, loop never exits    | `worker.test.ts` — three failing ticks with growing waits, then the signal stops it; `backoffMs` doubles and caps at 5 min |
+| 5 · pm2 autorestart                   | `ecosystem.config.cjs`                                                                                                     |
+
+Layer 4 was also seen for real: during an earlier smoke test a fixture was deleted from under a
+running batch, and the worker logged `"run failed"`, backed off (`failures: 1, retryInMs: 10000`) and
+kept running rather than dying.
+
+**Known gap:** the keepalive interval itself is never fired in a test — `KEEPALIVE_MS` is 30 s and
+every test finishes in milliseconds. What is covered is the shape of the guarded write and the
+`lostLease` consequence, not the timer.
+
+### ✅ SIGTERM finishes cleanly
+
+```
+{"component":"i18n-worker","signal":"SIGTERM","msg":"shutdown requested — finishing the current batch"}
+{"component":"i18n-worker","msg":"worker stopped"}
+```
+
+Process exits, lease released, run resumes on the next start.
+
+### ✅ The panel says what is happening, in both languages
+
+Driven in a browser against a seeded run, not asserted from the component source.
+
+**`/en/admin/languages`** — "Background worker online"; the Español card showing `Full run` /
+`Running`, bar at 42%, `Done 96 / 240`, `Held for review 11`, `Failed 3`, `From memory 42`,
+`Rate 18.4 / min`, `Time left 8 min`, `Cost $0.15 of ~$0.51`, per-entity chips
+(`TOPIC: 24/27 · 3 given up`), and Pause / Cancel.
+
+**`/no/admin/languages`** — fully Norwegian, no English leaked: "Bakgrunnsarbeider pålogget",
+"Full-kjøring", "Kjører", "Ferdig 96 / 240", "Til vurdering", "Fra minne", "Tempo 18.4 / min",
+"Tid igjen 8 min", "$0.15 av ~$0.51", "3 oppgitt", "Pause", "Avbryt kjøring".
+
+| Checked                            | Result                                                                                                                                   |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Polling                            | `translatedUnits` changed in Postgres → panel moved 96 → 140 within 4 s, no reload                                                       |
+| Pause → Resume → Cancel            | "Pausing after this batch" → Resume replaces Pause → "Cancelling after this batch", controls withdraw, `cancelRequested: true` in the DB |
+| Terminal run                       | bar 100% green, controls gone, **0 server-action POSTs over 8 s** — polling really stops                                                 |
+| Stale heartbeat (>3 min)           | red "Worker not responding" chip + the "nothing is lost" alert                                                                           |
+| Worker offline (Redis key deleted) | "Background worker offline" + the fallback note                                                                                          |
+| 390 px                             | `scrollWidth === clientWidth === 390`, no horizontal overflow                                                                            |
+| Keyboard                           | tab order Pause → Cancel run → Review, visible focus ring                                                                                |
+| Console                            | no errors                                                                                                                                |
+
+The ETA comes from an EWMA of per-batch throughput with memory hits excluded, not from a time
+window: a window flickers to "unknown" on any slow batch and collapses to seconds when a batch is
+served from translation memory. It shows "estimating…" until two model batches have landed.
+
+**Two deviations from the plan, both deliberate:** "Start in background" sits in each language card's
+action row rather than the board-level plan card (the plan's snippet referenced `language.code` from
+a board-level component that has no locale, so it could not compile as written); and the heartbeat
+renders with `format.dateTime`, not `format.relativeTime`, which threw `IntlError:
+ENVIRONMENT_FALLBACK` on every render and disagreed between SSR and hydration.
+
+### Still outstanding
+
+- **Phase 2 — auto-repair.** The flagged pile is still cleared one unit at a time; nothing plans a
+  `REPAIR` run yet and `repairSlice` is a deliberate throwing stub.
+- **Phase 3** — the publish-readiness checklist, run emails, and the sample-first dry run.
+- **Not yet deployed.** The branch is unmerged, and `f87b19f` (the streaming fix) is still unpushed,
+  so production runs neither.
