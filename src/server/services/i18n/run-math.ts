@@ -48,3 +48,61 @@ export function heartbeatStale(heartbeatAt: Date | null, now: Date): boolean {
     now.getTime() - heartbeatAt.getTime() > HEARTBEAT_STALE_MS
   );
 }
+
+/**
+ * Throughput across overlapping batches (spec-19a).
+ *
+ * Deliberately NOT a per-batch rate folded into an EWMA: with several batches in flight, each one
+ * observes only its own slot's speed, so the run's ETA would come out N times too pessimistic.
+ * The window spans the earliest start to the latest finish among recent batches, so concurrent
+ * work is counted once against the wall time it actually took.
+ *
+ * The window needs one observation per slot before it reflects genuine concurrency — until then,
+ * each observation is treated as a fresh first reading (not folded via EWMA) so those partial,
+ * artificially-low warm-up rates never get smoothed into the run's real EWMA baseline.
+ *
+ * `observe` is synchronous on purpose: JavaScript's single thread makes it atomic between slots,
+ * which is what lets the runner drop the two-query read-modify-write it used to do per batch.
+ */
+export class RunRateMeter {
+  private readonly window: Array<{
+    units: number;
+    startedAtMs: number;
+    finishedAtMs: number;
+  }> = [];
+  private ewma: number | null;
+
+  constructor(
+    previous: number | null,
+    private readonly slots: number,
+  ) {
+    this.ewma = previous;
+  }
+
+  /** Current window length; exposed for tests asserting the cap holds. */
+  get windowSize(): number {
+    return this.window.length;
+  }
+
+  /** Records one finished batch and returns the run's smoothed units-per-minute. */
+  observe(
+    modelUnits: number,
+    startedAtMs: number,
+    finishedAtMs: number,
+  ): number {
+    this.window.push({ units: modelUnits, startedAtMs, finishedAtMs });
+    // Two rounds of every slot: enough to smooth a slow batch, short enough to track a real change.
+    const keep = Math.max(2, this.slots * 2);
+    while (this.window.length > keep) this.window.shift();
+
+    const earliest = Math.min(...this.window.map((entry) => entry.startedAtMs));
+    const span = Math.max(finishedAtMs - earliest, 1000);
+    const observed =
+      this.window.reduce((sum, entry) => sum + entry.units, 0) /
+      (span / 60_000);
+
+    const warm = this.window.length >= this.slots;
+    this.ewma = warm ? ewmaRate(this.ewma, observed) : ewmaRate(null, observed);
+    return this.ewma;
+  }
+}

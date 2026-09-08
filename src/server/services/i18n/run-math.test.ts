@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { batchRate, etaSeconds, ewmaRate, heartbeatStale } from "./run-math";
+import {
+  batchRate,
+  etaSeconds,
+  ewmaRate,
+  heartbeatStale,
+  RunRateMeter,
+} from "./run-math";
 
 /**
  * The arithmetic behind the run board's rate and ETA (spec-19).
@@ -31,5 +37,42 @@ describe("run maths", () => {
     expect(heartbeatStale(new Date("2026-09-09T09:58:00Z"), now)).toBe(false);
     expect(heartbeatStale(new Date("2026-09-09T09:56:59Z"), now)).toBe(true);
     expect(heartbeatStale(null, now)).toBe(true);
+  });
+});
+
+describe("RunRateMeter", () => {
+  it("a single slot with one observation equals batchRate", () => {
+    const meter = new RunRateMeter(null, 1);
+    expect(meter.observe(5, 0, 30_000)).toBeCloseTo(batchRate(5, 0, 30_000)); // 10/min
+  });
+
+  it("three overlapping batches report aggregate throughput, not one slot's", () => {
+    const meter = new RunRateMeter(null, 3);
+    // Three slots each translate 5 units over the same 10-second window.
+    meter.observe(5, 0, 10_000);
+    meter.observe(5, 500, 10_200);
+    const rate = meter.observe(5, 1_000, 10_400);
+    // 15 units over ~10.4 s ≈ 86/min — not the ~30/min a single slot sees.
+    expect(rate).toBeGreaterThan(60);
+  });
+
+  it("keeps at most 2x slots observations", () => {
+    const meter = new RunRateMeter(null, 2);
+    for (let i = 0; i < 10; i++) {
+      meter.observe(1, i * 1_000, (i + 1) * 1_000);
+    }
+    expect(meter.windowSize).toBe(4);
+  });
+
+  it("a null previous seeds the EWMA with the first observation", () => {
+    const meter = new RunRateMeter(null, 1);
+    const first = meter.observe(5, 0, 60_000); // 5/min
+    expect(first).toBeCloseTo(5);
+  });
+
+  it("a previous rate is smoothed, not replaced", () => {
+    const meter = new RunRateMeter(10, 1);
+    const next = meter.observe(20, 0, 60_000); // observed 20/min, previous 10 → 0.3*20 + 0.7*10 = 13
+    expect(next).toBeCloseTo(13);
   });
 });
