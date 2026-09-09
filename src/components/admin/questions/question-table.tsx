@@ -107,6 +107,32 @@ export function QuestionTable({
   const topicLabel = (topicId: string) =>
     topics.find((topic) => topic.id === topicId)?.label ?? "—";
   const lastPage = Math.max(1, Math.ceil(page.totalCount / page.pageSize));
+  const firstItem =
+    page.totalCount === 0 ? 0 : (page.page - 1) * page.pageSize + 1;
+  const lastItem = Math.min(page.page * page.pageSize, page.totalCount);
+
+  // The paginator deliberately has a fixed upper bound: a question bank can grow to thousands of
+  // items, but its navigation must stay usable and must not widen the page.
+  const visiblePages = Array.from(
+    new Set([1, page.page - 1, page.page, page.page + 1, lastPage]),
+  )
+    .filter((number) => number >= 1 && number <= lastPage)
+    .sort((a, b) => a - b);
+
+  function questionBankHref(targetPage: number) {
+    const params = new URLSearchParams();
+    if (query.awaitingMyReview) params.set("awaitingMyReview", "1");
+    if (query.status) params.set("status", query.status);
+    if (query.type) params.set("type", query.type);
+    if (query.topicSlug) params.set("topicSlug", query.topicSlug);
+    if (query.difficulty) params.set("difficulty", query.difficulty);
+    if (query.search) params.set("search", query.search);
+    if (query.languageIncomplete) params.set("languageIncomplete", "1");
+    if (targetPage > 1) params.set("page", String(targetPage));
+
+    const search = params.toString();
+    return search ? `/admin/questions?${search}` : "/admin/questions";
+  }
 
   function applyFilters(formData: FormData) {
     const next = new URLSearchParams();
@@ -383,21 +409,104 @@ export function QuestionTable({
 
       {lastPage > 1 ? (
         <nav
-          className="flex items-center justify-center gap-2"
-          aria-label="pagination"
+          className="flex flex-wrap items-center justify-center gap-2"
+          aria-label={t("pagination")}
         >
-          {Array.from({ length: lastPage }, (_, index) => index + 1).map(
-            (number) => (
-              <Button
-                key={number}
-                asChild
-                size="sm"
-                variant={number === page.page ? "secondary" : "ghost"}
-              >
-                <Link href={`/admin/questions?page=${number}`}>{number}</Link>
-              </Button>
-            ),
+          {page.page > 1 ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={questionBankHref(page.page - 1)}>
+                {t("previousPage")}
+              </Link>
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" disabled aria-disabled="true">
+              {t("previousPage")}
+            </Button>
           )}
+
+          <div className="flex items-center gap-1" aria-label={t("pagination")}>
+            {visiblePages.map((number, index) => (
+              <span key={number} className="flex items-center gap-1">
+                {index > 0 && number - visiblePages[index - 1] > 1 ? (
+                  <span
+                    className="px-1 text-sm text-muted-foreground"
+                    aria-hidden="true"
+                  >
+                    …
+                  </span>
+                ) : null}
+                <Button
+                  asChild
+                  size="sm"
+                  variant={number === page.page ? "secondary" : "ghost"}
+                >
+                  <Link
+                    href={questionBankHref(number)}
+                    aria-current={number === page.page ? "page" : undefined}
+                  >
+                    {number}
+                  </Link>
+                </Button>
+              </span>
+            ))}
+          </div>
+
+          {page.page < lastPage ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={questionBankHref(page.page + 1)}>
+                {t("nextPage")}
+              </Link>
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" disabled aria-disabled="true">
+              {t("nextPage")}
+            </Button>
+          )}
+
+          <form
+            className="flex items-center gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const value = new FormData(event.currentTarget).get("page");
+              const requestedPage = Number(value);
+              if (!Number.isInteger(requestedPage)) return;
+              router.push(
+                questionBankHref(
+                  Math.min(Math.max(requestedPage, 1), lastPage),
+                ),
+              );
+            }}
+          >
+            <label
+              htmlFor="question-page"
+              className="text-sm text-muted-foreground"
+            >
+              {t("page")}
+            </label>
+            <Input
+              id="question-page"
+              name="page"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={lastPage}
+              required
+              defaultValue={page.page}
+              className="h-9 w-16"
+              aria-label={t("page")}
+            />
+            <Button type="submit" size="sm" variant="outline">
+              {t("go")}
+            </Button>
+          </form>
+
+          <p className="w-full text-center text-sm text-muted-foreground">
+            {t("paginationSummary", {
+              from: firstItem,
+              to: lastItem,
+              total: page.totalCount,
+            })}
+          </p>
         </nav>
       ) : null}
     </div>

@@ -107,6 +107,7 @@ export default async function QuestionsPage({
       </header>
 
       <QuestionTable
+        key={page.page}
         page={page}
         topics={topicOptions}
         canBulkAct={user.role === "ADMIN"}
