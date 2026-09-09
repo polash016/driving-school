@@ -79,9 +79,14 @@ test("a language that is not student-visible stays out of the switcher", async (
   page,
 }) => {
   await page.goto("/en");
-  const switcher = page.getByRole("group", { name: "Language" });
-  await expect(switcher).toBeVisible();
+  // Asserted against the header, not against one control's markup: the switcher is a segmented
+  // control at two languages and a menu beyond that, and which one renders depends on how many the
+  // school has published. The claim under test holds either way.
+  const header = page.locator("header");
+  await expect(header).toBeVisible();
+  const menuTrigger = header.locator("button[aria-haspopup='menu']");
+  if (await menuTrigger.count()) await menuTrigger.click();
   // es and ar exist in the database but are not finished, so students are not offered them.
-  await expect(switcher).not.toContainText("Español");
-  await expect(switcher).not.toContainText("العربية");
+  await expect(header).not.toContainText("Español");
+  await expect(header).not.toContainText("العربية");
 });
