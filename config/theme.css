@@ -76,6 +76,10 @@
   /* The bright top edge that makes glass read as a physical sheet rather than a faded box. */
   --glass-highlight: inset 0 1px 0 oklch(1 0 0 / 0.95);
 
+  /* Hairline around a flag: several are white at the border (Norway, Britain) and would otherwise
+     dissolve into the surface behind them. */
+  --flag-edge: oklch(0 0 0 / 0.14);
+
   /* Hero + accents */
   --gradient-hero: linear-gradient(
     142deg,
@@ -145,6 +149,7 @@
   --brand-accent: oklch(0.78 0.13 80);
   --brand-accent-fg: oklch(0.2 0.04 80);
 
+  --flag-edge: oklch(1 0 0 / 0.18);
   --status-success: oklch(0.7 0.14 150);
   --status-success-fg: oklch(0.16 0.03 150);
   --status-success-soft: oklch(0.32 0.06 150);

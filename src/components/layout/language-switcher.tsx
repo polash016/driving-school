@@ -17,9 +17,12 @@ export interface SwitchableLanguage {
  *
  * For a student who reads Arabic better than Norwegian this is not a settings widget — it is the
  * door into the product, and it sits in a 56px header next to three other controls. So the trigger
- * is the short code alone ("ES"), and the panel carries the recognition: each language written in
- * its OWN name and script, with that same code beside it as a chip. The chip is what teaches the
- * mapping — after one look at the list, "ES" in the header means Español rather than a mystery.
+ * carries a flag and nothing else, and the panel carries the recognition: the same flag beside each
+ * language written in its OWN name and script. A flag is legible at a glance and across a room in a
+ * way a word in a foreign alphabet is not, which is the whole job here.
+ *
+ * A language with no flag shows its short code instead — see `LANGUAGE_FLAG`. That path is designed,
+ * not a gap: it is what a school adding Somali or Tigrinya sees until a flag file is dropped in.
  *
  * Two languages skip the menu entirely: a segmented control shows both and changes in one tap,
  * which no dropdown can beat. Past two that stops fitting a 390px phone.
@@ -79,8 +82,89 @@ interface SwitcherProps {
 }
 
 /**
- * The code, as it appears in the trigger and again beside every name in the list. Tabular figures
- * and a hair of tracking so two-letter codes of different widths ("NO", "AR") sit on one rhythm.
+ * Which country's flag stands for a language.
+ *
+ * A language is not a country, and for most of these the mapping is a convention rather than a
+ * fact — Spanish is spoken in twenty countries, Arabic in twenty-five. The convention still earns
+ * its place here because a flag is recognised across the room and a word is not, and the students
+ * this school teaches are reading a second or third language.
+ *
+ * Two rules keep it honest. A locale that names its own region wins outright, so a school adding
+ * `pt-BR` gets Brazil rather than Portugal without touching this file. And a language with no
+ * mapping falls back to its short code, so an unmapped language looks deliberate instead of broken.
+ *
+ * `ar → SA` is the one genuinely arbitrary pick, and it is a single line to change.
+ */
+const LANGUAGE_FLAG: Record<string, string> = {
+  en: "GB",
+  nb: "NO",
+  nn: "NO",
+  no: "NO",
+  es: "ES",
+  ar: "SA",
+  pl: "PL",
+  lt: "LT",
+  uk: "UA",
+  so: "SO",
+  ti: "ER",
+  ku: "IQ",
+  fa: "AF",
+  ps: "AF",
+  vi: "VN",
+  th: "TH",
+  tl: "PH",
+  tr: "TR",
+  ro: "RO",
+  ru: "RU",
+  de: "DE",
+  fr: "FR",
+  it: "IT",
+  pt: "PT",
+  hi: "IN",
+  ur: "PK",
+  bn: "BD",
+  nl: "NL",
+  sv: "SE",
+  da: "DK",
+  fi: "FI",
+};
+
+function flagFor(code: string): string | null {
+  const [language, region] = code.toLowerCase().split("-");
+  // An explicit region beats the convention: `pt-BR` is Brazil, whatever `pt` maps to.
+  if (region && region.length === 2) return region.toUpperCase();
+  return LANGUAGE_FLAG[language ?? ""] ?? null;
+}
+
+/**
+ * A flag at 20x14 with its own hairline edge: several of these are white at the border (Norway,
+ * Britain) and would otherwise dissolve into the panel behind them.
+ */
+function Flag({ country, className }: { country: string; className?: string }) {
+  return (
+    /* next/image cannot optimise a 1KB static SVG — it would add a wrapper and a loader
+       round-trip for no gain. The file is local, cached, and fixed at 20x14. */
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/flags/${country}.svg`}
+      alt=""
+      aria-hidden
+      width={20}
+      height={14}
+      loading="lazy"
+      decoding="async"
+      className={cn(
+        "h-3.5 w-5 shrink-0 rounded-[3px] object-cover shadow-[0_0_0_1px_var(--flag-edge)]",
+        className,
+      )}
+    />
+  );
+}
+
+/**
+ * The fallback when a language has no flag, and the reason an unmapped language still looks
+ * intentional. Tabular figures and a hair of tracking so two-letter codes of different widths
+ * ("NO", "AR") sit on one rhythm.
  */
 function CodeChip({ code, active }: { code: string; active: boolean }) {
   return (
@@ -129,7 +213,14 @@ function SegmentedSwitcher({
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            <span aria-hidden>{language.shortLabel}</span>
+            {flagFor(language.code) ? (
+              <Flag
+                country={flagFor(language.code) as string}
+                className={cn("mx-auto", !active && "opacity-70")}
+              />
+            ) : (
+              <span aria-hidden>{language.shortLabel}</span>
+            )}
             {/* `lang` so a screen reader pronounces the name in its own language rather than
                 reading "Norsk bokmål" with English phonetics. */}
             <span className="sr-only" lang={language.code}>
@@ -160,6 +251,8 @@ function MenuSwitcher({
   const activeIndex = languages.findIndex(
     (language) => language.code === locale,
   );
+  const triggerFlag = flagFor(current?.code ?? locale);
+  const rowFlags = languages.map((language) => flagFor(language.code));
 
   const close = useCallback((refocus: boolean) => {
     setOpen(false);
@@ -245,12 +338,16 @@ function MenuSwitcher({
           open && "bg-accent",
         )}
       >
-        <span
-          aria-hidden
-          className="font-mono text-[0.6875rem] font-semibold tracking-[0.06em]"
-        >
-          {current?.shortLabel ?? locale.toUpperCase()}
-        </span>
+        {triggerFlag ? (
+          <Flag country={triggerFlag} />
+        ) : (
+          <span
+            aria-hidden
+            className="font-mono text-[0.6875rem] font-semibold tracking-[0.06em]"
+          >
+            {current?.shortLabel ?? locale.toUpperCase()}
+          </span>
+        )}
         {current ? (
           <span className="sr-only" lang={current.code}>
             {current.nativeName}
@@ -301,7 +398,11 @@ function MenuSwitcher({
                   active ? "font-medium" : "hover:bg-accent",
                 )}
               >
-                <CodeChip code={language.shortLabel} active={active} />
+                {rowFlags[index] ? (
+                  <Flag country={rowFlags[index]} />
+                ) : (
+                  <CodeChip code={language.shortLabel} active={active} />
+                )}
                 <span className="flex-1 truncate">{language.nativeName}</span>
                 {/* A check, not colour alone: state has to survive a monochrome display and
                     WCAG 1.4.1. */}
