@@ -478,3 +478,39 @@ fixture (15 units over ~10.4 s): the literal formula reported 53/min where the r
 - `observe` also returns early for a batch served entirely from memory, matching the runner's
   existing rule that such a batch says nothing about how fast the model is.
 - **Approved by:** developer (via the spec-19a plan; deviation raised in review and fixed there).
+
+## 2026-09-12 · spec-20 · Questions are served from the master translation; a language keeps itself translated
+
+- **Decision 1 — resolve through the master.** The exam engine looks up `MASTER_ITEM` translations
+  by the served variant's `masterItemId`, applied only when `variant.masterVersion === masterItem.version`
+  and `variant.source === "TEMPLATE"`. `deriveVariantTranslations` and its four call sites are
+  deleted. Supersedes spec-15 D1's derived-copy mechanism. The `ITEM_VARIANT` enum value stays,
+  reserved for spec-17 `AI_VARIATION` variants (own text, own unit); existing `ITEM_VARIANT` rows are
+  left in place — no data is deleted.
+- **Why:** the copy was the single point of failure between "translated" and "served": skipped when
+  a run died mid-way, never made when a question was approved, and invisible to coverage — so a
+  language could report 100 %, be switched on, and serve every question in English. Coverage already
+  counts masters; serving from masters makes the gate correct by construction.
+- **Decision 2 — new languages default to `requiresApproval: false`.** Clean machine output serves
+  once QA passes; flagged units are still held and auto-repaired. A school with no speaker of the
+  language could otherwise never publish it. Existing rows are unchanged.
+- **Decision 3 — live drift keeps the language live.** A unit added after publish reads English in
+  that language (the existing all-or-nothing per-question fallback) until the automatic sync lands;
+  the board shows "Published · N syncing". Auto-hiding would redirect a student out mid-exam.
+- **Decision 4 — adding a language starts translating.** `Language.autoTranslate` (default true, an
+  add-form checkbox): a FULL run is enqueued on add; `publishItem`, KB ingest and a glossary change
+  stamp `syncRequestedAt`, and the idle worker plans a SYNC (compared against the latest sync run's
+  plan time, so an approval that lands during a run is not lost). The cost-free "Check what is left"
+  preview is unchanged; small unattended syncs do not mail.
+- **Decision 5 — unpublished languages are staff-only.** `/xx` for a language with
+  `studentVisible: false` renders for INSTRUCTOR/ADMIN and redirects students and anonymous visitors
+  to the same path under `Language.fallbackCode`. Amends spec-15's "always serves a new language at
+  /<code>": it still does, for the people who review it.
+- **Also:** jobs carry a `priority` so questions are translated before UI strings; the explanation,
+  topic names and citation source labels are wired into the student paths (spec-15 D6 delivered).
+- **Impact:** `specs/spec-20-question-translation.md`, `specs/plans/spec-20-plan.md`; migration
+  `20260912090000_question_translation_integrity` (`Language.autoTranslate`,
+  `Language.syncRequestedAt`, `TranslationJob.priority` + index). `e2e/dynamic-languages.spec.ts`
+  now asserts the staff-only gate. Spec-17 must give `AI_VARIATION` variants their own translation
+  unit before activating one in a runtime language.
+- **Approved by:** developer (2026-09-12, plan mode; the four policy choices asked and answered)

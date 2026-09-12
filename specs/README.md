@@ -29,6 +29,7 @@ Legend: ⬜ Not started · 📝 Planned (plan approved) · 🔨 In progress · �
 | 17  | [AI variant generator](spec-17-ai-variants.md) 📌                                  | 04, 05, 07, 16     | ⬜ Spec approved 2026-09-03 — build after 16                                                                             | —                                                                      | —                               |
 | 18  | [Aurora visual language](spec-18-aurora-visual-language.md) ✨                     | 09, 16             | ✅ Done (Opus) — token-driven glass; a11y fallbacks verified                                                             | —                                                                      | [notes](notes/spec-18-notes.md) |
 | 19  | [Unattended translation & publish readiness](spec-19-translation-automation.md) ⚙️ | 15                 | ✅ Done (Fable) — amendments A (throughput, 3.2→~140 u/min) and B (per-flag bulk approve) ✅                             | [plan](plans/spec-19-plan.md) · [A](plans/spec-19a-throughput-plan.md) | [notes](notes/spec-19-notes.md) |
+| 20  | [Question translation end to end & publish gate](spec-20-question-translation.md) 🌐 | 15, 19, 07         | 📝 Planned (Fable) — approved 2026-09-12                                                                                 | [plan](plans/spec-20-plan.md)                                          | —                               |
 
 **Handoff:** Fable phase complete — Opus sessions start at [docs/handoff-opus.md](../docs/handoff-opus.md) and execute 03 → 14.
 
@@ -68,6 +69,14 @@ shippable alone.
 a language — Arabic, Spanish, whatever its students speak — from the admin panel, have the AI
 translate everything already in the bank, and have a speaker review it. Delivered in two phases:
 the engine proven with Spanish, then Arabic with right-to-left layout.
+
+🌐 **Spec-20 was approved 2026-09-12**, after adding a language in production translated the UI
+and none of the questions. The engine was fine; the seams were not: adding a language planned no
+run, UI strings were claimed before questions, the translated explanation was discarded by the
+serializer, questions reached students only through a derived copy that coverage never counted,
+and an unpublished language was reachable by URL. Spec-20 serves questions straight from the master
+translation, translates questions first, starts and re-syncs a language automatically, and makes
+an unfinished language staff-only. Rationale in [DECISIONS.md](../DECISIONS.md).
 
 When a plan is approved, link it in the **Plan** column (`plans/spec-XX-plan.md`).
 When verification runs, link the evidence in the **Notes** column (`notes/spec-XX-notes.md`).
