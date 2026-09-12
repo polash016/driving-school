@@ -84,6 +84,40 @@ export function shouldPollSample(
   return view === null || LIVE_RUN_STATUSES.has(view.status);
 }
 
+export type LanguageState =
+  | { kind: "translating" }
+  | { kind: "needsAttention" }
+  | { kind: "readyToPublish" }
+  | { kind: "published" }
+  | { kind: "publishedSyncing"; count: number };
+
+/**
+ * The one line a language card says about where the language stands (spec-20).
+ *
+ * Built-ins say nothing: they are authored, not translated. A live run wins over everything —
+ * the numbers below it are moving. A published language that has fallen behind (a question
+ * approved since it went live) stays published and says how many units the automatic sync still
+ * owes it; a hidden one is either ready for the switch or waiting on a human.
+ */
+export function languageState(language: {
+  isBuiltIn: boolean;
+  studentVisible: boolean;
+  complete: boolean;
+  /** Units not yet servable — the sum of the blockers. */
+  missing: number;
+  runLive: boolean;
+}): LanguageState | null {
+  if (language.isBuiltIn) return null;
+  if (language.runLive) return { kind: "translating" };
+  if (language.studentVisible)
+    return language.complete || language.missing === 0
+      ? { kind: "published" }
+      : { kind: "publishedSyncing", count: language.missing };
+  return language.complete
+    ? { kind: "readyToPublish" }
+    : { kind: "needsAttention" };
+}
+
 /**
  * Who may enqueue a background run.
  *

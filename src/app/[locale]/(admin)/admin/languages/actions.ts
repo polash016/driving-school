@@ -67,8 +67,9 @@ export async function addLanguageAction(
       nativeName: String(formData.get("nativeName") ?? "").trim(),
       shortLabel: String(formData.get("shortLabel") ?? "").trim(),
       direction: formData.get("direction") === "RTL" ? "RTL" : "LTR",
-      requiresApproval: formData.get("requiresApproval") !== "off",
-      autoTranslate: formData.get("autoTranslate") !== "off",
+      // A ticked checkbox posts "on"; an unticked one posts nothing at all.
+      requiresApproval: formData.get("requiresApproval") === "on",
+      autoTranslate: formData.get("autoTranslate") === "on",
       ...(optionalString(formData, "styleNote")
         ? { styleNote: optionalString(formData, "styleNote") }
         : {}),
@@ -94,6 +95,9 @@ export async function updateLanguageAction(
         : {}),
       ...(formData.has("studentVisible")
         ? { studentVisible: formData.get("studentVisible") === "true" }
+        : {}),
+      ...(formData.has("autoTranslate")
+        ? { autoTranslate: formData.get("autoTranslate") === "true" }
         : {}),
       ...(formData.has("qaSampleRate")
         ? { qaSampleRate: Number(formData.get("qaSampleRate")) }

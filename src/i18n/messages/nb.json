@@ -743,6 +743,18 @@
         "cancelling": "Avbryter…",
         "forceCancel": "Tving avbrudd (arbeider borte)",
         "forceCancelling": "Avbryter…"
+      },
+      "autoTranslate": "Hold språket oversatt automatisk",
+      "autoTranslateHint": "Oversettingen starter nå, og nye spørsmål oversettes etter hvert som de godkjennes. Språket er skjult for elevene til alt er ferdig.",
+      "autoTranslateOn": "Oversett automatisk",
+      "autoTranslateOff": "Stopp automatisk oversetting",
+      "workerOfflineOnAdd": "Bakgrunnsarbeideren er frakoblet — den første kjøringen venter i køen til en starter.",
+      "state": {
+        "translating": "Oversetter …",
+        "needsAttention": "Trenger oppfølging",
+        "readyToPublish": "Klar til publisering",
+        "published": "Publisert",
+        "publishedSyncing": "Publisert · {count} synkroniseres"
       }
     },
     "images": {

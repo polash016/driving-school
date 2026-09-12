@@ -14,7 +14,10 @@ import {
   type StartOutcome,
 } from "@/app/[locale]/(admin)/admin/languages/actions";
 import { RunPanel } from "@/components/admin/languages/run-panel";
-import { isRunLive } from "@/components/admin/languages/run-view";
+import {
+  isRunLive,
+  languageState,
+} from "@/components/admin/languages/run-view";
 import { SampleResults } from "@/components/admin/languages/sample-results";
 import { FormAlert } from "@/components/auth/form-alert";
 import { SubmitButton } from "@/components/auth/submit-button";
@@ -37,6 +40,9 @@ export interface LanguageRow {
   isBuiltIn: boolean;
   requiresApproval: boolean;
   studentVisible: boolean;
+  /** Translates on add and re-syncs after content changes without a click (spec-20). */
+  autoTranslate: boolean;
+  syncRequestedAt: Date | null;
   lastSyncedAt: Date | null;
   coverage: {
     percent: number;
@@ -190,6 +196,7 @@ export function LanguageBoard({
                             : t("approvalOff")}
                         </span>
                       ) : null}
+                      <StateLine language={language} />
                     </p>
                   </div>
 
@@ -323,6 +330,29 @@ export function LanguageBoard({
                             language.requiresApproval
                               ? t("turnApprovalOff")
                               : t("turnApprovalOn")
+                          }
+                          pendingLabel={t("saving")}
+                        />
+                      </form>
+
+                      <form action={updateAction}>
+                        <input
+                          type="hidden"
+                          name="code"
+                          value={language.code}
+                        />
+                        <input
+                          type="hidden"
+                          name="autoTranslate"
+                          value={String(!language.autoTranslate)}
+                        />
+                        <SubmitButton
+                          className="h-9"
+                          variant="outline"
+                          label={
+                            language.autoTranslate
+                              ? t("autoTranslateOff")
+                              : t("autoTranslateOn")
                           }
                           pendingLabel={t("saving")}
                         />
@@ -471,6 +501,9 @@ export function LanguageBoard({
         <Card className="[--card-spacing:--spacing(4)]">
           <CardContent className="space-y-3">
             <CardTitle className="text-base">{t("addTitle")}</CardTitle>
+            {!workerOnline ? (
+              <FormAlert tone="info">{t("workerOfflineOnAdd")}</FormAlert>
+            ) : null}
             <form action={addAction} className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1 text-sm">
                 <span className="text-muted-foreground">{t("code")}</span>
@@ -525,14 +558,29 @@ export function LanguageBoard({
                   <option value="RTL">{t("rtlOption")}</option>
                 </select>
               </label>
-              <label className="flex items-center gap-2 self-end text-sm">
+              {/* Off by default (spec-20): with approval required, a school with no speaker of
+                  the language could never publish it. QA still holds anything it flags. */}
+              <label className="flex min-h-11 items-center gap-2 self-end text-sm">
                 <input
                   type="checkbox"
                   name="requiresApproval"
-                  defaultChecked
                   className="size-4"
                 />
                 <span className="text-foreground">{t("requiresApproval")}</span>
+              </label>
+              <label className="space-y-1 text-sm sm:col-span-2">
+                <span className="flex min-h-11 items-center gap-2">
+                  <input
+                    type="checkbox"
+                    name="autoTranslate"
+                    defaultChecked
+                    className="size-4"
+                  />
+                  <span className="text-foreground">{t("autoTranslate")}</span>
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {t("autoTranslateHint")}
+                </span>
               </label>
               <label className="space-y-1 text-sm sm:col-span-2">
                 <span className="text-muted-foreground">{t("styleNote")}</span>
@@ -561,5 +609,37 @@ export function LanguageBoard({
         </Button>
       )}
     </div>
+  );
+}
+
+/** Where the language stands, in one pill — the rules live in `languageState`. */
+function StateLine({ language }: { language: LanguageRow }) {
+  const t = useTranslations("admin.languages.state");
+  const state = languageState({
+    isBuiltIn: language.isBuiltIn,
+    studentVisible: language.studentVisible,
+    complete: language.coverage.complete,
+    missing: language.coverage.blockers.reduce(
+      (sum, blocker) => sum + blocker.count,
+      0,
+    ),
+    runLive: isRunLive(language.latestRun),
+  });
+  if (!state) return null;
+  const attention =
+    state.kind === "needsAttention" || state.kind === "publishedSyncing";
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2 py-0.5",
+        attention
+          ? "bg-[var(--status-warning-soft)] text-[var(--status-warning-fg)]"
+          : "bg-muted text-muted-foreground",
+      )}
+    >
+      {state.kind === "publishedSyncing"
+        ? t("publishedSyncing", { count: state.count })
+        : t(state.kind)}
+    </span>
   );
 }

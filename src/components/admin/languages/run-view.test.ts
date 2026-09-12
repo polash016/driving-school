@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   canStartRuns,
+  languageState,
   isRunLive,
   runControls,
   shouldPollSample,
@@ -177,5 +178,57 @@ describe("what the progress panel announces", () => {
     // It is the badge that carries it: the status string is the one thing worth re-reading.
     const live = source.indexOf('aria-live="polite"');
     expect(source.slice(live, live + 200)).toContain("status.${statusKey}");
+  });
+});
+
+describe("what one line says about a language (spec-20)", () => {
+  const row = (
+    overrides: Partial<Parameters<typeof languageState>[0]> = {},
+  ) => ({
+    isBuiltIn: false,
+    studentVisible: false,
+    complete: false,
+    missing: 3,
+    runLive: false,
+    ...overrides,
+  });
+
+  it("says nothing about a built-in language — it is authored, not translated", () => {
+    expect(languageState(row({ isBuiltIn: true }))).toBeNull();
+  });
+
+  it("is translating while a run is live, whatever else is true", () => {
+    expect(languageState(row({ runLive: true }))).toEqual({
+      kind: "translating",
+    });
+    expect(
+      languageState(
+        row({
+          runLive: true,
+          studentVisible: true,
+          complete: true,
+          missing: 0,
+        }),
+      ),
+    ).toEqual({ kind: "translating" });
+  });
+
+  it("a published language that has fallen behind says how many units are syncing", () => {
+    expect(languageState(row({ studentVisible: true, missing: 4 }))).toEqual({
+      kind: "publishedSyncing",
+      count: 4,
+    });
+    expect(
+      languageState(row({ studentVisible: true, complete: true, missing: 0 })),
+    ).toEqual({ kind: "published" });
+  });
+
+  it("a hidden language is ready to publish only when nothing blocks it", () => {
+    expect(languageState(row({ complete: true, missing: 0 }))).toEqual({
+      kind: "readyToPublish",
+    });
+    expect(languageState(row({ complete: false, missing: 12 }))).toEqual({
+      kind: "needsAttention",
+    });
   });
 });

@@ -743,6 +743,18 @@
         "cancelling": "Cancelling…",
         "forceCancel": "Force cancel (worker gone)",
         "forceCancelling": "Cancelling…"
+      },
+      "autoTranslate": "Keep translated automatically",
+      "autoTranslateHint": "Starts translating now, and translates new questions as they are approved. The language stays hidden from students until every unit is done.",
+      "autoTranslateOn": "Translate automatically",
+      "autoTranslateOff": "Stop translating automatically",
+      "workerOfflineOnAdd": "The background worker is offline — the first run will wait in the queue until one starts.",
+      "state": {
+        "translating": "Translating…",
+        "needsAttention": "Needs attention",
+        "readyToPublish": "Ready to publish",
+        "published": "Published",
+        "publishedSyncing": "Published · {count} syncing"
       }
     },
     "images": {
