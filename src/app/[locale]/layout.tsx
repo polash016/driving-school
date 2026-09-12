@@ -2,11 +2,15 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { schoolConfig } from "../../../config/school.config";
 import { SiteHeader } from "@/components/layout/site-header";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { redirect } from "@/i18n/navigation";
+import { unpublishedLanguageRedirect } from "@/i18n/publish-gate";
+import { getSessionUser } from "@/server/auth";
 import { db } from "@/server/db";
 import { getRegistry } from "@/server/services/i18n/registry";
 import "../globals.css";
@@ -50,6 +54,19 @@ export default async function LocaleLayout({
   const registry = await getRegistry(db);
   if (!registry.has(locale)) {
     notFound();
+  }
+  const language = registry.get(locale);
+  if (language && !language.isBuiltIn && !language.studentVisible) {
+    // An unfinished language is staff-only (spec-20). The switcher never offered it, but the URL
+    // did; a student who guessed or bookmarked it lands on the same page under the fallback.
+    // The session is read only on this path, so a published language costs nothing extra.
+    const user = await getSessionUser();
+    const away = unpublishedLanguageRedirect({
+      language,
+      role: user?.role ?? null,
+      pathname: (await headers()).get("x-pathname"),
+    });
+    if (away) redirect(away);
   }
   setRequestLocale(locale);
   const t = await getTranslations("nav");

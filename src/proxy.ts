@@ -1,5 +1,5 @@
 import createMiddleware from "next-intl/middleware";
-import type { NextRequest } from "next/server";
+import { NextRequest } from "next/server";
 import { routingFor } from "./i18n/runtime-routing";
 import { getRegistry } from "./server/services/i18n/registry";
 
@@ -17,7 +17,14 @@ import { getRegistry } from "./server/services/i18n/registry";
  */
 export default async function proxy(request: NextRequest) {
   const registry = await getRegistry();
-  return createMiddleware(routingFor(registry))(request);
+  // The locale layout sends a student away from an unpublished language to the same page under
+  // the fallback (spec-20), and a layout has no other way to learn its path. next-intl forwards
+  // the request headers it is handed, so this rides along with `x-next-intl-locale`.
+  const headers = new Headers(request.headers);
+  headers.set("x-pathname", request.nextUrl.pathname);
+  return createMiddleware(routingFor(registry))(
+    new NextRequest(request, { headers }),
+  );
 }
 
 export const config = {
