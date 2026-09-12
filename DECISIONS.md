@@ -531,3 +531,25 @@ fixture (15 units over ~10.4 s): the literal formula reported 53/min where the r
   `specs/notes/spec-20-notes.md` for whoever builds one.
 - **Approved by:** not yet — corrections within the approved design, flagged for the developer in
   the notes.
+
+## 2026-09-12 · spec-21 · Broken translations: a per-field script gate, an admin "mark broken", an audit, and repair
+
+- **`SCRIPT_MISMATCH` is a new blocking quality flag, checked per field.** For a language with a
+  known script, every translated field whose source carries at least four letters must contain a
+  character of that script. The old check ran only for locales in a short table (Bengali was not
+  in it) and passed if any character anywhere was in the script — one Bengali word saved an
+  otherwise romanised question. Latin stays allowed inside a field: numbers, units, `§`, and the
+  bracketed original of an institution name (rule 6). `UNTRANSLATED` keeps only the echo case.
+- **An admin can mark any translation broken**, including an approved one: `ADMIN_FLAGGED` with
+  a note, `NEEDS_REVIEW`, a fresh repair budget, the note handed to the model as a problem detail.
+  ADMIN only, by the developer's requirement; instructors keep review and approval.
+- **"Re-check translations" re-runs the gate over every stored row** and can enqueue the repair in
+  the same click. A published language stays published while it repairs (spec-20 D3); a flagged
+  question reads English meanwhile, which beats Banglish.
+- **Both prompts gain a script rule** (`1.1.0`): write every field in the language's own script,
+  never romanise. Memory keys do not include the prompt version, so the bump re-translates nothing.
+- **Why:** 23 of 722 Bangla questions and one interface string in production were Bengali in Latin
+  letters, from one model run, flagged only `QA_UNAVAILABLE` and then bulk-approved with consent.
+- **Impact:** `specs/spec-21-broken-translations.md`, `specs/plans/spec-21-plan.md`; no migration.
+  Production remediation: audit `bn`, apply, repair run, verify no Latin-only rows remain.
+- **Approved by:** developer (2026-09-12, plan mode)
