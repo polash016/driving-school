@@ -104,11 +104,15 @@ test("a reviewer sees the source beside the translation, with the flag in words"
   await expect(
     page.getByRole("heading", { name: /QA Revisión/ }),
   ).toBeVisible();
-  // The QA code is rendered as something a reviewer can act on, not as NUMBER_DRIFT.
-  await expect(page.getByText("The meaning may have shifted")).toBeVisible();
+  // The QA code is rendered as something a reviewer can act on, not as NUMBER_DRIFT. Targeted by
+  // the row's badge: since amendment B the same sentence also labels the bulk-approve consent box.
+  await expect(page.getByTitle("SEMANTIC_DRIFT")).toHaveText(
+    "The meaning may have shifted",
+  );
   await expect(page.getByText(`Prioridad ${RUN}`)).toBeVisible();
 
-  await page.getByRole("button", { name: "Approve" }).first().click();
+  // Exact: since amendment B the bulk button "Approve N unflagged…" sits above the row.
+  await page.getByRole("button", { name: "Approve", exact: true }).click();
   await expect(page.getByText("Nothing waiting for review.")).toBeVisible();
 
   const row = await db.translation.findUniqueOrThrow({

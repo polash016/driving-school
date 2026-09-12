@@ -514,3 +514,20 @@ fixture (15 units over ~10.4 s): the literal formula reported 53/min where the r
   now asserts the staff-only gate. Spec-17 must give `AI_VARIATION` variants their own translation
   unit before activating one in a runtime language.
 - **Approved by:** developer (2026-09-12, plan mode; the four policy choices asked and answered)
+
+## 2026-09-12 · spec-20 · Implementation notes: two defects found on the way, one hook with no caller
+
+- **A re-added language inherited a deleted one's caches.** The per-locale message and taxonomy
+  caches (`tp:i18n:msg:<code>`, `tp:i18n:taxonomy:<code>`) have an hour's TTL and were cleared
+  only by translation writes, so a language deleted and added again under the same code served the
+  old rows' labels. `createLanguage` now clears both for its code. Found by the added-language
+  suite, which re-creates `zq` with fresh topic ids on every run.
+- **The add form's checkboxes never posted "off".** An unticked checkbox posts nothing, and the
+  action read `formData.get(...) !== "off"`, so "requires approval" was true whatever the admin
+  ticked. The action now reads `=== "on"`. Spec-20's new default (approval off) would otherwise
+  have been unreachable from the form.
+- **The "glossary change requests a sync" hook has no call site.** Nothing writes
+  `Language.glossary` today (no editor exists); the hook is documented in `sync.ts` and in
+  `specs/notes/spec-20-notes.md` for whoever builds one.
+- **Approved by:** not yet — corrections within the approved design, flagged for the developer in
+  the notes.

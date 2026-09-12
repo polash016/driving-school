@@ -53,26 +53,55 @@ test.afterAll(async () => {
   await db.$disconnect();
 });
 
+/** The setup key shown at enrolment, kept so later logins in this file can answer the challenge. */
+let totpSecret: string | null = null;
+
+function totpCode(secret: string): string {
+  return new TOTP({
+    secret: Secret.fromBase32(secret),
+    digits: 6,
+    period: 30,
+  }).generate();
+}
+
+/**
+ * Three things can follow an admin's password (spec-03): the home page, the two-factor
+ * enrolment page on a first login under the admin 2FA policy, or — once enrolled — a code field
+ * on the login form itself. auth.spec.ts flips that policy on while the suite runs in parallel,
+ * so all three have to work here.
+ */
 async function loginAsAdmin(page: Page) {
   await page.goto("/en/login");
   await page.getByLabel("Email").fill(adminEmail);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Log in" }).click();
-  await page.waitForURL(/\/en(\/two-factor-setup)?$/);
-  if (/two-factor-setup/.test(page.url())) {
-    const secret = (await page.locator("p.font-mono").innerText()).trim();
-    const code = new TOTP({
-      secret: Secret.fromBase32(secret),
-      digits: 6,
-      period: 30,
-    }).generate();
-    await page.getByLabel("6-digit code").fill(code);
+
+  await expect
+    .poll(
+      async () => {
+        const url = page.url();
+        if (/\/en(\/two-factor-setup)?$/.test(url)) return "url";
+        if (await page.getByLabel("6-digit code").isVisible()) return "code";
+        return null;
+      },
+      { timeout: 15_000 },
+    )
+    .not.toBeNull();
+
+  if (/two-factor-setup$/.test(page.url())) {
+    totpSecret = (await page.locator("p.font-mono").innerText()).trim();
+    await page.getByLabel("6-digit code").fill(totpCode(totpSecret));
     await page.getByRole("button", { name: "Turn on two-factor" }).click();
+  } else if (/\/login/.test(page.url())) {
+    if (!totpSecret)
+      throw new Error("two-factor challenge with no enrolled secret");
+    await page.getByLabel("6-digit code").fill(totpCode(totpSecret));
+    await page.getByRole("button", { name: "Verify code" }).click();
   }
   await expect(page).toHaveURL(/\/en$/);
 }
 
-test("adding a language starts it translating, and the card says so in both languages", async ({
+test("adding a language starts it translating; the card says so in both languages, by keyboard too", async ({
   page,
 }) => {
   await loginAsAdmin(page);
@@ -124,12 +153,9 @@ test("adding a language starts it translating, and the card says so in both lang
         document.documentElement.clientWidth,
     ),
   ).toBe(true);
-});
 
-test("the switches are reachable by keyboard and the submit keeps a visible focus ring", async ({
-  page,
-}) => {
-  await loginAsAdmin(page);
+  // Keyboard, in the same session: a second login inside the TOTP replay window (90 s) is
+  // refused by design, so the keyboard path is checked here rather than in a test of its own.
   await page.goto("/en/admin/languages");
   await page.getByRole("button", { name: "Add a language" }).focus();
   await page.keyboard.press("Enter");
