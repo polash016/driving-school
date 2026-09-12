@@ -4,13 +4,14 @@ import type {
   TranslationStatus,
 } from "@prisma/client";
 import { z } from "zod";
-import { ConflictError, NotFoundError } from "@/lib/errors";
+import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/errors";
 import { AUDIT, auditLog } from "@/server/audit";
 import type { SessionUser } from "@/server/authz";
 import { invalidateMessages } from "./catalogue";
 import { invalidateTaxonomy } from "./taxonomy";
 import { extractAll } from "./extract";
 import { rememberTranslation } from "./memory";
+import { queueRepairIfIdle } from "./queue-repair";
 import type { UnitPayload } from "./units";
 import { checkTranslation, NOT_A_QUALITY_FLAG } from "./validation";
 
@@ -563,4 +564,100 @@ export async function translationsAcrossLanguages(
     englishName: row.language.englishName,
     direction: row.language.direction,
   }));
+}
+
+export const flagTranslationInputSchema = z
+  .object({
+    id: z.string().min(1),
+    note: z.string().min(3).max(500),
+    /** Hand it to the repair run in the same act. */
+    repair: z.boolean().default(true),
+  })
+  .strict();
+
+/**
+ * An admin declares a translation broken (spec-21) — approved or not.
+ *
+ * Production served Bengali in Latin letters that every check had passed and a reviewer had
+ * bulk-approved; a human eye has to be able to overrule the checks. The row leaves the servable
+ * set at once, gets a fresh repair budget, and the note is written into the QA report as a
+ * problem detail — `storeRepairs` nulls `reviewNote`, but `repairProblems` reads the report, and
+ * that is what reaches the model. ADMIN only, by the developer's decision; instructors keep
+ * review and approval.
+ */
+export async function flagTranslation(
+  db: PrismaClient,
+  actor: SessionUser,
+  rawInput: unknown,
+): Promise<{
+  id: string;
+  locale: string;
+  repairQueued: boolean;
+  repairRunId: string | null;
+}> {
+  const input = flagTranslationInputSchema.parse(rawInput);
+  if (actor.role !== "ADMIN")
+    throw new ForbiddenError({ id: input.id }, "errors.forbidden");
+
+  const row = await db.translation.findUnique({
+    where: { id: input.id },
+    select: {
+      id: true,
+      locale: true,
+      entity: true,
+      entityId: true,
+      qaFlags: true,
+      qaReport: true,
+    },
+  });
+  if (!row) throw new NotFoundError({ id: input.id });
+
+  const report = (row.qaReport ?? {}) as {
+    issues?: Array<{ code: string; blocking: boolean; detail?: string }>;
+  } & Record<string, unknown>;
+  const issues = [
+    ...(report.issues ?? []).filter((issue) => issue.code !== "ADMIN_FLAGGED"),
+    { code: "ADMIN_FLAGGED", blocking: true, detail: input.note },
+  ];
+  const qaFlags = [
+    ...new Set([
+      // Infrastructure flags say nothing about the text; the quality ones still do.
+      ...row.qaFlags.filter((flag) => !NOT_A_QUALITY_FLAG.has(flag)),
+      "ADMIN_FLAGGED",
+    ]),
+  ];
+
+  const updated = await db.translation.update({
+    where: { id: input.id },
+    data: {
+      status: "NEEDS_REVIEW",
+      qaFlags,
+      qaReport: { ...report, source: "admin", issues } as object,
+      reviewNote: input.note,
+      reviewedById: actor.id,
+      reviewedAt: new Date(),
+      repairAttempts: 0,
+    },
+    select: { id: true, locale: true, entity: true },
+  });
+
+  if (updated.entity === "UI_MESSAGE") await invalidateMessages(updated.locale);
+  await invalidateTaxonomy(updated.locale);
+  await auditLog({
+    actorId: actor.id,
+    action: AUDIT.translationFlagged,
+    entityType: "Translation",
+    entityId: updated.id,
+    meta: { locale: updated.locale, entity: updated.entity, note: input.note },
+  });
+
+  const repairRunId = input.repair
+    ? await queueRepairIfIdle(db, actor.id, updated.locale)
+    : null;
+  return {
+    id: updated.id,
+    locale: updated.locale,
+    repairQueued: repairRunId !== null,
+    repairRunId,
+  };
 }

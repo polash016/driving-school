@@ -62,25 +62,51 @@ const PLACEHOLDER_PATTERN = /\{[a-zA-Z][a-zA-Z0-9]*\}/g;
 const SLOT_PATTERN = /\{\{[^}]+\}\}/g;
 
 /**
- * Unicode ranges that prove a translation is actually in the target script.
+ * The script a language is written in, for the languages whose script is not Latin.
  *
- * Only for scripts that differ from Latin — for Spanish or Polish "did it change at all" is the
- * only available signal, and that is covered separately.
+ * Production served Bengali in Latin letters ("Tumi aage signal dile…") because Bengali was not in
+ * this table, so the check never ran for it (spec-21). The name feeds the prompt as well as the
+ * gate: the model is told which script to write, and then held to it, per field.
+ *
+ * For Spanish or Polish "did it change at all" is the only available signal, covered separately.
  */
-const SCRIPT_RANGES: Record<string, RegExp> = {
-  ar: /[؀-ۿ]/,
-  fa: /[؀-ۿ]/,
-  ur: /[؀-ۿ]/,
-  ru: /[Ѐ-ӿ]/,
-  uk: /[Ѐ-ӿ]/,
-  el: /[Ͱ-Ͽ]/,
-  he: /[֐-׿]/,
-  hi: /[ऀ-ॿ]/,
-  th: /[฀-๿]/,
-  zh: /[一-鿿]/,
-  ja: /[぀-ヿ一-鿿]/,
-  ko: /[가-힯]/,
+const SCRIPT_RANGES: Record<string, { name: string; test: RegExp }> = {
+  ar: { name: "Arabic", test: /[؀-ۿ]/ },
+  fa: { name: "Arabic", test: /[؀-ۿ]/ },
+  ur: { name: "Arabic", test: /[؀-ۿ]/ },
+  ru: { name: "Cyrillic", test: /[Ѐ-ӿ]/ },
+  uk: { name: "Cyrillic", test: /[Ѐ-ӿ]/ },
+  el: { name: "Greek", test: /[Ͱ-Ͽ]/ },
+  he: { name: "Hebrew", test: /[֐-׿]/ },
+  hi: { name: "Devanagari", test: /[ऀ-ॿ]/ },
+  mr: { name: "Devanagari", test: /[ऀ-ॿ]/ },
+  ne: { name: "Devanagari", test: /[ऀ-ॿ]/ },
+  bn: { name: "Bengali", test: /[ঀ-৿]/ },
+  pa: { name: "Gurmukhi", test: /[਀-੿]/ },
+  gu: { name: "Gujarati", test: /[઀-૿]/ },
+  ta: { name: "Tamil", test: /[஀-௿]/ },
+  te: { name: "Telugu", test: /[ఀ-౿]/ },
+  kn: { name: "Kannada", test: /[ಀ-೿]/ },
+  ml: { name: "Malayalam", test: /[ഀ-ൿ]/ },
+  si: { name: "Sinhala", test: /[඀-෿]/ },
+  th: { name: "Thai", test: /[฀-๿]/ },
+  my: { name: "Myanmar", test: /[က-႟]/ },
+  km: { name: "Khmer", test: /[ក-៿]/ },
+  am: { name: "Ethiopic", test: /[ሀ-፿]/ },
+  ti: { name: "Ethiopic", test: /[ሀ-፿]/ },
+  ka: { name: "Georgian", test: /[Ⴀ-ჿ]/ },
+  hy: { name: "Armenian", test: /[԰-֏]/ },
+  zh: { name: "Han (Chinese)", test: /[一-鿿]/ },
+  ja: { name: "Japanese", test: /[぀-ヿ一-鿿]/ },
+  ko: { name: "Hangul", test: /[가-힯]/ },
 };
+
+/** The script a locale must be written in, or undefined for a Latin-script language. */
+export function targetScript(
+  locale: string,
+): { name: string; test: RegExp } | undefined {
+  return SCRIPT_RANGES[locale.split("-")[0]];
+}
 
 /**
  * Locales whose script costs 2–3× the tokens per character; the runner starts them at half a batch.
@@ -90,7 +116,52 @@ const SCRIPT_RANGES: Record<string, RegExp> = {
  * and a second list would drift the first time one is added.
  */
 export function isNonLatinScript(locale: string): boolean {
-  return SCRIPT_RANGES[locale.split("-")[0]] !== undefined;
+  return targetScript(locale) !== undefined;
+}
+
+/** Letters a text carries once its placeholders and slots are set aside. */
+function letterCount(text: string): number {
+  return text
+    .replace(PLACEHOLDER_PATTERN, " ")
+    .replace(SLOT_PATTERN, " ")
+    .replace(/[^\p{L}]+/gu, "").length;
+}
+
+/**
+ * The fields of a unit, paired source-to-translation and named the way a reviewer names them:
+ * `stem`, `option b`, `explanation`, `name`, `text`. Options pair by key, never by position.
+ */
+function fieldPairs(
+  source: UnitPayload,
+  translated: UnitPayload,
+): Array<{ field: string; from: string; to: string }> {
+  const pairs: Array<{ field: string; from: string; to: string }> = [];
+  const from = source as unknown as Record<string, unknown>;
+  const to = translated as unknown as Record<string, unknown>;
+  for (const key of Object.keys(from)) {
+    if (key === "options") {
+      const sourceOptions = (from.options ?? []) as Array<{
+        key: string;
+        text: string;
+      }>;
+      const translatedOptions = (to.options ?? []) as Array<{
+        key: string;
+        text: string;
+      }>;
+      for (const option of sourceOptions) {
+        const match = translatedOptions.find((o) => o.key === option.key);
+        if (match && typeof match.text === "string")
+          pairs.push({
+            field: `option ${option.key}`,
+            from: option.text,
+            to: match.text,
+          });
+      }
+    } else if (typeof from[key] === "string" && typeof to[key] === "string") {
+      pairs.push({ field: key, from: from[key], to: to[key] });
+    }
+  }
+  return pairs;
 }
 
 function multiset(values: string[]): Map<string, number> {
@@ -236,18 +307,31 @@ export function checkTranslation(input: {
   const untouched =
     sourceTexts.length > 0 &&
     sourceTexts.join(" ") === translatedTexts.join(" ");
-  const scriptCheck = SCRIPT_RANGES[input.locale.split("-")[0]];
-  const wrongScript =
-    scriptCheck !== undefined &&
-    !translatedTexts.some((text) => scriptCheck.test(text));
-  if (worthChecking && (untouched || wrongScript)) {
+  if (worthChecking && untouched) {
     issues.push({
       code: "UNTRANSLATED",
       blocking: true,
-      detail: wrongScript
-        ? "no character in the target script"
-        : "identical to the source",
+      detail: "identical to the source",
     });
+  }
+
+  // 6b. The script, per field (spec-21). One Bengali word must not save a romanised question, so
+  //     every field is held to it on its own — except a field whose source has nothing to
+  //     translate: "50 km/h" has no script to be in. Latin INSIDE a field is fine (a number, a
+  //     unit, a §, the bracketed original of a name); what is required is the target script's
+  //     presence, not Latin's absence.
+  const script = targetScript(input.locale);
+  if (script) {
+    const wrongFields = fieldPairs(source, translated)
+      .filter(({ from, to }) => letterCount(from) >= 4 && !script.test.test(to))
+      .map(({ field }) => field);
+    if (wrongFields.length > 0) {
+      issues.push({
+        code: "SCRIPT_MISMATCH",
+        blocking: true,
+        detail: wrongFields.join(", "),
+      });
+    }
   }
 
   // 7. Length sanity — a warning, not a block. Scripts differ in density, so this only catches a

@@ -6,7 +6,11 @@ import {
   servableStatuses,
 } from "./resolve";
 import { hashUnit, memoryHash, payloadStrings } from "./units";
-import { blockingCodes, checkTranslation } from "./validation";
+import {
+  blockingCodes,
+  checkTranslation,
+  isNonLatinScript,
+} from "./validation";
 import type { QuestionPayload } from "./units";
 
 /**
@@ -108,8 +112,7 @@ describe("the deterministic translation gate", () => {
     expect(blockingCodes(check(source))).toContain("UNTRANSLATED");
   });
 
-  it("refuses Latin text for a language that does not use it", () => {
-    // A model that answers in English for an Arabic request is a silent, total failure.
+  it("refuses English for an Arabic request — a silent, total failure — as SCRIPT_MISMATCH", () => {
     expect(
       blockingCodes(
         checkTranslation({
@@ -119,7 +122,95 @@ describe("the deterministic translation gate", () => {
           translated: good,
         }),
       ),
-    ).toContain("UNTRANSLATED");
+    ).toContain("SCRIPT_MISMATCH");
+  });
+
+  // Spec-21: production served "Tumi aage signal dile…" — Bengali words in Latin letters. The old
+  // check knew no Bengali, and where it knew a script it passed on one character of it anywhere.
+  const bengali: QuestionPayload = {
+    stem: "সাইনে 80 km/h লেখা আছে এবং রাস্তা ভেজা। কত গতিতে গাড়ি চালানো উচিত?",
+    options: [
+      { key: "a", text: "80 km/h, সাইনে যেমন লেখা আছে" },
+      { key: "b", text: "পরিস্থিতি অনুযায়ী গতি, সীমার নিচে" },
+      { key: "c", text: "ঠিক 60 km/h" },
+    ],
+    explanation:
+      "trafikkreglene § 11 no. 1 অনুযায়ী পরিস্থিতি অনুযায়ী গতি ঠিক করতে হবে।",
+  };
+  const banglish: QuestionPayload = {
+    stem: "Sign-e 80 km/h lekha ache ebong rasta bheja. Koto gotite gari chalano uchit?",
+    options: [
+      { key: "a", text: "80 km/h, sign-e jemon lekha ache" },
+      { key: "b", text: "Poristhiti onujayi goti, simar niche" },
+      { key: "c", text: "Thik 60 km/h" },
+    ],
+    explanation:
+      "trafikkreglene § 11 no. 1 onujayi poristhiti onujayi goti thik korte hobe.",
+  };
+
+  it("refuses a romanised translation and names every field that is in the wrong script", () => {
+    const result = check(banglish, "bn");
+    expect(blockingCodes(result)).toContain("SCRIPT_MISMATCH");
+    expect(
+      result.issues.find((issue) => issue.code === "SCRIPT_MISMATCH")?.detail,
+    ).toBe("stem, option a, option b, option c, explanation");
+  });
+
+  it("accepts Bengali script, and names only the one field that slipped into Latin", () => {
+    expect(check(bengali, "bn").passed).toBe(true);
+    const slipped = {
+      ...bengali,
+      options: bengali.options.map((option) =>
+        option.key === "c" ? { ...option, text: "Thik 60 km/h" } : option,
+      ),
+    };
+    const result = check(slipped, "bn");
+    expect(blockingCodes(result)).toEqual(["SCRIPT_MISMATCH"]);
+    expect(
+      result.issues.find((issue) => issue.code === "SCRIPT_MISMATCH")?.detail,
+    ).toBe("option c");
+  });
+
+  it("does not demand script where the source has none to give — numbers, units, a bracketed name", () => {
+    const result = checkTranslation({
+      entity: "MASTER_ITEM",
+      locale: "bn",
+      source: {
+        stem: "What is the limit here?",
+        options: [
+          { key: "a", text: "50 km/h" },
+          { key: "b", text: "Statens vegvesen" },
+        ],
+      },
+      translated: {
+        stem: "এখানে সীমা কত?",
+        options: [
+          { key: "a", text: "50 km/h" },
+          // Rule 6: the original institution name stays in brackets, in Latin, on first use.
+          { key: "b", text: "স্টাটেনস ভেগভেসেন (Statens vegvesen)" },
+        ],
+      },
+      correctOptionKey: "a",
+    });
+    expect(result.passed).toBe(true);
+  });
+
+  it("checks message-shaped units the same way", () => {
+    const result = checkTranslation({
+      entity: "UI_MESSAGE",
+      locale: "bn",
+      source: { text: "Ready for your theory test?" },
+      translated: { text: "Tomar theory test er jonno prostut?" },
+    });
+    expect(
+      result.issues.find((issue) => issue.code === "SCRIPT_MISMATCH")?.detail,
+    ).toBe("text");
+  });
+
+  it("never asks a Latin-script language for a script", () => {
+    expect(isNonLatinScript("es")).toBe(false);
+    expect(isNonLatinScript("bn")).toBe(true);
+    expect(blockingCodes(check(good))).not.toContain("SCRIPT_MISMATCH");
   });
 
   it("refuses a dropped ICU placeholder — that is a crash, not a typo", () => {

@@ -25,7 +25,12 @@ import {
   type TranslationUnit,
   type UnitPayload,
 } from "./units";
-import { allCodes, checkTranslation, NOT_A_QUALITY_FLAG } from "./validation";
+import {
+  NOT_A_QUALITY_FLAG,
+  allCodes,
+  checkTranslation,
+  targetScript,
+} from "./validation";
 
 /**
  * Auto-repair (spec-19).
@@ -377,6 +382,7 @@ export async function repairBatch(
         vars: {
           targetLanguage: language.englishName,
           targetCode: language.code,
+          targetScript: targetScript(language.code)?.name ?? null,
           styleNote: language.styleNote ?? "",
           glossaryBlock: glossaryBlock(language.glossary),
           unitsJson: JSON.stringify(

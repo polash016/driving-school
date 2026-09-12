@@ -57,6 +57,8 @@ export const AUDIT = {
   translationApproved: "i18n.translation_approved",
   translationRejected: "i18n.translation_rejected",
   translationEdited: "i18n.translation_edited",
+  translationFlagged: "i18n.translation_flagged",
+  translationAudited: "i18n.translation_audited",
   imagesUploaded: "image.uploaded",
   imageDeleted: "image.deleted",
   signUpdated: "sign.updated",

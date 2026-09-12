@@ -16,19 +16,33 @@ import type { PromptTemplate } from "./index";
  * a second right one. Both source languages are supplied because the Norwegian is the legal
  * original and the English is the fluent pivot — where they differ in nuance, the Norwegian wins.
  */
+/**
+ * The script rule (spec-21). Production served Bengali in Latin letters — "Tumi aage signal
+ * dile…" — and nothing in either prompt had said which script to write in. Now both do, and the
+ * gate holds every field to it (`SCRIPT_MISMATCH`).
+ */
+function scriptRule(targetScript: string | null): string {
+  return targetScript
+    ? `Write every field in ${targetScript} script. Never romanise or transliterate the translation into Latin letters; Latin appears only in numbers, units, legal references and the bracketed original of a name.`
+    : "Write in the language's own orthography, with its own diacritics and punctuation.";
+}
+
 export const translateUnitsPrompt: PromptTemplate<{
   targetLanguage: string;
   targetCode: string;
+  /** The script's name ("Bengali") for a non-Latin language, null for a Latin-script one. */
+  targetScript: string | null;
   styleNote: string;
   glossaryBlock: string;
   rejectedBlock: string;
   unitsJson: string;
 }> = {
   id: "translation.units",
-  version: "1.0.0",
+  version: "1.1.0",
   render: ({
     targetLanguage,
     targetCode,
+    targetScript,
     styleNote,
     glossaryBlock,
     rejectedBlock,
@@ -47,6 +61,7 @@ export const translateUnitsPrompt: PromptTemplate<{
       "6. Do not translate Norwegian institution names (Statens vegvesen). Transliterate where the script differs and put the original in brackets on first use.",
       "7. The option named as correct must remain the ONLY defensible answer, and every other option must stay clearly wrong.",
       "8. Write for a learner driver: second person, plain, the same reading level as the source. Do not explain more than the source explains.",
+      `9. ${scriptRule(targetScript)}`,
       "",
       'IF YOU CANNOT TRANSLATE FAITHFULLY, SAY SO. If a faithful translation would make two options mean the same thing, or would make a wrong option arguably correct, do NOT paraphrase your way around it — return that item with `"issue"` set to a short explanation and leave its text as best you can. A flagged item goes to a human; a quietly fudged one goes to a student.',
       "",
@@ -100,15 +115,17 @@ export const translateUnitsPrompt: PromptTemplate<{
 export const translateRepairPrompt: PromptTemplate<{
   targetLanguage: string;
   targetCode: string;
+  targetScript: string | null;
   styleNote: string;
   glossaryBlock: string;
   unitsJson: string;
 }> = {
   id: "translation.repair",
-  version: "1.0.0",
+  version: "1.1.0",
   render: ({
     targetLanguage,
     targetCode,
+    targetScript,
     styleNote,
     glossaryBlock,
     unitsJson,
@@ -125,6 +142,7 @@ export const translateRepairPrompt: PromptTemplate<{
       "5. Institution names stay untranslated.",
       "6. The correct option must remain the only defensible answer.",
       "7. Write for a learner driver: plain, precise, no jargon.",
+      `8. ${scriptRule(targetScript)}`,
       "IF YOU CANNOT FIX AN ITEM FAITHFULLY, SAY SO in its `issue` field and return the previous translation unchanged for it.",
       styleNote ? `STYLE: ${styleNote}` : "",
       glossaryBlock,

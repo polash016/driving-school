@@ -3,12 +3,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { SessionUser } from "@/server/authz";
 import { db } from "@/server/db";
 import { redis } from "@/server/redis";
+import { ForbiddenError } from "@/lib/errors";
 import { extractAll } from "./extract";
+import { repairCandidates } from "./repair";
 import { loadQuestionOverlay } from "./resolve";
 import {
   bulkApproveInputSchema,
   bulkApproveTranslations,
   flagCounts,
+  flagTranslation,
 } from "./review";
 import type { TranslationUnit } from "./units";
 
@@ -333,6 +336,116 @@ d("a flagged question that gets approved", () => {
         allowFlags: [],
       }),
     ).toEqual({ approved: 0, skipped: 1 });
+  });
+});
+
+/**
+ * Spec-21: an admin can declare any translation broken — approved or not — and hand it to the
+ * repair run with a note the model will read. Production shipped Bengali in Latin letters that
+ * every check had passed; a human eye has to be able to overrule the checks.
+ */
+d("marking a translation broken (spec-21)", () => {
+  const admin: SessionUser = {
+    id: "",
+    role: "ADMIN",
+    email: `review-admin-${RUN}@example.no`,
+  };
+
+  beforeAll(async () => {
+    const user = await db.user.create({
+      data: {
+        email: admin.email,
+        role: "ADMIN",
+        emailVerifiedAt: new Date(),
+        profile: { create: { firstName: "Admin", lastName: RUN } },
+      },
+      select: { id: true },
+    });
+    admin.id = user.id;
+  });
+
+  afterAll(async () => {
+    await db.auditLog.deleteMany({ where: { actorId: admin.id } });
+    await db.user.deleteMany({ where: { id: admin.id } });
+  });
+
+  it("only an admin may mark a translation broken", async () => {
+    await expect(
+      flagTranslation(db, actor, {
+        id: rowIds.clean,
+        note: "Romanised Bengali, not Bengali script",
+        repair: false,
+      }),
+    ).rejects.toThrow(ForbiddenError);
+    expect(await statusOf(rowIds.clean)).toBe("APPROVED");
+  });
+
+  it("takes an approved row out of service, keeps the note for the model, and resets the repair budget", async () => {
+    await db.translation.update({
+      where: { id: rowIds.clean },
+      data: { repairAttempts: 3 },
+    });
+    const outcome = await flagTranslation(db, admin, {
+      id: rowIds.clean,
+      note: "Romanised Bengali, not Bengali script",
+      repair: false,
+    });
+    expect(outcome).toMatchObject({
+      id: rowIds.clean,
+      locale: CODE,
+      repairQueued: false,
+    });
+
+    const row = await db.translation.findUniqueOrThrow({
+      where: { id: rowIds.clean },
+      select: {
+        status: true,
+        qaFlags: true,
+        qaReport: true,
+        reviewNote: true,
+        reviewedById: true,
+        repairAttempts: true,
+      },
+    });
+    expect(row.status).toBe("NEEDS_REVIEW");
+    expect(row.qaFlags).toContain("ADMIN_FLAGGED");
+    expect(row.reviewNote).toBe("Romanised Bengali, not Bengali script");
+    expect(row.reviewedById).toBe(admin.id);
+    expect(row.repairAttempts).toBe(0);
+    // The note rides in the report as a problem detail: `storeRepairs` nulls `reviewNote`, but
+    // `repairProblems` reads `qaReport.issues`, which is what reaches the prompt.
+    const report = row.qaReport as {
+      source?: string;
+      issues?: Array<{ code: string; detail?: string }>;
+    };
+    expect(report.source).toBe("admin");
+    expect(report.issues).toContainEqual({
+      code: "ADMIN_FLAGGED",
+      blocking: true,
+      detail: "Romanised Bengali, not Bengali script",
+    });
+
+    // It is now a repair candidate.
+    const messages = units.filter((unit) => unit.entity === "UI_MESSAGE");
+    const candidates = await repairCandidates(db, CODE);
+    expect(
+      candidates.map((unit) => `${unit.entity}:${unit.entityId}`),
+    ).toContain(`UI_MESSAGE:${messages[0].entityId}`);
+  });
+
+  it("queues a repair run in the same act when asked", async () => {
+    const outcome = await flagTranslation(db, admin, {
+      id: rowIds.infra,
+      note: "Wrong script",
+    });
+    expect(outcome.repairQueued).toBe(true);
+    const run = await db.translationRun.findFirst({
+      where: { locale: CODE, kind: "REPAIR" },
+      orderBy: { createdAt: "desc" },
+      select: { enqueuedAt: true, plannedUnits: true, status: true },
+    });
+    expect(run?.enqueuedAt).not.toBeNull();
+    expect(run?.plannedUnits ?? 0).toBeGreaterThan(0);
   });
 });
 

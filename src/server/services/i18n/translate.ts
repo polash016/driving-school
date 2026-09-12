@@ -16,7 +16,12 @@ import {
 } from "./memory";
 import { semanticCheck, type QaInput } from "./qa";
 import { memoryHash, type TranslationUnit, type UnitPayload } from "./units";
-import { allCodes, blockingCodes, checkTranslation } from "./validation";
+import {
+  allCodes,
+  blockingCodes,
+  checkTranslation,
+  targetScript,
+} from "./validation";
 
 /**
  * Translating a batch of units (spec-15).
@@ -201,6 +206,7 @@ export async function translateBatch(
     vars: {
       targetLanguage: `${language.englishName} (${language.nativeName})`,
       targetCode: language.code,
+      targetScript: targetScript(language.code)?.name ?? null,
       styleNote: language.styleNote ? `STYLE: ${language.styleNote}` : "",
       glossaryBlock: glossaryBlock(language.glossary),
       rejectedBlock: rejectedBlock(rejections),
