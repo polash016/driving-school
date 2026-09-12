@@ -1112,6 +1112,11 @@ d("served in an added language (spec-20)", () => {
   let hashesBefore: string[] = [];
 
   beforeAll(async () => {
+    // This suite re-creates the language with fresh topic ids on every run; a cached overlay from
+    // the previous run must not leak in.
+    const { invalidateTaxonomy } =
+      await import("@/server/services/i18n/taxonomy");
+    await invalidateTaxonomy(ZQ);
     await db.user.createMany({
       data: ["zq1", "zq2", "zq3"].map((id) => ({
         id,
@@ -1203,6 +1208,9 @@ d("served in an added language (spec-20)", () => {
   });
 
   afterAll(async () => {
+    const { invalidateTaxonomy } =
+      await import("@/server/services/i18n/taxonomy");
+    await invalidateTaxonomy(ZQ);
     await db.language.deleteMany({ where: { code: ZQ } });
   });
 
@@ -1305,6 +1313,93 @@ d("served in an added language (spec-20)", () => {
       where: { code: ZQ },
       data: { requiresApproval: false },
     });
+  });
+
+  it("coverage calls the language complete exactly when every served question has a translation", async () => {
+    // The checklist's honesty test (spec-20): "complete" and "what the engine serves" are one
+    // fact now, because both read the MASTER_ITEM rows. Fill in every remaining unit, watch the
+    // gate open; take one question's translation away, watch it close on that unit.
+    const { languageCoverage } =
+      await import("@/server/services/i18n/languages");
+    const { extractAll } = await import("@/server/services/i18n/extract");
+    const language = await db.language.findUniqueOrThrow({
+      where: { code: ZQ },
+      select: { glossaryVersion: true },
+    });
+    const units = await extractAll(db, {
+      glossaryVersion: language.glossaryVersion,
+    });
+    const existing = new Set(
+      (
+        await db.translation.findMany({
+          where: { locale: ZQ },
+          select: { entity: true, entityId: true },
+        })
+      ).map((row) => `${row.entity}:${row.entityId}`),
+    );
+    // The fixtures above carry a placeholder hash; coverage insists on the real one.
+    for (const unit of units) {
+      await db.translation.upsert({
+        where: {
+          locale_entity_entityId: {
+            locale: ZQ,
+            entity: unit.entity,
+            entityId: unit.entityId,
+          },
+        },
+        create: {
+          locale: ZQ,
+          entity: unit.entity,
+          entityId: unit.entityId,
+          sourceHash: unit.sourceHash,
+          status: "MACHINE",
+          value: unit.en as object,
+        },
+        update: { sourceHash: unit.sourceHash },
+        select: { id: true },
+      });
+    }
+    expect(existing.size).toBeGreaterThan(0);
+    expect((await languageCoverage(db, ZQ)).complete).toBe(true);
+
+    const gone = await db.translation.delete({
+      where: {
+        locale_entity_entityId: {
+          locale: ZQ,
+          entity: "MASTER_ITEM",
+          entityId: "r1-m0",
+        },
+      },
+      select: { value: true, sourceHash: true },
+    });
+    const coverage = await languageCoverage(db, ZQ);
+    expect(coverage.complete).toBe(false);
+    expect(coverage.blockers).toEqual([{ kind: "UNTRANSLATED", count: 1 }]);
+    // And that exact question is what the engine would now serve in English.
+    const overlay = await (
+      await import("@/server/services/i18n/resolve")
+    ).loadQuestionOverlay(db, ZQ, [
+      {
+        variantId: "r1-m0-v0",
+        masterItemId: "r1-m0",
+        masterVersion: 1,
+        source: "TEMPLATE",
+        currentMasterVersion: 1,
+      },
+    ]);
+    expect(overlay.has("r1-m0-v0")).toBe(false);
+
+    await db.translation.create({
+      data: {
+        locale: ZQ,
+        entity: "MASTER_ITEM",
+        entityId: "r1-m0",
+        sourceHash: gone.sourceHash,
+        status: "MACHINE",
+        value: gone.value as object,
+      },
+    });
+    expect((await languageCoverage(db, ZQ)).complete).toBe(true);
   });
 
   it("left every variant's contentHash byte-identical and wrote no variant copies", async () => {

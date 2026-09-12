@@ -417,6 +417,10 @@ export async function createLanguage(
   });
 
   await invalidateRegistry();
+  // A language of the same code may have been deleted and re-added: whatever its caches held
+  // describes rows that no longer exist, and the TTL is an hour.
+  await invalidateMessages(language.code);
+  await invalidateTaxonomy(language.code);
   await auditLog({
     actorId: actor.id,
     action: AUDIT.languageAdded,

@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/server/authz";
 import { db } from "@/server/db";
-import { redis } from "@/server/redis";
+import { keys, redis } from "@/server/redis";
 import type { TranslationUnit } from "./units";
 
 /**
@@ -126,6 +126,9 @@ afterAll(async () => {
 
 d("a language that keeps itself translated (spec-20)", () => {
   it("a new language publishes machine output by default and starts translating at once", async () => {
+    // Left behind by a language of the same code that was deleted: a re-add must not inherit them.
+    await redis.set(keys.i18nMessages(AUTO), JSON.stringify({ stale: true }));
+    await redis.set(keys.i18nTaxonomy(AUTO), JSON.stringify({ stale: true }));
     const created = await createLanguage(db, actor, {
       code: AUTO,
       englishName: "Auto",
@@ -133,6 +136,8 @@ d("a language that keeps itself translated (spec-20)", () => {
       shortLabel: "ZA",
     });
     expect(created.code).toBe(AUTO);
+    expect(await redis.get(keys.i18nMessages(AUTO))).toBeNull();
+    expect(await redis.get(keys.i18nTaxonomy(AUTO))).toBeNull();
     const row = await db.language.findUniqueOrThrow({
       where: { code: AUTO },
       select: { requiresApproval: true, autoTranslate: true },
