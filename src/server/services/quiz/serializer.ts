@@ -1,6 +1,9 @@
 import type { AttemptMode, AttemptStatus, ItemType } from "@prisma/client";
 import { pickLocale } from "@/lib/i18n-content";
-import { mergeQuestion } from "@/server/services/i18n/resolve";
+import {
+  mergeExplanation,
+  mergeQuestion,
+} from "@/server/services/i18n/resolve";
 import type { UnitPayload } from "@/server/services/i18n/units";
 import type { Locale } from "@/server/contracts/common";
 import {
@@ -116,6 +119,8 @@ export function buildPracticeResult(input: {
   correctOptionKey: string;
   explanation: unknown; // ItemVariant.explanation JSON
   locale: Locale;
+  /** The question's translation, when the student's language has a servable one (spec-20). */
+  translation?: unknown;
 }): PracticeAnswerResult {
   const explanation = explanationSchema.parse(input.explanation);
   return practiceAnswerResultSchema.parse({
@@ -123,7 +128,12 @@ export function buildPracticeResult(input: {
     correct: input.correct,
     correctOptionKey: input.correctOptionKey,
     explanation: {
-      text: pickLocale(explanation, input.locale),
+      // The explanation travels with the question's translation as one unit; a translation that
+      // lacks one falls back to the authored text rather than to nothing.
+      text: mergeExplanation(
+        pickLocale(explanation, input.locale),
+        input.translation as UnitPayload | undefined,
+      ),
       citations: explanation.citations,
     },
   });
@@ -160,7 +170,10 @@ export function buildAttemptResult(input: {
         correctOptionKey: q.correctOptionKey,
         correct: q.isCorrect,
         explanation: {
-          text: pickLocale(explanation, input.locale),
+          text: mergeExplanation(
+            pickLocale(explanation, input.locale),
+            q.translation as UnitPayload | undefined,
+          ),
           citations: explanation.citations,
         },
         imageUrl: q.imageUrl,

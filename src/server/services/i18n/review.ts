@@ -10,7 +10,6 @@ import type { SessionUser } from "@/server/authz";
 import { invalidateMessages } from "./catalogue";
 import { extractAll } from "./extract";
 import { rememberTranslation } from "./memory";
-import { deriveVariantTranslations } from "./runs";
 import type { UnitPayload } from "./units";
 import { checkTranslation, NOT_A_QUALITY_FLAG } from "./validation";
 
@@ -272,12 +271,8 @@ export async function bulkApproveTranslations(
     },
   });
 
-  // Push approved questions out to the variants students are actually served.
-  const masterIds = targets
-    .filter((row) => row.entity === "MASTER_ITEM")
-    .map((row) => row.entityId);
-  if (masterIds.length > 0)
-    await deriveVariantTranslations(db, input.locale, masterIds);
+  // Question translations are served straight from the master row (spec-20): approving one is
+  // enough for the student's variant to read it on the next request.
   if (targets.some((row) => row.entity === "UI_MESSAGE")) {
     await invalidateMessages(input.locale);
   }
@@ -412,11 +407,6 @@ export async function reviewTranslation(
     },
   });
 
-  // An approved question translation is what the student is actually served, so push it out to
-  // the variants immediately rather than waiting for the next sync.
-  if (updated.status === "APPROVED" && updated.entity === "MASTER_ITEM") {
-    await deriveVariantTranslations(db, updated.locale, [updated.entityId]);
-  }
   if (updated.entity === "UI_MESSAGE") await invalidateMessages(updated.locale);
 
   await auditLog({
@@ -520,9 +510,6 @@ export async function editTranslation(
     glossaryVersion: language.glossaryVersion,
   });
 
-  if (updated.entity === "MASTER_ITEM") {
-    await deriveVariantTranslations(db, updated.locale, [updated.entityId]);
-  }
   if (updated.entity === "UI_MESSAGE") await invalidateMessages(updated.locale);
 
   await auditLog({

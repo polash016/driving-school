@@ -1101,3 +1101,171 @@ d("task sets (integration)", () => {
     });
   });
 });
+
+/**
+ * A student sits in a language the school added (spec-20). The translation lives on the master
+ * item; the served variant reads it through its master, with nothing copied in between.
+ */
+d("served in an added language (spec-20)", () => {
+  const ZQ = "zq";
+  const stamp = (text: string) => `[zq] ${text}`;
+  let hashesBefore: string[] = [];
+
+  beforeAll(async () => {
+    await db.user.createMany({
+      data: ["zq1", "zq2", "zq3"].map((id) => ({
+        id,
+        email: `${id}@test.local`,
+        role: "STUDENT",
+      })),
+    });
+    await db.language.create({
+      data: {
+        code: ZQ,
+        englishName: "Zq",
+        nativeName: "Zq",
+        shortLabel: "ZQ",
+        urlPrefix: "/zq",
+        requiresApproval: false,
+      },
+    });
+    const masters = await db.masterItem.findMany({
+      select: { id: true, content: true },
+    });
+    await db.translation.createMany({
+      data: masters.map((master) => {
+        const en = (
+          master.content as {
+            en: { stem: string; options: { key: string; text: string }[] };
+          }
+        ).en;
+        return {
+          locale: ZQ,
+          entity: "MASTER_ITEM" as const,
+          entityId: master.id,
+          sourceHash: "fixture",
+          status: "MACHINE" as const,
+          value: {
+            stem: stamp(en.stem),
+            options: en.options.map((o) => ({
+              key: o.key,
+              text: stamp(o.text),
+            })),
+            explanation: stamp(explanation.en),
+          },
+        };
+      }),
+    });
+    hashesBefore = (
+      await db.itemVariant.findMany({
+        select: { contentHash: true },
+        orderBy: { id: "asc" },
+      })
+    ).map((v) => v.contentHash);
+  });
+
+  afterAll(async () => {
+    await db.language.deleteMany({ where: { code: ZQ } });
+  });
+
+  const allStamped = (
+    questions: { stem: string; options: { text: string }[] }[],
+  ) =>
+    questions.length > 0 &&
+    questions.every(
+      (q) =>
+        q.stem.startsWith("[zq]") &&
+        q.options.every((o) => o.text.startsWith("[zq]")),
+    );
+
+  it("practice: the paper, the feedback and the reveal all read in the student's language", async () => {
+    const attempt = await service.startQuiz("zq1", {
+      mode: "PRACTICE",
+      questionCount: 4,
+      locale: ZQ,
+    });
+    expect(attempt.locale).toBe(ZQ);
+    expect(allStamped(attempt.questions)).toBe(true);
+
+    const answered = await service.answer("zq1", {
+      attemptId: attempt.id,
+      position: 1,
+      optionKey: "a",
+      locale: ZQ,
+    });
+    expect("explanation" in answered && answered.explanation.text).toBe(
+      stamp(explanation.en),
+    );
+
+    const again = await service.revealAnswered("zq1", {
+      attemptId: attempt.id,
+      position: 1,
+      locale: ZQ,
+    });
+    expect(again.explanation.text).toBe(stamp(explanation.en));
+
+    const result = await service.submit("zq1", {
+      attemptId: attempt.id,
+      locale: ZQ,
+    });
+    expect(allStamped(result.review)).toBe(true);
+    expect(
+      result.review.every((q) => q.explanation.text === stamp(explanation.en)),
+    ).toBe(true);
+  });
+
+  it("a stored result re-reads in whichever language it is viewed in", async () => {
+    const attempt = await service.startQuiz("zq2", {
+      mode: "EXAM",
+      licenseClassCode: "TB",
+      locale: ZQ,
+    });
+    expect(allStamped(attempt.questions)).toBe(true);
+    const submitted = await service.submit("zq2", {
+      attemptId: attempt.id,
+      locale: ZQ,
+    });
+    expect(allStamped(submitted.review)).toBe(true);
+
+    const inEnglish = await service.getResult("zq2", {
+      attemptId: attempt.id,
+      locale: "en",
+    });
+    expect(inEnglish.review[0].stem.startsWith("[zq]")).toBe(false);
+    expect(inEnglish.review[0].explanation.text).toBe(explanation.en);
+  });
+
+  it("holds machine output back the moment the language requires approval", async () => {
+    await db.language.update({
+      where: { code: ZQ },
+      data: { requiresApproval: true },
+    });
+    const attempt = await service.startQuiz("zq3", {
+      mode: "PRACTICE",
+      questionCount: 2,
+      locale: ZQ,
+    });
+    expect(attempt.questions.some((q) => q.stem.startsWith("[zq]"))).toBe(
+      false,
+    );
+    await db.language.update({
+      where: { code: ZQ },
+      data: { requiresApproval: false },
+    });
+  });
+
+  it("left every variant's contentHash byte-identical and wrote no variant copies", async () => {
+    const after = (
+      await db.itemVariant.findMany({
+        select: { contentHash: true },
+        orderBy: { id: "asc" },
+      })
+    ).map((v) => v.contentHash);
+    expect(after).toEqual(hashesBefore);
+    expect(
+      await db.translation.count({
+        where: { locale: ZQ, entity: "ITEM_VARIANT" },
+      }),
+    ).toBe(0);
+  });
+});

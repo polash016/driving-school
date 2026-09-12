@@ -19,26 +19,38 @@
 import { readFileSync } from "node:fs";
 import { PrismaClient, type TranslatableEntity } from "@prisma/client";
 import { extractAll } from "../src/server/services/i18n/extract";
-import { deriveVariantTranslations } from "../src/server/services/i18n/runs";
 import { invalidateMessages } from "../src/server/services/i18n/catalogue";
-import { checkTranslation, allCodes } from "../src/server/services/i18n/validation";
+import {
+  checkTranslation,
+  allCodes,
+} from "../src/server/services/i18n/validation";
 import type { UnitPayload } from "../src/server/services/i18n/units";
 import { redis } from "../src/server/redis";
 
-(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(".env");
+(process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(
+  ".env",
+);
 const db = new PrismaClient();
 
-type FileShape = Partial<Record<TranslatableEntity, Record<string, UnitPayload>>>;
+type FileShape = Partial<
+  Record<TranslatableEntity, Record<string, UnitPayload>>
+>;
 
 /** Natural identifiers, so a file can be written without knowing any cuid. */
-async function idResolver(entity: TranslatableEntity): Promise<Map<string, string>> {
+async function idResolver(
+  entity: TranslatableEntity,
+): Promise<Map<string, string>> {
   switch (entity) {
     case "TOPIC": {
-      const rows = await db.topic.findMany({ select: { id: true, slug: true } });
+      const rows = await db.topic.findMany({
+        select: { id: true, slug: true },
+      });
       return new Map(rows.map((row) => [row.slug, row.id]));
     }
     case "LICENSE_CLASS": {
-      const rows = await db.licenseClass.findMany({ select: { id: true, code: true } });
+      const rows = await db.licenseClass.findMany({
+        select: { id: true, code: true },
+      });
       return new Map(rows.map((row) => [row.code, row.id]));
     }
     case "SIGN": {
@@ -61,20 +73,30 @@ async function main(): Promise<void> {
 
   const language = await db.language.findUniqueOrThrow({
     where: { code },
-    select: { code: true, englishName: true, isBuiltIn: true, glossaryVersion: true },
+    select: {
+      code: true,
+      englishName: true,
+      isBuiltIn: true,
+      glossaryVersion: true,
+    },
   });
   if (language.isBuiltIn) {
-    throw new Error(`${code} is authored, not translated — importing would overwrite the source`);
+    throw new Error(
+      `${code} is authored, not translated — importing would overwrite the source`,
+    );
   }
 
   const payload = JSON.parse(readFileSync(file, "utf8")) as FileShape;
-  const units = await extractAll(db, { glossaryVersion: language.glossaryVersion });
-  const byKey = new Map(units.map((unit) => [`${unit.entity}:${unit.entityId}`, unit]));
+  const units = await extractAll(db, {
+    glossaryVersion: language.glossaryVersion,
+  });
+  const byKey = new Map(
+    units.map((unit) => [`${unit.entity}:${unit.entityId}`, unit]),
+  );
 
   let written = 0;
   let flagged = 0;
   let unknown = 0;
-  const masterIds: string[] = [];
   let touchedMessages = false;
 
   for (const [rawEntity, entries] of Object.entries(payload)) {
@@ -96,15 +118,23 @@ async function main(): Promise<void> {
         locale: code,
         source: unit.en,
         translated: value,
-        ...(unit.correctOptionKey ? { correctOptionKey: unit.correctOptionKey } : {}),
+        ...(unit.correctOptionKey
+          ? { correctOptionKey: unit.correctOptionKey }
+          : {}),
       });
       const flags = allCodes(check);
       if (!check.passed) {
         flagged++;
-        console.warn(`  ! held for review: ${entity} ${rawId} — ${flags.join(", ")}`);
+        console.warn(
+          `  ! held for review: ${entity} ${rawId} — ${flags.join(", ")}`,
+        );
       }
 
-      const status = !check.passed ? "NEEDS_REVIEW" : approve ? "APPROVED" : "MACHINE";
+      const status = !check.passed
+        ? "NEEDS_REVIEW"
+        : approve
+          ? "APPROVED"
+          : "MACHINE";
       await db.translation.upsert({
         where: { locale_entity_entityId: { locale: code, entity, entityId } },
         create: {
@@ -135,17 +165,11 @@ async function main(): Promise<void> {
         select: { id: true },
       });
 
-      if (entity === "MASTER_ITEM" && check.passed) masterIds.push(entityId);
       if (entity === "UI_MESSAGE") touchedMessages = true;
       written++;
     }
   }
 
-  // Approved question translations are what students are actually served, via the variant rows.
-  if (masterIds.length > 0) {
-    const derived = await deriveVariantTranslations(db, code, masterIds);
-    console.log(`Derived ${derived} variant translation(s) at no token cost.`);
-  }
   if (touchedMessages) await invalidateMessages(code);
 
   console.log(

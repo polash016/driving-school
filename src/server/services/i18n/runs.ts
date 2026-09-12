@@ -183,88 +183,6 @@ export async function planRun(
   };
 }
 
-/**
- * Copy an approved master translation onto the variants a student is actually served.
- *
- * Free — no AI call. Every question today is one master with one variant that mirrors it, so this
- * is a straight copy; a templated item would need its slots expanded, which is why those are out
- * of scope for now.
- *
- * Variants left behind by an OLDER master version are deliberately not derived: showing a student
- * a translation of a different question than the English they sat is precisely the failure this
- * whole spec exists to avoid. They stay untranslated and read English.
- */
-export async function deriveVariantTranslations(
-  db: PrismaClient,
-  locale: string,
-  masterItemIds: string[],
-): Promise<number> {
-  if (masterItemIds.length === 0) return 0;
-
-  const [masters, translations] = await Promise.all([
-    db.masterItem.findMany({
-      where: { id: { in: masterItemIds } },
-      select: {
-        id: true,
-        version: true,
-        variants: {
-          where: { isActive: true },
-          select: { id: true, masterVersion: true },
-        },
-      },
-    }),
-    db.translation.findMany({
-      where: { locale, entity: "MASTER_ITEM", entityId: { in: masterItemIds } },
-      select: {
-        entityId: true,
-        value: true,
-        status: true,
-        sourceHash: true,
-        qaFlags: true,
-      },
-    }),
-  ]);
-
-  const byMaster = new Map(translations.map((row) => [row.entityId, row]));
-  let derived = 0;
-
-  for (const master of masters) {
-    const translation = byMaster.get(master.id);
-    if (!translation) continue;
-    for (const variant of master.variants) {
-      if (variant.masterVersion !== master.version) continue;
-      await db.translation.upsert({
-        where: {
-          locale_entity_entityId: {
-            locale,
-            entity: "ITEM_VARIANT",
-            entityId: variant.id,
-          },
-        },
-        create: {
-          locale,
-          entity: "ITEM_VARIANT",
-          entityId: variant.id,
-          value: translation.value as object,
-          status: translation.status,
-          sourceHash: translation.sourceHash,
-          qaFlags: translation.qaFlags,
-          fromMemory: true,
-        },
-        update: {
-          value: translation.value as object,
-          status: translation.status,
-          sourceHash: translation.sourceHash,
-          qaFlags: translation.qaFlags,
-        },
-        select: { id: true },
-      });
-      derived++;
-    }
-  }
-  return derived;
-}
-
 export type StopReason =
   | "finished"
   | "budget"
@@ -514,7 +432,6 @@ export async function executeRun(
     reserved = Math.max(0, reserved - n);
   };
   const meter = new RunRateMeter(run.rateUnitsPerMin, slots);
-  const translatedMasterIds: string[] = [];
 
   // A stop is a ranked latch shared by every slot: each of these reasons ends the RUN, not just
   // the slot that noticed it, and a stronger reason may replace a weaker one but never the reverse.
@@ -796,12 +713,6 @@ export async function executeRun(
           (sum, item) => sum + item.completionTokens,
           0,
         );
-        if (entity === "MASTER_ITEM") {
-          translatedMasterIds.push(
-            ...translated.map((item) => item.unit.entityId),
-          );
-        }
-
         const doneIds = new Set(
           translated
             .map((item) => item.unit.entityId)
@@ -1008,10 +919,6 @@ export async function executeRun(
     return { ...(await progressOf(db, runId)), stopReason };
   }
 
-  // Push approved question translations out to the variants students are served.
-  if (translatedMasterIds.length > 0) {
-    await deriveVariantTranslations(db, run.locale, translatedMasterIds);
-  }
   await invalidateMessages(run.locale);
 
   const releaseLease = { leaseOwner: null, leaseExpiresAt: null };

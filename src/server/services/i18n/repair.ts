@@ -133,9 +133,8 @@ export function repairProblems(row: {
  * Needed as its own planner because `pendingUnits` deliberately will not return these: a
  * NEEDS_REVIEW row whose hash still matches its source is not stale, so a SYNC skips it for ever.
  *
- * ITEM_VARIANT is excluded because `extractAll` has no branch for it — variants are derived from
- * their master by `deriveVariantTranslations`, so a repair job for one could only fail three times
- * and end up SKIPPED.
+ * ITEM_VARIANT is excluded because `extractAll` has no branch for it — the entity is reserved for
+ * spec-17's AI variants — so a repair job for one could only fail three times and end up SKIPPED.
  */
 export async function repairCandidates(
   db: PrismaClient,

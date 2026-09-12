@@ -4,6 +4,7 @@ import type { SessionUser } from "@/server/authz";
 import { db } from "@/server/db";
 import { redis } from "@/server/redis";
 import { extractAll } from "./extract";
+import { loadQuestionOverlay } from "./resolve";
 import {
   bulkApproveInputSchema,
   bulkApproveTranslations,
@@ -48,7 +49,6 @@ const rowIds: {
   quality: string;
   stale: string;
   master?: string;
-  variant?: string;
 } = { clean: "", infra: "", mixed: "", quality: "", stale: "" };
 
 /** Every current unit, with the hash a fresh translation would carry. */
@@ -265,7 +265,7 @@ d("a flagged question that gets approved", () => {
         version: true,
         variants: {
           where: { isActive: true },
-          select: { id: true, masterVersion: true },
+          select: { id: true, masterVersion: true, source: true },
         },
       },
     });
@@ -297,23 +297,36 @@ d("a flagged question that gets approved", () => {
       }),
     ).toEqual({ approved: 1, skipped: 1 });
 
-    // The derivation is the point: an approved question that never reaches its variants is not
-    // served to anybody, so bulk approve has to do it too.
-    const derived = await db.translation.findUniqueOrThrow({
-      where: {
-        locale_entity_entityId: {
-          locale: CODE,
-          entity: "ITEM_VARIANT",
-          entityId: variant!.id,
-        },
+    // Serving is the point (spec-20): the approved master translation is what the student's
+    // variant reads, straight from the master row — there is no copy in between to forget.
+    const overlay = await loadQuestionOverlay(db, CODE, [
+      {
+        variantId: variant!.id,
+        masterItemId: master.id,
+        masterVersion: variant!.masterVersion,
+        source: variant!.source,
+        currentMasterVersion: master.version,
       },
-      select: { id: true, status: true },
+    ]);
+    expect(overlay.get(variant!.id)).toEqual({
+      stem: "Spørsmål",
+      options: [],
+      explanation: "",
     });
-    rowIds.variant = derived.id;
-    expect(derived.status).toBe("APPROVED");
+    expect(
+      await db.translation.findUnique({
+        where: {
+          locale_entity_entityId: {
+            locale: CODE,
+            entity: "ITEM_VARIANT",
+            entityId: variant!.id,
+          },
+        },
+        select: { id: true },
+      }),
+    ).toBeNull();
 
-    // And the derived variant is never itself a bulk-approve candidate — it has no source of its
-    // own to review, so counting it would double every number on the screen.
+    // A served variant is not a review unit of its own, so nothing new is left to approve.
     expect(
       await bulkApproveTranslations(db, actor, {
         locale: CODE,

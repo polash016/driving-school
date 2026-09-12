@@ -103,9 +103,9 @@ export function extractMessages(
 /**
  * Approved questions, as authored.
  *
- * The MASTER item is the unit a reviewer approves. What a student is actually served is an
- * `ItemVariant`, which is derived from the approved master translation at no token cost — see
- * `deriveVariantTranslations`.
+ * The MASTER item is the unit a reviewer approves AND the unit a student is served from: a
+ * TEMPLATE variant mirrors its master, and the engine reads the master's translation through the
+ * variant (`loadQuestionOverlay`, spec-20). Nothing is copied.
  */
 export async function extractMasterItems(
   db: PrismaClient,
@@ -323,8 +323,8 @@ export async function pendingUnits(
  * permanently stuck in the queue. `home.practice` was exactly this — renamed when the start tiles
  * were relabelled, with its Spanish translation still sitting there.
  *
- * ITEM_VARIANT is skipped deliberately: those are derived from masters and never appear in the
- * extractor's output, so treating absence as orphanhood would delete every one of them.
+ * ITEM_VARIANT is skipped deliberately: the entity is reserved for spec-17's AI variants and never
+ * appears in the extractor's output, so treating absence as orphanhood would delete anything there.
  */
 export async function pruneOrphans(
   db: PrismaClient,

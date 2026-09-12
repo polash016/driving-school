@@ -219,3 +219,88 @@ describe("post-grading builders (reveal allowed)", () => {
     expect(result.topicBreakdown[0].topicName).toBe("Right of way");
   });
 });
+
+describe("translation overlay (spec-20)", () => {
+  const translation = {
+    stem: "¿Qué se aplica en la señal?",
+    options: [
+      { key: "a", text: "Ceder el paso" },
+      { key: "b", text: "Parar" },
+      { key: "c", text: "Prioridad" },
+    ],
+    explanation: "Debes ceder el paso.",
+  };
+
+  it("serves the translated stem and options in the attempt's option order", () => {
+    const attempt = buildClientAttempt({
+      id: "att1",
+      mode: "EXAM",
+      status: "IN_PROGRESS",
+      locale: "es",
+      questionCount: 1,
+      timeRemainingSec: 10,
+      questions: [servedRow({ translation })],
+    });
+    expect(attempt.questions[0].stem).toBe("¿Qué se aplica en la señal?");
+    expect(attempt.questions[0].options.map((o) => o.text)).toEqual([
+      "Prioridad",
+      "Ceder el paso",
+      "Parar",
+    ]);
+  });
+
+  it("practice result explains in the translation and keeps the source's citations", () => {
+    const result = buildPracticeResult({
+      position: 1,
+      correct: true,
+      correctOptionKey: "a",
+      explanation,
+      locale: "es",
+      translation,
+    });
+    expect(result.explanation).toEqual({
+      text: "Debes ceder el paso.",
+      citations: [{ sourceCode: "trafikkreglene", ref: "§ 7" }],
+    });
+  });
+
+  it("practice result falls back to English when the translation carries no explanation", () => {
+    const withoutExplanation = {
+      stem: translation.stem,
+      options: translation.options,
+    };
+    const result = buildPracticeResult({
+      position: 1,
+      correct: true,
+      correctOptionKey: "a",
+      explanation,
+      locale: "es",
+      translation: withoutExplanation,
+    });
+    expect(result.explanation.text).toBe("You must yield.");
+  });
+
+  it("attempt result review carries the translated stem, options and explanation", () => {
+    const result = buildAttemptResult({
+      attemptId: "att1",
+      mode: "EXAM",
+      locale: "es",
+      correctCount: 1,
+      passMark: 1,
+      passed: true,
+      topicNames: { "right-of-way": { en: "Right of way", nb: "Vikeplikt" } },
+      topicBreakdown: [{ topicSlug: "right-of-way", total: 1, correct: 1 }],
+      questions: [
+        {
+          ...servedRow({ answeredOptionKey: "a", translation }),
+          correctOptionKey: "a",
+          isCorrect: true,
+          explanation,
+        },
+      ],
+    });
+    expect(result.review[0].stem).toBe("¿Qué se aplica en la señal?");
+    expect(result.review[0].options[0].text).toBe("Prioridad");
+    expect(result.review[0].explanation.text).toBe("Debes ceder el paso.");
+  });
+});

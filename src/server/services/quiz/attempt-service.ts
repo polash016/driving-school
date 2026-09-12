@@ -4,6 +4,7 @@ import type {
   ItemType,
   Prisma,
   PrismaClient,
+  VariantSource as VariantSourceKind,
 } from "@prisma/client";
 import { z } from "zod";
 import {
@@ -31,7 +32,10 @@ import {
 } from "@/server/contracts/quiz";
 import { attestAttempt } from "@/server/services/assessment/attestation";
 import { recordTaskSetRun } from "@/server/services/task-sets/progress";
-import { loadOverlay } from "@/server/services/i18n/resolve";
+import {
+  loadQuestionOverlay,
+  type QuestionOverlayRow,
+} from "@/server/services/i18n/resolve";
 import { assembleQuiz } from "./assembly";
 import { gradeAttempt, type GradableQuestion } from "./grading";
 import type { GradedHook, SeenStore, VariantSource } from "./ports";
@@ -76,6 +80,32 @@ const REVEALING_MODES: ReadonlySet<string> = new Set([
 ]);
 const distributionSchema = z.record(z.string(), z.int().positive());
 const optionOrderSchema = z.array(z.string().min(1));
+
+/** The fields every served-question select carries so its translation can be found (spec-20). */
+const OVERLAY_SELECT = {
+  masterItemId: true,
+  masterVersion: true,
+  source: true,
+} as const;
+
+/** What `loadQuestionOverlay` needs from one served question row. */
+function overlayRowOf(q: {
+  variantId: string;
+  variant: {
+    masterItemId: string;
+    masterVersion: number;
+    source: VariantSourceKind;
+    masterItem: { version: number };
+  };
+}): QuestionOverlayRow {
+  return {
+    variantId: q.variantId,
+    masterItemId: q.variant.masterItemId,
+    masterVersion: q.variant.masterVersion,
+    source: q.variant.source,
+    currentMasterVersion: q.variant.masterItem.version,
+  };
+}
 
 /** Server-decided facts about an attempt that the client must not be able to assert. */
 export interface StartOptions {
@@ -428,20 +458,24 @@ export function createAttemptService(deps: AttemptServiceDeps) {
         variant: {
           select: {
             content: true,
+            ...OVERLAY_SELECT,
             masterItem: {
-              select: { type: true, sourceImage: { select: { url: true } } },
+              select: {
+                type: true,
+                version: true,
+                sourceImage: { select: { url: true } },
+              },
             },
           },
         },
       },
       orderBy: { position: "asc" },
     });
-    // One batched read for the whole paper — the overlay is never fetched per question.
-    const overlay = await loadOverlay(
+    // One batched read for the whole paper, through each variant's master — never per question.
+    const overlay = await loadQuestionOverlay(
       db,
       locale,
-      "ITEM_VARIANT",
-      questions.map((q) => q.variantId),
+      questions.map(overlayRowOf),
     );
 
     return questions.map((q) => ({
@@ -478,10 +512,18 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       },
       select: {
         id: true,
+        variantId: true,
         optionOrder: true,
         answeredOptionKey: true,
         answeredAt: true,
-        variant: { select: { correctOptionKey: true, explanation: true } },
+        variant: {
+          select: {
+            correctOptionKey: true,
+            explanation: true,
+            ...OVERLAY_SELECT,
+            masterItem: { select: { version: true } },
+          },
+        },
       },
     });
     if (!question) throw new NotFoundError();
@@ -523,12 +565,17 @@ export function createAttemptService(deps: AttemptServiceDeps) {
     if (!reveal) {
       return answerAckSchema.parse({ position: input.position, saved: true });
     }
+    // The feedback reads in the student's language too — one indexed lookup for this question.
+    const overlay = await loadQuestionOverlay(db, input.locale, [
+      overlayRowOf(question),
+    ]);
     return buildPracticeResult({
       position: input.position,
       correct,
       correctOptionKey: question.variant.correctOptionKey,
       explanation: question.variant.explanation,
       locale: input.locale,
+      translation: overlay.get(question.variantId),
     });
   }
 
@@ -558,8 +605,16 @@ export function createAttemptService(deps: AttemptServiceDeps) {
         attemptId_position: { attemptId: attempt.id, position: input.position },
       },
       select: {
+        variantId: true,
         answeredOptionKey: true,
-        variant: { select: { correctOptionKey: true, explanation: true } },
+        variant: {
+          select: {
+            correctOptionKey: true,
+            explanation: true,
+            ...OVERLAY_SELECT,
+            masterItem: { select: { version: true } },
+          },
+        },
       },
     });
     if (!question) throw new NotFoundError();
@@ -570,12 +625,16 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       );
     }
 
+    const overlay = await loadQuestionOverlay(db, input.locale, [
+      overlayRowOf(question),
+    ]);
     return buildPracticeResult({
       position: input.position,
       correct: question.answeredOptionKey === question.variant.correctOptionKey,
       correctOptionKey: question.variant.correctOptionKey,
       explanation: question.variant.explanation,
       locale: input.locale,
+      translation: overlay.get(question.variantId),
     });
   }
 
@@ -702,8 +761,13 @@ export function createAttemptService(deps: AttemptServiceDeps) {
             content: true,
             correctOptionKey: true,
             explanation: true,
+            ...OVERLAY_SELECT,
             masterItem: {
-              select: { type: true, sourceImage: { select: { url: true } } },
+              select: {
+                type: true,
+                version: true,
+                sourceImage: { select: { url: true } },
+              },
             },
           },
         },
@@ -714,11 +778,10 @@ export function createAttemptService(deps: AttemptServiceDeps) {
     // A past paper reads in the language it is being viewed in, from the same overlay the live
     // exam used. The attempt also records the language it was SAT in, so a dispute can always be
     // answered with the wording the student actually saw.
-    const overlay = await loadOverlay(
+    const overlay = await loadQuestionOverlay(
       db,
       locale,
-      "ITEM_VARIANT",
-      questions.map((q) => q.variantId),
+      questions.map(overlayRowOf),
     );
 
     const gradedRows: GradedQuestionRow[] = questions.map((q) => ({

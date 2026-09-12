@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { mergeName, mergeQuestion, servableStatuses } from "./resolve";
+import {
+  mergeExplanation,
+  mergeName,
+  mergeQuestion,
+  servableStatuses,
+} from "./resolve";
 import { hashUnit, memoryHash, payloadStrings } from "./units";
 import { blockingCodes, checkTranslation } from "./validation";
 import type { QuestionPayload } from "./units";
@@ -226,6 +231,18 @@ describe("serving a translation", () => {
     );
     expect(mergeName("Right of way", undefined)).toBe("Right of way");
     expect(mergeName("Right of way", { name: "  " })).toBe("Right of way");
+  });
+  it("explains in the translation, and in the source when the translation has none", () => {
+    expect(mergeExplanation("You must yield.", good)).toBe(good.explanation);
+    expect(mergeExplanation("You must yield.", undefined)).toBe(
+      "You must yield.",
+    );
+    expect(
+      mergeExplanation("You must yield.", { ...good, explanation: "   " }),
+    ).toBe("You must yield.");
+    expect(
+      mergeExplanation("You must yield.", { stem: "x", options: [] }),
+    ).toBe("You must yield.");
   });
 });
 

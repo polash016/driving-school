@@ -2,6 +2,7 @@ import type {
   PrismaClient,
   TranslatableEntity,
   TranslationStatus,
+  VariantSource,
 } from "@prisma/client";
 import { isBuiltinLocale } from "@/lib/locale";
 import { logger } from "@/lib/logger";
@@ -77,6 +78,55 @@ export async function loadOverlay(
   }
 }
 
+/** What the engine knows about a served variant — enough to find the translation it reads. */
+export interface QuestionOverlayRow {
+  variantId: string;
+  masterItemId: string;
+  /** The master version the variant was published from. */
+  masterVersion: number;
+  source: VariantSource;
+  /** The master's version now. */
+  currentMasterVersion: number;
+}
+
+/**
+ * The translation each served variant reads, keyed back by variant id (spec-20).
+ *
+ * The unit a translator works on is the MASTER item; what a student is served is a variant. A
+ * TEMPLATE variant mirrors its master byte for byte (`publish.ts`), so the master's translation
+ * IS its translation — looked up here directly, with no copy in between to be skipped by a
+ * crashed run or forgotten at approval. Coverage counts masters, so "translated" and "served" are
+ * the same fact.
+ *
+ * Two kinds of variant read English on purpose: one published from an OLDER master version —
+ * showing a student a translation of a different question than the one they sat is the failure
+ * this exists to avoid — and an AI_VARIATION (spec-17), which carries its own text and will carry
+ * its own unit; the ITEM_VARIANT entity is reserved for it.
+ */
+export async function loadQuestionOverlay(
+  db: PrismaClient,
+  locale: string,
+  rows: QuestionOverlayRow[],
+): Promise<Overlay> {
+  const eligible = rows.filter(
+    (row) =>
+      row.source === "TEMPLATE" &&
+      row.masterVersion === row.currentMasterVersion,
+  );
+  if (isBuiltinLocale(locale) || eligible.length === 0) return new Map();
+
+  // One batched read per paper. Index: Translation[locale, entity, entityId] (the unique key).
+  const byMaster = await loadOverlay(db, locale, "MASTER_ITEM", [
+    ...new Set(eligible.map((row) => row.masterItemId)),
+  ]);
+  const overlay: Overlay = new Map();
+  for (const row of eligible) {
+    const payload = byMaster.get(row.masterItemId);
+    if (payload) overlay.set(row.variantId, payload);
+  }
+  return overlay;
+}
+
 /**
  * Merge a translated question over its authored source, keyed by option key.
  *
@@ -109,6 +159,15 @@ export function mergeQuestion(
         }
       : {}),
   };
+}
+
+/** The explanation to show: the translation's when it carries one, else the authored text. */
+export function mergeExplanation(
+  source: string,
+  overlay: UnitPayload | undefined,
+): string {
+  const value = (overlay as { explanation?: unknown } | undefined)?.explanation;
+  return typeof value === "string" && value.trim().length > 0 ? value : source;
 }
 
 /** One translated string from a name-shaped unit, falling through to the authored value. */
