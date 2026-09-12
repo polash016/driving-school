@@ -177,6 +177,56 @@ d("re-checking stored translations (spec-21)", () => {
     expect(again.flagged).toBe(0);
   });
 
+  it("does not raise a finding a reviewer already consented to, but does raise a new one beside it", async () => {
+    // A row bulk-approved with NUMBER_DRIFT ticked keeps the flag on it — that consent is recorded
+    // on the row itself. Re-check must not drag it back for the same finding.
+    const language = await db.language.findUniqueOrThrow({
+      where: { code: CODE },
+      select: { glossaryVersion: true },
+    });
+    const numbered = (
+      await extractAll(db, { glossaryVersion: language.glossaryVersion })
+    ).filter(
+      (unit) =>
+        unit.entity === "UI_MESSAGE" &&
+        /\d/.test(payloadStrings(unit.en).join(" ")) &&
+        !/[{}§]/.test(payloadStrings(unit.en).join(" ")),
+    );
+    expect(numbered.length).toBeGreaterThan(1);
+    const consented = await db.translation.create({
+      data: {
+        locale: CODE,
+        entity: "UI_MESSAGE",
+        entityId: numbered[0].entityId,
+        value: { text: "সংখ্যা ছাড়া বাংলা লেখা" }, // Bengali, but the number is gone
+        status: "APPROVED",
+        sourceHash: numbered[0].sourceHash,
+        qaFlags: ["NUMBER_DRIFT"],
+      },
+      select: { id: true },
+    });
+    const consentedButRomanised = await db.translation.create({
+      data: {
+        locale: CODE,
+        entity: "UI_MESSAGE",
+        entityId: numbered[1].entityId,
+        value: { text: "Shongkha chhara Banglish lekha" },
+        status: "APPROVED",
+        sourceHash: numbered[1].sourceHash,
+        qaFlags: ["NUMBER_DRIFT"],
+      },
+      select: { id: true },
+    });
+
+    const report = await auditTranslations(db, actor, CODE, { apply: true });
+    expect(report.flagged).toBe(1);
+    expect(report.byCode).toEqual({ SCRIPT_MISMATCH: 1, NUMBER_DRIFT: 1 });
+    expect((await statusOf(consented.id)).status).toBe("APPROVED");
+    const raised = await statusOf(consentedButRomanised.id);
+    expect(raised.status).toBe("NEEDS_REVIEW");
+    expect(raised.qaFlags.sort()).toEqual(["NUMBER_DRIFT", "SCRIPT_MISMATCH"]);
+  });
+
   it("queues one repair run for what it flagged when asked", async () => {
     const report = await auditTranslations(db, actor, CODE, {
       apply: true,
@@ -189,6 +239,7 @@ d("re-checking stored translations (spec-21)", () => {
     });
     expect(run.kind).toBe("REPAIR");
     expect(run.enqueuedAt).not.toBeNull();
-    expect(run.plannedUnits).toBe(2);
+    // The two Banglish rows plus the consented-but-romanised one raised above.
+    expect(run.plannedUnits).toBe(3);
   });
 });

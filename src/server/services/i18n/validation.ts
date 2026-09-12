@@ -178,8 +178,48 @@ function sameMultiset(a: string[], b: string[]): boolean {
   return true;
 }
 
+/**
+ * The zero of every decimal-digit block a translation may use. ৮০ km/h IS 80 km/h to a Bengali
+ * reader; comparing glyphs instead of values flagged 75 correct Bangla rows as NUMBER_DRIFT
+ * (spec-21). Values are compared, glyphs are the language's own business.
+ */
+const DIGIT_ZEROS = [
+  0x0660, // Arabic-Indic
+  0x06f0, // Extended Arabic-Indic (Persian, Urdu)
+  0x07c0, // NKo
+  0x0966, // Devanagari
+  0x09e6, // Bengali
+  0x0a66, // Gurmukhi
+  0x0ae6, // Gujarati
+  0x0b66, // Oriya
+  0x0be6, // Tamil
+  0x0c66, // Telugu
+  0x0ce6, // Kannada
+  0x0d66, // Malayalam
+  0x0de6, // Sinhala Lith
+  0x0e50, // Thai
+  0x0ed0, // Lao
+  0x0f20, // Tibetan
+  0x1040, // Myanmar
+  0x1090, // Myanmar Shan
+  0x17e0, // Khmer
+  0x1810, // Mongolian
+  0xff10, // Fullwidth
+];
+
+/** Every native decimal digit rewritten as its ASCII value; everything else untouched. */
+function asciiDigits(text: string): string {
+  return text.replace(/\p{Nd}/gu, (digit) => {
+    const point = digit.codePointAt(0) ?? 0;
+    for (const zero of DIGIT_ZEROS) {
+      if (point >= zero && point <= zero + 9) return String(point - zero);
+    }
+    return digit;
+  });
+}
+
 function collect(text: string, pattern: RegExp): string[] {
-  return (text.match(pattern) ?? []).map((match) =>
+  return (asciiDigits(text).match(pattern) ?? []).map((match) =>
     match.replace(/\s+/g, " ").trim(),
   );
 }

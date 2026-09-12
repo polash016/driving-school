@@ -125,12 +125,10 @@ export async function auditTranslations(
     });
     if (check.passed) continue;
     const codes = blockingCodes(check);
-    // Already held for exactly these findings: nothing new to say about it.
-    if (
-      row.status === "NEEDS_REVIEW" &&
-      codes.every((code) => row.qaFlags.includes(code))
-    )
-      continue;
+    // A finding the row already carries is not news: a NEEDS_REVIEW row is already held for it,
+    // and an APPROVED row keeps the flags a reviewer consented to when approving (bulk approve
+    // records consent on the row itself). Only a code the row has never carried raises it.
+    if (codes.every((code) => row.qaFlags.includes(code))) continue;
     findings.push({ row, unit, check, codes });
   }
 

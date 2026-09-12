@@ -207,6 +207,33 @@ describe("the deterministic translation gate", () => {
     ).toBe("text");
   });
 
+  it("reads native digits as the numbers they are — ৮০ km/h is 80 km/h, and § ১১ is § 11", () => {
+    // Production had 75 Bangla rows flagged NUMBER_DRIFT for writing 80 as ৮০. That is not drift;
+    // a Bengali reader reads ৮০. The check compares values, not glyphs.
+    const nativeDigits: QuestionPayload = {
+      ...bengali,
+      stem: "সাইনে ৮০ km/h লেখা আছে এবং রাস্তা ভেজা। কত গতিতে গাড়ি চালানো উচিত?",
+      options: [
+        { key: "a", text: "৮০ km/h, সাইনে যেমন লেখা আছে" },
+        { key: "b", text: "পরিস্থিতি অনুযায়ী গতি, সীমার নিচে" },
+        { key: "c", text: "ঠিক ৬০ km/h" },
+      ],
+      explanation:
+        "trafikkreglene § ১১ no. ১ অনুযায়ী পরিস্থিতি অনুযায়ী গতি ঠিক করতে হবে।",
+    };
+    expect(check(nativeDigits, "bn").passed).toBe(true);
+    // A changed value is still drift, whatever the digits.
+    const drifted = {
+      ...nativeDigits,
+      options: nativeDigits.options.map((option) =>
+        option.key === "a"
+          ? { ...option, text: "৬০ km/h, সাইনে যেমন লেখা আছে" }
+          : option,
+      ),
+    };
+    expect(blockingCodes(check(drifted, "bn"))).toContain("NUMBER_DRIFT");
+  });
+
   it("never asks a Latin-script language for a script", () => {
     expect(isNonLatinScript("es")).toBe(false);
     expect(isNonLatinScript("bn")).toBe(true);
