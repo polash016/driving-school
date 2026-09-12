@@ -35,6 +35,8 @@ const FLAG_KEYS = [
   "LENGTH_OUTLIER",
   "MODEL_FLAGGED",
   "QA_UNAVAILABLE",
+  "SCRIPT_MISMATCH",
+  "ADMIN_FLAGGED",
 ] as const;
 
 type FlagKey = (typeof FLAG_KEYS)[number];

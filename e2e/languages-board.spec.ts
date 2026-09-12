@@ -177,4 +177,51 @@ test("adding a language starts it translating; the card says so in both language
     return style.boxShadow !== "none" || style.outlineStyle !== "none";
   });
   expect(ring).toBe(true);
+
+  // Spec-21: an admin overrules the checks. Seed one approved translation for the new language
+  // on an approved question, mark it broken from the question page, and find it held on the
+  // language's review page with the note beside the flag.
+  const master = await db.masterItem.findFirstOrThrow({
+    where: { status: "APPROVED", deletedAt: null },
+    select: { id: true },
+  });
+  await db.translation.create({
+    data: {
+      locale: CODE,
+      entity: "MASTER_ITEM",
+      entityId: master.id,
+      value: {
+        stem: `Board ${RUN} stem`,
+        options: [
+          { key: "a", text: "A" },
+          { key: "b", text: "B" },
+        ],
+        explanation: "x",
+      },
+      status: "APPROVED",
+      sourceHash: "e2e-fixture",
+    },
+  });
+  await page.goto(`/en/admin/questions/${master.id}`);
+  const note = page.getByLabel(new RegExp(`What is wrong with it — ${NAME}`));
+  await note.fill("Romanised, not in the language's script");
+  // One form per language column: the one whose hidden `code` is this language.
+  await page
+    .locator(`form:has(input[name="code"][value="${CODE}"])`)
+    .getByRole("button", { name: "Mark broken" })
+    .click();
+  await expect(page.getByText(`${NAME}: held for review`)).toBeVisible();
+
+  await page.goto(`/en/admin/languages/${CODE}?flagged=1`);
+  await expect(page.getByText("Marked broken by an admin")).toBeVisible();
+  await expect(
+    page.getByText("Admin: Romanised, not in the language's script"),
+  ).toBeVisible();
+  const row = await db.translation.findFirstOrThrow({
+    where: { locale: CODE, entity: "MASTER_ITEM", entityId: master.id },
+    select: { status: true, qaFlags: true, repairAttempts: true },
+  });
+  expect(row.status).toBe("NEEDS_REVIEW");
+  expect(row.qaFlags).toContain("ADMIN_FLAGGED");
+  expect(row.repairAttempts).toBe(0);
 });

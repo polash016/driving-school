@@ -21,8 +21,13 @@ import {
   type RunDetail,
 } from "@/server/services/i18n/run-control";
 import {
+  auditTranslations,
+  type AuditReport,
+} from "@/server/services/i18n/audit";
+import {
   bulkApproveTranslations,
   editTranslation,
+  flagTranslation,
   reviewTranslation,
 } from "@/server/services/i18n/review";
 import {
@@ -198,6 +203,62 @@ export async function reviewTranslationAction(
     });
     revalidatePath(`/admin/languages/${formData.get("code") ?? ""}`);
     return { ok: true };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export interface FlagOutcome {
+  locale: string;
+  repairQueued: boolean;
+}
+
+/**
+ * An admin overrules the checks on one translation (spec-21). ADMIN, not INSTRUCTOR: the service
+ * refuses anyone else too, so the page can only offer the form to the role the action accepts.
+ */
+export async function flagTranslationAction(
+  _prev: ActionResult<FlagOutcome> | undefined,
+  formData: FormData,
+): Promise<ActionResult<FlagOutcome>> {
+  const user = await requireUser("ADMIN");
+  try {
+    const outcome = await flagTranslation(db, user, {
+      id: String(formData.get("id") ?? ""),
+      note: String(formData.get("note") ?? "").trim(),
+      // A ticked checkbox posts "on"; an unticked one posts nothing at all.
+      repair: formData.get("repair") === "on",
+    });
+    revalidatePath("/admin/questions");
+    revalidatePath(`/admin/languages/${outcome.locale}`);
+    revalidatePath("/admin/languages");
+    return {
+      ok: true,
+      data: { locale: outcome.locale, repairQueued: outcome.repairQueued },
+    };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+/**
+ * Re-run the gate over everything a language has stored, hold what it refuses, and queue the
+ * repair (spec-21). No AI call is made here; the repair run makes them.
+ */
+export async function auditTranslationsAction(
+  _prev: ActionResult<AuditReport> | undefined,
+  formData: FormData,
+): Promise<ActionResult<AuditReport>> {
+  const user = await requireUser("ADMIN");
+  try {
+    const locale = String(formData.get("code") ?? "");
+    const report = await auditTranslations(db, user, locale, {
+      apply: true,
+      repair: true,
+    });
+    revalidatePath("/admin/languages");
+    revalidatePath(`/admin/languages/${locale}`);
+    return { ok: true, data: report };
   } catch (error) {
     return toActionError(error);
   }

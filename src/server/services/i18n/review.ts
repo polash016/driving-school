@@ -53,6 +53,8 @@ export interface ReviewQueueItem {
   qaFlags: string[];
   semanticScore: number | null;
   qaReport: unknown;
+  /** An admin's words when they marked it broken (spec-21) — shown beside the flags. */
+  reviewNote: string | null;
   label: string;
 }
 
@@ -99,6 +101,7 @@ export async function reviewQueue(
       qaFlags: true,
       semanticScore: true,
       qaReport: true,
+      reviewNote: true,
     },
   });
 
@@ -113,6 +116,7 @@ export async function reviewQueue(
       qaFlags: row.qaFlags,
       semanticScore: row.semanticScore,
       qaReport: row.qaReport,
+      reviewNote: row.reviewNote,
       label: labelOf(row.value as unknown as UnitPayload, row.entityId),
     })),
   );

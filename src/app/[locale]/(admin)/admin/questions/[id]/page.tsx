@@ -68,6 +68,8 @@ export default async function EditQuestionPage({
       <QuestionLanguages
         masterItemId={item.id}
         source={{ stem: content.en.stem, options: content.en.options }}
+        // Overruling the checks is an admin's act (spec-21); the action refuses anyone else.
+        canFlag={user.role === "ADMIN"}
       />
 
       <ItemStatusBar

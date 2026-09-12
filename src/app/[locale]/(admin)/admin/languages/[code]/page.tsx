@@ -115,6 +115,7 @@ export default async function LanguageReviewPage({
     label: item.label,
     qaFlags: item.qaFlags,
     semanticScore: item.semanticScore,
+    reviewNote: item.reviewNote,
     source: (item.source ?? null) as unknown as Record<string, unknown> | null,
     value: item.value as unknown as Record<string, unknown>,
   }));

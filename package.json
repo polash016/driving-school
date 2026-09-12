@@ -24,6 +24,7 @@
     "i18n:translate": "tsx scripts/translate.ts",
     "i18n:import": "tsx scripts/import-translations.ts",
     "i18n:worker": "tsx scripts/i18n-worker.ts",
+    "i18n:audit": "tsx scripts/audit-translations.ts",
     "db:seed-signs": "tsx prisma/seed-signs.ts",
     "signs:extract": "tsx scripts/extract-signs.ts",
     "signs:enrich": "tsx scripts/enrich-signs.ts",

@@ -668,7 +668,9 @@
         "STEM_MISSING": "The question text is missing",
         "LENGTH_OUTLIER": "Much longer or shorter than the source",
         "MODEL_FLAGGED": "The AI said it could not translate this faithfully",
-        "QA_UNAVAILABLE": "The quality check could not run"
+        "QA_UNAVAILABLE": "The quality check could not run",
+        "SCRIPT_MISMATCH": "Not written in the language's own script",
+        "ADMIN_FLAGGED": "Marked broken by an admin"
       },
       "errors": {
         "alreadyExists": "That language has already been added.",
@@ -755,6 +757,25 @@
         "readyToPublish": "Ready to publish",
         "published": "Published",
         "publishedSyncing": "Published · {count} syncing"
+      },
+      "audit": {
+        "button": "Re-check translations",
+        "pending": "Re-checking…",
+        "result": "{flagged} of {checked} held after re-check · {codes}",
+        "queued": "A repair run is queued for them.",
+        "none": "Re-checked {checked} translations: nothing held.",
+        "note": "Runs every stored translation through the checks as they are today, with no AI call. What fails is held for review and handed to the repair run."
+      },
+      "markBroken": {
+        "row": "Mark broken",
+        "note": "What is wrong with it",
+        "notePlaceholder": "e.g. Romanised, not in Bengali script",
+        "repair": "Repair with AI now",
+        "submit": "Mark broken",
+        "pending": "Marking…",
+        "done": "{language}: held for review.",
+        "doneQueued": "{language}: held for review — a repair run is queued.",
+        "adminNote": "Admin: {note}"
       }
     },
     "images": {

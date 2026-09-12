@@ -38,6 +38,8 @@ const FLAG_KEYS = [
   "LENGTH_OUTLIER",
   "MODEL_FLAGGED",
   "QA_UNAVAILABLE",
+  "SCRIPT_MISMATCH",
+  "ADMIN_FLAGGED",
 ] as const;
 
 type FlagKey = (typeof FLAG_KEYS)[number];
@@ -59,6 +61,8 @@ export interface ReviewRow {
   label: string;
   qaFlags: string[];
   semanticScore: number | null;
+  /** An admin's words when they marked it broken (spec-21). */
+  reviewNote: string | null;
   source: Record<string, unknown> | null;
   value: Record<string, unknown>;
 }
@@ -243,6 +247,12 @@ export function TranslationReview({
                   ))}
                 </div>
               </div>
+              {/* Spec-21: the admin who marked it broken said why; the reviewer should read it. */}
+              {row.reviewNote && row.qaFlags.includes("ADMIN_FLAGGED") ? (
+                <p className="text-xs text-muted-foreground">
+                  {t("markBroken.adminNote", { note: row.reviewNote })}
+                </p>
+              ) : null}
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2 rounded-[var(--radius-control)] bg-muted/50 p-3">

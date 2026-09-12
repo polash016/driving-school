@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
 import {
   addLanguageAction,
+  auditTranslationsAction,
   planRunAction,
   runSliceAction,
   startBackgroundRunAction,
@@ -26,6 +27,7 @@ import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/server/contracts/common";
+import type { AuditReport } from "@/server/services/i18n/audit";
 import type { Blocker } from "@/server/services/i18n/languages";
 import type { RunDetail } from "@/server/services/i18n/run-control";
 import type { RunProgress } from "@/server/services/i18n/runs";
@@ -104,6 +106,10 @@ export function LanguageBoard({
     ActionResult<StartOutcome> | undefined,
     FormData
   >(startSampleRunAction, undefined);
+  const [auditState, auditAction] = useActionState<
+    ActionResult<AuditReport> | undefined,
+    FormData
+  >(auditTranslationsAction, undefined);
 
   const error = [
     addState,
@@ -113,7 +119,9 @@ export function LanguageBoard({
     startState,
     repairState,
     sampleState,
+    auditState,
   ].find((state) => state?.ok === false);
+  const audited = auditState?.ok ? auditState.data : null;
   // Both actions enqueue a background run, so both report it the same way.
   const queued = startState?.ok
     ? startState.data
@@ -139,6 +147,20 @@ export function LanguageBoard({
             count: queued.plannedUnits,
             cost: queued.estimatedUsd.toFixed(2),
           })}
+        </FormAlert>
+      ) : null}
+
+      {audited ? (
+        <FormAlert tone={audited.flagged > 0 ? "info" : "success"}>
+          {audited.flagged > 0
+            ? `${t("audit.result", {
+                flagged: audited.flagged,
+                checked: audited.checked,
+                codes: Object.entries(audited.byCode)
+                  .map(([code, count]) => `${code} ${count}`)
+                  .join(" · "),
+              })}${audited.repairRunId ? ` ${t("audit.queued")}` : ""}`
+            : t("audit.none", { checked: audited.checked })}
         </FormAlert>
       ) : null}
 
@@ -334,6 +356,24 @@ export function LanguageBoard({
                           pendingLabel={t("saving")}
                         />
                       </form>
+
+                      {/* Spec-21: run today's checks over everything stored — no AI call —
+                          hold what fails, and queue the repair. Hidden while a run is live. */}
+                      {!isRunLive(language.latestRun) ? (
+                        <form action={auditAction}>
+                          <input
+                            type="hidden"
+                            name="code"
+                            value={language.code}
+                          />
+                          <SubmitButton
+                            className="h-9"
+                            variant="outline"
+                            label={t("audit.button")}
+                            pendingLabel={t("audit.pending")}
+                          />
+                        </form>
+                      ) : null}
 
                       <form action={updateAction}>
                         <input

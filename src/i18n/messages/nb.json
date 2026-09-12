@@ -668,7 +668,9 @@
         "STEM_MISSING": "Spørsmålsteksten mangler",
         "LENGTH_OUTLIER": "Mye lengre eller kortere enn kilden",
         "MODEL_FLAGGED": "KI-en sa den ikke kunne oversette dette trofast",
-        "QA_UNAVAILABLE": "Kvalitetskontrollen kunne ikke kjøres"
+        "QA_UNAVAILABLE": "Kvalitetskontrollen kunne ikke kjøres",
+        "SCRIPT_MISMATCH": "Ikke skrevet med språkets eget skriftsystem",
+        "ADMIN_FLAGGED": "Merket som ødelagt av en administrator"
       },
       "errors": {
         "alreadyExists": "Det språket er allerede lagt til.",
@@ -755,6 +757,25 @@
         "readyToPublish": "Klar til publisering",
         "published": "Publisert",
         "publishedSyncing": "Publisert · {count} synkroniseres"
+      },
+      "audit": {
+        "button": "Kontroller oversettelsene på nytt",
+        "pending": "Kontrollerer …",
+        "result": "{flagged} av {checked} holdt tilbake etter ny kontroll · {codes}",
+        "queued": "En reparasjonskjøring er satt i kø for dem.",
+        "none": "Kontrollerte {checked} oversettelser: ingenting holdt tilbake.",
+        "note": "Kjører alle lagrede oversettelser gjennom kontrollene slik de er i dag, uten KI-kall. Det som stryker, holdes tilbake for vurdering og gis til reparasjonskjøringen."
+      },
+      "markBroken": {
+        "row": "Merk som ødelagt",
+        "note": "Hva er galt",
+        "notePlaceholder": "f.eks. Latinske bokstaver, ikke bengalsk skrift",
+        "repair": "Reparer med KI nå",
+        "submit": "Merk som ødelagt",
+        "pending": "Merker …",
+        "done": "{language}: holdt tilbake for vurdering.",
+        "doneQueued": "{language}: holdt tilbake for vurdering — en reparasjonskjøring er satt i kø.",
+        "adminNote": "Administrator: {note}"
       }
     },
     "images": {

@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { FlagTranslationForm } from "@/components/admin/languages/flag-translation-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { db } from "@/server/db";
@@ -14,9 +15,12 @@ import { translationsAcrossLanguages } from "@/server/services/i18n/review";
 export async function QuestionLanguages({
   masterItemId,
   source,
+  canFlag = false,
 }: {
   masterItemId: string;
   source: { stem: string; options: { key: string; text: string }[] };
+  /** Offer "Mark broken" per language — ADMIN only, the role the action accepts (spec-21). */
+  canFlag?: boolean;
 }) {
   const [t, translations] = await Promise.all([
     getTranslations("admin.languages"),
@@ -137,6 +141,27 @@ export async function QuestionLanguages({
                   })}
                 </tr>
               ))}
+              {/* Spec-21: a human eye overrules the checks. One form per language column. */}
+              {canFlag ? (
+                <tr className="align-top">
+                  <th
+                    scope="row"
+                    className="p-2 text-start font-normal text-muted-foreground"
+                  >
+                    {t("markBroken.row")}
+                  </th>
+                  <td className="p-2" />
+                  {translations.map((translation) => (
+                    <td key={translation.locale} className="p-2">
+                      <FlagTranslationForm
+                        translationId={translation.id}
+                        locale={translation.locale}
+                        languageName={translation.nativeName}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
