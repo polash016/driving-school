@@ -203,7 +203,7 @@ export default async function AttemptPaperPage({
                   <p className="text-xs text-muted-foreground">
                     {question.explanation.citations
                       .map(
-                        (citation) => `${citation.sourceCode} ${citation.ref}`,
+                        (citation) => `${citation.sourceLabel} ${citation.ref}`,
                       )
                       .join(" · ")}
                   </p>

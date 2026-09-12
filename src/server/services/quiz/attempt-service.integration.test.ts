@@ -1156,6 +1156,44 @@ d("served in an added language (spec-20)", () => {
         };
       }),
     });
+    // Topic names and the legal source's label are units of their own (spec-15 D6, spec-20).
+    const roots = await db.topic.findMany({
+      where: { parentId: null },
+      select: { id: true, name: true },
+    });
+    await db.translation.createMany({
+      data: roots.map((topic) => ({
+        locale: ZQ,
+        entity: "TOPIC" as const,
+        entityId: topic.id,
+        sourceHash: "fixture",
+        status: "MACHINE" as const,
+        value: {
+          name: stamp((topic.name as { en: string }).en),
+          description: "",
+        },
+      })),
+    });
+    await db.kbSource.upsert({
+      where: { code: "trafikkreglene" },
+      create: {
+        code: "trafikkreglene",
+        kind: "REGULATION",
+        name: "Trafikkreglene",
+      },
+      update: {},
+      select: { id: true },
+    });
+    await db.translation.create({
+      data: {
+        locale: ZQ,
+        entity: "KB_SOURCE",
+        entityId: "trafikkreglene",
+        sourceHash: "fixture",
+        status: "MACHINE",
+        value: { name: stamp("Trafikkreglene") },
+      },
+    });
     hashesBefore = (
       await db.itemVariant.findMany({
         select: { contentHash: true },
@@ -1196,6 +1234,10 @@ d("served in an added language (spec-20)", () => {
     expect("explanation" in answered && answered.explanation.text).toBe(
       stamp(explanation.en),
     );
+    expect(
+      "explanation" in answered &&
+        answered.explanation.citations[0].sourceLabel,
+    ).toBe(stamp("Trafikkreglene"));
 
     const again = await service.revealAnswered("zq1", {
       attemptId: attempt.id,
@@ -1226,6 +1268,13 @@ d("served in an added language (spec-20)", () => {
       locale: ZQ,
     });
     expect(allStamped(submitted.review)).toBe(true);
+    expect(submitted.topicBreakdown.length).toBeGreaterThan(0);
+    expect(
+      submitted.topicBreakdown.every((t) => t.topicName.startsWith("[zq]")),
+    ).toBe(true);
+    expect(submitted.review[0].explanation.citations[0].sourceLabel).toBe(
+      stamp("Trafikkreglene"),
+    );
 
     const inEnglish = await service.getResult("zq2", {
       attemptId: attempt.id,
@@ -1233,6 +1282,10 @@ d("served in an added language (spec-20)", () => {
     });
     expect(inEnglish.review[0].stem.startsWith("[zq]")).toBe(false);
     expect(inEnglish.review[0].explanation.text).toBe(explanation.en);
+    expect(inEnglish.topicBreakdown[0].topicName).toBe("Right of way");
+    expect(inEnglish.review[0].explanation.citations[0].sourceLabel).toBe(
+      "Trafikkreglene",
+    );
   });
 
   it("holds machine output back the moment the language requires approval", async () => {

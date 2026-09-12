@@ -20,6 +20,7 @@ import { readFileSync } from "node:fs";
 import { PrismaClient, type TranslatableEntity } from "@prisma/client";
 import { extractAll } from "../src/server/services/i18n/extract";
 import { invalidateMessages } from "../src/server/services/i18n/catalogue";
+import { invalidateTaxonomy } from "../src/server/services/i18n/taxonomy";
 import {
   checkTranslation,
   allCodes,
@@ -171,6 +172,7 @@ async function main(): Promise<void> {
   }
 
   if (touchedMessages) await invalidateMessages(code);
+  await invalidateTaxonomy(code);
 
   console.log(
     `${language.englishName}: wrote ${written}, held ${flagged} for review, ` +

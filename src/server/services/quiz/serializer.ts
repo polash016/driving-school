@@ -113,6 +113,20 @@ export function buildClientAttempt(input: {
 
 // ── Post-grading builders (reveal allowed) ──────────────────────────────────
 
+/** Source code → display name in the student's language, resolved by the caller (spec-20). */
+export type SourceLabels = Record<string, string>;
+
+/** The § reference verbatim; the source under its name, or its code when no name is known. */
+function labelledCitations(
+  citations: Array<{ sourceCode: string; ref: string; url?: string }>,
+  sourceLabels: SourceLabels,
+) {
+  return citations.map((citation) => ({
+    ...citation,
+    sourceLabel: sourceLabels[citation.sourceCode] ?? citation.sourceCode,
+  }));
+}
+
 export function buildPracticeResult(input: {
   position: number;
   correct: boolean;
@@ -121,6 +135,7 @@ export function buildPracticeResult(input: {
   locale: Locale;
   /** The question's translation, when the student's language has a servable one (spec-20). */
   translation?: unknown;
+  sourceLabels: SourceLabels;
 }): PracticeAnswerResult {
   const explanation = explanationSchema.parse(input.explanation);
   return practiceAnswerResultSchema.parse({
@@ -134,7 +149,7 @@ export function buildPracticeResult(input: {
         pickLocale(explanation, input.locale),
         input.translation as UnitPayload | undefined,
       ),
-      citations: explanation.citations,
+      citations: labelledCitations(explanation.citations, input.sourceLabels),
     },
   });
 }
@@ -152,7 +167,9 @@ export function buildAttemptResult(input: {
   correctCount: number;
   passMark: number | null;
   passed: boolean | null;
-  topicNames: Record<string, { en: string; nb: string }>;
+  /** Root topic slug → name in the student's language, resolved by the caller (spec-20). */
+  topicNames: Record<string, string>;
+  sourceLabels: SourceLabels;
   topicBreakdown: Array<{ topicSlug: string; total: number; correct: number }>;
   questions: GradedQuestionRow[];
 }): AttemptResult {
@@ -174,7 +191,10 @@ export function buildAttemptResult(input: {
             pickLocale(explanation, input.locale),
             q.translation as UnitPayload | undefined,
           ),
-          citations: explanation.citations,
+          citations: labelledCitations(
+            explanation.citations,
+            input.sourceLabels,
+          ),
         },
         imageUrl: q.imageUrl,
       };
@@ -189,10 +209,7 @@ export function buildAttemptResult(input: {
     passed: input.passed,
     topicBreakdown: input.topicBreakdown.map((t) => ({
       topicSlug: t.topicSlug,
-      topicName: pickLocale(
-        input.topicNames[t.topicSlug] ?? { en: t.topicSlug, nb: t.topicSlug },
-        input.locale,
-      ),
+      topicName: input.topicNames[t.topicSlug] ?? t.topicSlug,
       total: t.total,
       correct: t.correct,
     })),

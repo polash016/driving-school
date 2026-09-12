@@ -8,6 +8,7 @@ import { ConflictError, NotFoundError } from "@/lib/errors";
 import { AUDIT, auditLog } from "@/server/audit";
 import type { SessionUser } from "@/server/authz";
 import { invalidateMessages } from "./catalogue";
+import { invalidateTaxonomy } from "./taxonomy";
 import { extractAll } from "./extract";
 import { rememberTranslation } from "./memory";
 import type { UnitPayload } from "./units";
@@ -276,6 +277,8 @@ export async function bulkApproveTranslations(
   if (targets.some((row) => row.entity === "UI_MESSAGE")) {
     await invalidateMessages(input.locale);
   }
+  // Topic, class and source labels are cached per language as well (spec-20).
+  await invalidateTaxonomy(input.locale);
 
   await auditLog({
     actorId: actor.id,
@@ -408,6 +411,7 @@ export async function reviewTranslation(
   });
 
   if (updated.entity === "UI_MESSAGE") await invalidateMessages(updated.locale);
+  await invalidateTaxonomy(updated.locale);
 
   await auditLog({
     actorId: actor.id,
@@ -511,6 +515,7 @@ export async function editTranslation(
   });
 
   if (updated.entity === "UI_MESSAGE") await invalidateMessages(updated.locale);
+  await invalidateTaxonomy(updated.locale);
 
   await auditLog({
     actorId: actor.id,

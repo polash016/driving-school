@@ -1,8 +1,8 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { QuizSetup } from "@/components/quiz/quiz-setup";
-import { pickBilingualText } from "@/lib/i18n-content";
 import { requireUser } from "@/server/auth/require-user";
 import { db } from "@/server/db";
+import { localizeTopicNames } from "@/server/services/i18n/taxonomy";
 import {
   schoolConfig,
   type AppLocale,
@@ -24,11 +24,14 @@ export default async function QuizSetupPage({
 
   const [t, topics, licenseClass] = await Promise.all([
     getTranslations("quiz.setup"),
-    db.topic.findMany({
-      where: { parentId: null, isActive: true, deletedAt: null },
-      select: { slug: true, name: true },
-      orderBy: { sortOrder: "asc" },
-    }),
+    db.topic
+      .findMany({
+        where: { parentId: null, isActive: true, deletedAt: null },
+        select: { id: true, slug: true, name: true },
+        orderBy: { sortOrder: "asc" },
+      })
+      // Category names in the student's language (spec-20), from one cached overlay read.
+      .then((topics) => localizeTopicNames(db, locale, topics)),
     db.licenseClass.findFirst({
       where: { code: schoolConfig.licenseClassSeeds[0].code },
       select: { timeLimitMin: true, questionCount: true, passMark: true },
@@ -51,7 +54,7 @@ export default async function QuizSetupPage({
         officialPassMark={licenseClass?.passMark ?? 38}
         topics={topics.map((topic) => ({
           slug: topic.slug,
-          label: pickBilingualText(topic.name, locale as AppLocale),
+          label: topic.label,
         }))}
       />
     </div>

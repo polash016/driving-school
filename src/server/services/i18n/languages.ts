@@ -13,6 +13,7 @@ import { invalidateMessages } from "./catalogue";
 import { extractAll } from "./extract";
 import { invalidateRegistry } from "./registry";
 import { startBackgroundRun } from "./run-control";
+import { invalidateTaxonomy } from "./taxonomy";
 import type { RunPlan } from "./runs";
 
 /**
@@ -506,9 +507,11 @@ export async function updateLanguage(
   });
 
   await invalidateRegistry();
-  // Changing the approval policy changes which strings are servable, so the catalogue is stale.
-  if (input.requiresApproval !== undefined)
+  // Changing the approval policy changes which strings are servable, so both caches are stale.
+  if (input.requiresApproval !== undefined) {
     await invalidateMessages(input.code);
+    await invalidateTaxonomy(input.code);
+  }
 
   await auditLog({
     actorId: actor.id,

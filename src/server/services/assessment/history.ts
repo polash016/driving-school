@@ -1,9 +1,9 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { NotFoundError } from "@/lib/errors";
-import { pickBilingualText } from "@/lib/i18n-content";
 import type { AppLocale } from "../../../../config/school.config";
 import { authorizeOwner, type SessionUser } from "@/server/authz";
+import { localizeTopicNames } from "@/server/services/i18n/taxonomy";
 import {
   idSchema,
   localeSchema,
@@ -400,8 +400,10 @@ export async function categoryPerformance(
     }),
   ]);
 
+  // Named in the student's language (spec-20); the authored en/nb underneath, as ever.
+  const labelled = await localizeTopicNames(db, locale, topics);
   // A question is tagged with the subtopic it tests; the panel speaks in root categories.
-  const byId = new Map(topics.map((topic) => [topic.id, topic]));
+  const byId = new Map(labelled.map((topic) => [topic.id, topic]));
   const rootOf = (topicId: string) => {
     let node = byId.get(topicId);
     while (node?.parentId && byId.has(node.parentId))
@@ -419,13 +421,13 @@ export async function categoryPerformance(
     totals.set(root.slug, current);
   }
 
-  return topics
+  return labelled
     .filter((topic) => !topic.parentId)
     .map((topic) => {
       const total = totals.get(topic.slug) ?? { answered: 0, correct: 0 };
       return categoryPerformanceSchema.parse({
         topicSlug: topic.slug,
-        topicName: pickBilingualText(topic.name, locale),
+        topicName: topic.label,
         answered: total.answered,
         correct: total.correct,
         percent:

@@ -9,6 +9,7 @@ import { ProviderTruncatedError } from "@/server/ai/providers/types";
 import { AUDIT, auditLog } from "@/server/audit";
 import { extractAll, pendingUnits, pruneOrphans } from "./extract";
 import { invalidateMessages } from "./catalogue";
+import { invalidateTaxonomy } from "./taxonomy";
 import { repairBatch, repairContextFor, storeRepairs } from "./repair";
 import { ESTIMATED_USD_PER_1K_TOKENS, RunRateMeter } from "./run-math";
 import {
@@ -921,6 +922,7 @@ export async function executeRun(
   }
 
   await invalidateMessages(run.locale);
+  await invalidateTaxonomy(run.locale);
 
   const releaseLease = { leaseOwner: null, leaseExpiresAt: null };
   if (stopReason === "cancelled") {

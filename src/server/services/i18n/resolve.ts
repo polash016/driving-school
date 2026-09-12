@@ -178,29 +178,3 @@ export function mergeName(
   const value = (overlay as { name?: unknown } | undefined)?.name;
   return typeof value === "string" && value.trim().length > 0 ? value : source;
 }
-
-/**
- * Category and class names for one language, resolved in a single pass.
- *
- * Built once per request rather than per call site: `pickBilingualText` has eight callers across
- * the home page, the setup screen, the result page and the admin tree, and adding a database read
- * to each of them would be exactly the N+1 the mandate forbids.
- */
-export async function loadTaxonomy(
-  db: PrismaClient,
-  locale: string,
-  ids: {
-    topicIds?: string[];
-    licenseClassIds?: string[];
-    sourceCodes?: string[];
-  } = {},
-): Promise<Overlay> {
-  if (isBuiltinLocale(locale)) return new Map();
-  const [topics, classes, sources] = await Promise.all([
-    loadOverlay(db, locale, "TOPIC", ids.topicIds ?? []),
-    loadOverlay(db, locale, "LICENSE_CLASS", ids.licenseClassIds ?? []),
-    loadOverlay(db, locale, "KB_SOURCE", ids.sourceCodes ?? []),
-  ]);
-  // One map: the keys are ids and codes, which do not collide across these three kinds.
-  return new Map([...topics, ...classes, ...sources]);
-}

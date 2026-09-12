@@ -36,6 +36,10 @@ import {
   loadQuestionOverlay,
   type QuestionOverlayRow,
 } from "@/server/services/i18n/resolve";
+import {
+  localizeTopicNames,
+  sourceLabels,
+} from "@/server/services/i18n/taxonomy";
 import { assembleQuiz } from "./assembly";
 import { gradeAttempt, type GradableQuestion } from "./grading";
 import type { GradedHook, SeenStore, VariantSource } from "./ports";
@@ -87,6 +91,15 @@ const OVERLAY_SELECT = {
   masterVersion: true,
   source: true,
 } as const;
+
+/** The legal sources an explanation cites, so their names can be resolved in one read. */
+function citationCodes(explanation: unknown): string[] {
+  const citations = (explanation as { citations?: unknown } | null)?.citations;
+  if (!Array.isArray(citations)) return [];
+  return citations
+    .map((citation) => (citation as { sourceCode?: unknown })?.sourceCode)
+    .filter((code): code is string => typeof code === "string");
+}
 
 /** What `loadQuestionOverlay` needs from one served question row. */
 function overlayRowOf(q: {
@@ -565,9 +578,15 @@ export function createAttemptService(deps: AttemptServiceDeps) {
     if (!reveal) {
       return answerAckSchema.parse({ position: input.position, saved: true });
     }
-    // The feedback reads in the student's language too — one indexed lookup for this question.
-    const overlay = await loadQuestionOverlay(db, input.locale, [
-      overlayRowOf(question),
+    // The feedback reads in the student's language too — one indexed lookup for this question,
+    // and the cited sources' names from the cached taxonomy overlay.
+    const [overlay, labels] = await Promise.all([
+      loadQuestionOverlay(db, input.locale, [overlayRowOf(question)]),
+      sourceLabels(
+        db,
+        input.locale,
+        citationCodes(question.variant.explanation),
+      ),
     ]);
     return buildPracticeResult({
       position: input.position,
@@ -576,6 +595,7 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       explanation: question.variant.explanation,
       locale: input.locale,
       translation: overlay.get(question.variantId),
+      sourceLabels: labels,
     });
   }
 
@@ -625,8 +645,13 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       );
     }
 
-    const overlay = await loadQuestionOverlay(db, input.locale, [
-      overlayRowOf(question),
+    const [overlay, labels] = await Promise.all([
+      loadQuestionOverlay(db, input.locale, [overlayRowOf(question)]),
+      sourceLabels(
+        db,
+        input.locale,
+        citationCodes(question.variant.explanation),
+      ),
     ]);
     return buildPracticeResult({
       position: input.position,
@@ -635,6 +660,7 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       explanation: question.variant.explanation,
       locale: input.locale,
       translation: overlay.get(question.variantId),
+      sourceLabels: labels,
     });
   }
 
@@ -806,15 +832,25 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       .parse(attempt.topicBreakdown ?? []);
 
     const rootSlugs = [...new Set(breakdown.map((b) => b.topicSlug))];
-    const topics = await db.topic.findMany({
-      where: { slug: { in: rootSlugs } },
-      select: { slug: true, name: true },
-    });
+    // Names in the language the paper is being read in (spec-20): the topics behind the per-topic
+    // bars and the sources behind every citation, each from one cached overlay read.
+    const [topics, labels] = await Promise.all([
+      localizeTopicNames(
+        db,
+        locale,
+        await db.topic.findMany({
+          where: { slug: { in: rootSlugs } },
+          select: { id: true, slug: true, name: true },
+        }),
+      ),
+      sourceLabels(
+        db,
+        locale,
+        questions.flatMap((q) => citationCodes(q.variant.explanation)),
+      ),
+    ]);
     const topicNames = Object.fromEntries(
-      topics.map((t) => [
-        t.slug,
-        z.object({ en: z.string(), nb: z.string() }).parse(t.name),
-      ]),
+      topics.map((topic) => [topic.slug, topic.label]),
     );
 
     return buildAttemptResult({
@@ -825,6 +861,7 @@ export function createAttemptService(deps: AttemptServiceDeps) {
       passMark: attempt.passMarkSnapshot,
       passed: attempt.passed,
       topicNames,
+      sourceLabels: labels,
       topicBreakdown: breakdown,
       questions: gradedRows,
     });

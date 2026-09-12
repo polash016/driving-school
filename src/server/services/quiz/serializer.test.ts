@@ -182,6 +182,7 @@ describe("post-grading builders (reveal allowed)", () => {
       correctOptionKey: "a",
       explanation,
       locale: "nb",
+      sourceLabels: { trafikkreglene: "Trafikkreglene" },
     });
     expect(result).toEqual({
       position: 3,
@@ -189,9 +190,37 @@ describe("post-grading builders (reveal allowed)", () => {
       correctOptionKey: "a",
       explanation: {
         text: "Du har vikeplikt.",
-        citations: [{ sourceCode: "trafikkreglene", ref: "§ 7" }],
+        citations: [
+          {
+            sourceCode: "trafikkreglene",
+            ref: "§ 7",
+            sourceLabel: "Trafikkreglene",
+          },
+        ],
       },
     });
+  });
+
+  it("a citation whose source has no label falls back to the code, never to nothing", () => {
+    const result = buildPracticeResult({
+      position: 1,
+      correct: true,
+      correctOptionKey: "a",
+      explanation,
+      locale: "en",
+      sourceLabels: {},
+    });
+    expect(result.explanation.citations[0].sourceLabel).toBe("trafikkreglene");
+  });
+
+  it("the explanation contract insists on a source label — the slug is not a name (spec-20)", async () => {
+    const { explanationClientSchema } = await import("@/server/contracts/quiz");
+    expect(() =>
+      explanationClientSchema.parse({
+        text: "x",
+        citations: [{ sourceCode: "trafikkreglene", ref: "§ 7" }],
+      }),
+    ).toThrow();
   });
 
   it("attempt result carries review with correctness and localized topic names", () => {
@@ -202,7 +231,9 @@ describe("post-grading builders (reveal allowed)", () => {
       correctCount: 1,
       passMark: 1,
       passed: true,
-      topicNames: { "right-of-way": { en: "Right of way", nb: "Vikeplikt" } },
+      // Already localized by the caller (spec-20): the serializer never picks a language for a name.
+      topicNames: { "right-of-way": "Right of way" },
+      sourceLabels: { trafikkreglene: "Road traffic rules" },
       topicBreakdown: [{ topicSlug: "right-of-way", total: 1, correct: 1 }],
       questions: [
         {
@@ -216,6 +247,9 @@ describe("post-grading builders (reveal allowed)", () => {
     expect(result.passed).toBe(true);
     expect(result.review[0].correct).toBe(true);
     expect(result.review[0].explanation.text).toBe("You must yield.");
+    expect(result.review[0].explanation.citations[0].sourceLabel).toBe(
+      "Road traffic rules",
+    );
     expect(result.topicBreakdown[0].topicName).toBe("Right of way");
   });
 });
@@ -257,10 +291,17 @@ describe("translation overlay (spec-20)", () => {
       explanation,
       locale: "es",
       translation,
+      sourceLabels: { trafikkreglene: "Normas de tráfico" },
     });
     expect(result.explanation).toEqual({
       text: "Debes ceder el paso.",
-      citations: [{ sourceCode: "trafikkreglene", ref: "§ 7" }],
+      citations: [
+        {
+          sourceCode: "trafikkreglene",
+          ref: "§ 7",
+          sourceLabel: "Normas de tráfico",
+        },
+      ],
     });
   });
 
@@ -276,6 +317,7 @@ describe("translation overlay (spec-20)", () => {
       explanation,
       locale: "es",
       translation: withoutExplanation,
+      sourceLabels: {},
     });
     expect(result.explanation.text).toBe("You must yield.");
   });
@@ -288,7 +330,8 @@ describe("translation overlay (spec-20)", () => {
       correctCount: 1,
       passMark: 1,
       passed: true,
-      topicNames: { "right-of-way": { en: "Right of way", nb: "Vikeplikt" } },
+      topicNames: { "right-of-way": "Prioridad de paso" },
+      sourceLabels: {},
       topicBreakdown: [{ topicSlug: "right-of-way", total: 1, correct: 1 }],
       questions: [
         {
@@ -302,5 +345,6 @@ describe("translation overlay (spec-20)", () => {
     expect(result.review[0].stem).toBe("¿Qué se aplica en la señal?");
     expect(result.review[0].options[0].text).toBe("Prioridad");
     expect(result.review[0].explanation.text).toBe("Debes ceder el paso.");
+    expect(result.topicBreakdown[0].topicName).toBe("Prioridad de paso");
   });
 });

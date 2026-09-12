@@ -138,10 +138,15 @@ export type ClientAttempt = z.infer<typeof clientAttemptSchema>;
 
 // ── Post-grading DTOs (server has graded — reveal allowed) ──────────────────
 
+/** A citation as shown: the § reference verbatim, the source under its display name (spec-20). */
+export const clientCitationSchema = legalCitationSchema.extend({
+  sourceLabel: z.string().min(1), // localized; never the slug
+});
+
 export const explanationClientSchema = z
   .object({
     text: z.string().min(1), // localized
-    citations: z.array(legalCitationSchema),
+    citations: z.array(clientCitationSchema),
   })
   .strict();
 
