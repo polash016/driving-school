@@ -213,7 +213,10 @@ test("adding a language starts it translating; the card says so in both language
   await expect(page.getByText(`${NAME}: held for review`)).toBeVisible();
 
   await page.goto(`/en/admin/languages/${CODE}?flagged=1`);
-  await expect(page.getByText("Marked broken by an admin")).toBeVisible();
+  // The row's badge, by title: the bulk-approve consent list labels a checkbox with the same words.
+  await expect(page.getByTitle("ADMIN_FLAGGED")).toHaveText(
+    "Marked broken by an admin",
+  );
   await expect(
     page.getByText("Admin: Romanised, not in the language's script"),
   ).toBeVisible();
