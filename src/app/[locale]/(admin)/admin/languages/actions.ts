@@ -68,6 +68,7 @@ export async function addLanguageAction(
       shortLabel: String(formData.get("shortLabel") ?? "").trim(),
       direction: formData.get("direction") === "RTL" ? "RTL" : "LTR",
       requiresApproval: formData.get("requiresApproval") !== "off",
+      autoTranslate: formData.get("autoTranslate") !== "off",
       ...(optionalString(formData, "styleNote")
         ? { styleNote: optionalString(formData, "styleNote") }
         : {}),

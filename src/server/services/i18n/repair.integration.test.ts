@@ -138,6 +138,8 @@ beforeAll(async () => {
     shortLabel: "ZX",
     direction: "LTR",
     requiresApproval: false,
+    // Spec-19 suites drive runs by hand; spec-20 would otherwise enqueue a FULL run on add.
+    autoTranslate: false,
   });
   // The language asks for NO semantic sampling at all. A repair run must QA every unit anyway —
   // scrutiny goes up on a second attempt, never down — and with the rate at 1 that would be

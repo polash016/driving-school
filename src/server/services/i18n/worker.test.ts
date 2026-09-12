@@ -51,6 +51,7 @@ function deps(
     reap: vi.fn(async () => []),
     execute: vi.fn(async () => COMPLETED),
     afterRun: vi.fn(async () => undefined),
+    autoSync: vi.fn(async () => []),
     log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     ...overrides,
     db: overrides.db as unknown as WorkerDeps["db"],
@@ -81,6 +82,67 @@ describe("workerTick", () => {
     expect(d.execute).not.toHaveBeenCalled();
   });
 
+  it("plans automatic syncs on an idle tick, and looks again at once when it planned one", async () => {
+    const db: Stub = {
+      translationRun: {
+        findFirst: vi.fn(async () => null),
+        findUniqueOrThrow: vi.fn(),
+        updateMany: vi.fn(),
+      },
+    };
+    const autoSync = vi.fn(async () => ["r-auto"]);
+    const d = deps({ db, autoSync });
+    expect(await workerTick(d)).toBe("worked");
+    expect(autoSync).toHaveBeenCalledTimes(1);
+    expect(d.execute).not.toHaveBeenCalled();
+  });
+
+  it("looks for syncs only when nothing is claimable", async () => {
+    const db: Stub = {
+      translationRun: {
+        findFirst: vi.fn(async () => ({
+          id: "r1",
+          locale: "es",
+          kind: "SYNC",
+        })),
+        findUniqueOrThrow: vi.fn(async () => ({
+          id: "r1",
+          locale: "es",
+          kind: "SYNC",
+          status: "COMPLETED",
+          startedById: "u1",
+          plannedUnits: 3,
+          translatedUnits: 3,
+          flaggedUnits: 0,
+          failedUnits: 0,
+          error: null,
+        })),
+        updateMany: vi.fn(),
+      },
+    };
+    const d = deps({ db });
+    expect(await workerTick(d)).toBe("worked");
+    expect(d.autoSync).not.toHaveBeenCalled();
+  });
+
+  it("a failing autoSync is logged and the loop stays alive", async () => {
+    const db: Stub = {
+      translationRun: {
+        findFirst: vi.fn(async () => null),
+        findUniqueOrThrow: vi.fn(),
+        updateMany: vi.fn(),
+      },
+    };
+    const d = deps({
+      db,
+      autoSync: vi.fn(async () => {
+        throw new Error("pool exhausted");
+      }),
+    });
+    expect(await workerTick(d)).toBe("idle");
+    expect(d.log.error).toHaveBeenCalled();
+  });
+
   it("executes a claimable run then hands it to afterRun with the DB status", async () => {
     const db: Stub = {
       translationRun: {
@@ -95,6 +157,7 @@ describe("workerTick", () => {
           kind: "SYNC",
           status: "COMPLETED",
           startedById: "u1",
+          plannedUnits: 5,
           translatedUnits: 3,
           flaggedUnits: 1,
           failedUnits: 0,
@@ -156,6 +219,7 @@ describe("workerTick", () => {
           kind: "SYNC",
           status: "FAILED",
           startedById: null,
+          plannedUnits: 5,
           translatedUnits: 0,
           flaggedUnits: 0,
           failedUnits: 0,
@@ -216,6 +280,7 @@ describe("cancelled runs whose runner never came back", () => {
           kind: "SYNC",
           status: "COMPLETED",
           startedById: "u1",
+          plannedUnits: 5,
           translatedUnits: 1,
           flaggedUnits: 0,
           failedUnits: 0,
@@ -321,6 +386,7 @@ describe("afterRun failures", () => {
           kind: "SYNC",
           status: "COMPLETED",
           startedById: "u1",
+          plannedUnits: 5,
           translatedUnits: 3,
           flaggedUnits: 0,
           failedUnits: 0,
@@ -354,6 +420,7 @@ describe("maybePlanRepair", () => {
     kind: "SYNC" as const,
     status: "COMPLETED",
     startedById: "u1",
+    plannedUnits: 5,
     translatedUnits: 10,
     flaggedUnits: 2,
     failedUnits: 0,

@@ -5,6 +5,7 @@ import {
   publishResultSchema,
   type PublishResult,
 } from "@/server/contracts/question-bank";
+import { requestTranslationSync } from "@/server/services/i18n/sync";
 import { computeContentHash } from "@/server/services/quiz/content-hash";
 import {
   expandTemplate,
@@ -153,6 +154,10 @@ export async function publishItem(
     });
     created++;
   }
+
+  // Every added language now lacks this question (spec-20): leave the stamp the idle worker turns
+  // into a SYNC. Nothing is translated here; approval must stay cheap.
+  await requestTranslationSync(db);
 
   logger.info({ itemId, created, reused, warnings }, "item published");
   return publishResultSchema.parse({

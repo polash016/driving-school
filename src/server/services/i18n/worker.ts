@@ -20,6 +20,7 @@ export interface FinishedRun {
   kind: TranslationRunKind;
   status: string;
   startedById: string | null;
+  plannedUnits: number;
   translatedUnits: number;
   flaggedUnits: number;
   failedUnits: number;
@@ -55,6 +56,11 @@ export interface WorkerDeps {
   ) => Promise<RunProgress>;
   /** Repair chaining + notifications, once a run reaches a terminal or paused state. */
   afterRun: (run: FinishedRun) => Promise<void>;
+  /**
+   * Plan SYNC runs for languages whose content moved since their last sync (spec-20); returns
+   * the run ids planned. Called only on an idle tick, so enqueued work always goes first.
+   */
+  autoSync: () => Promise<string[]>;
   log: WorkerLog;
 }
 
@@ -89,6 +95,7 @@ const FINISHED_SELECT = {
   kind: true,
   status: true,
   startedById: true,
+  plannedUnits: true,
   translatedUnits: true,
   flaggedUnits: true,
   failedUnits: true,
@@ -117,7 +124,17 @@ export async function workerTick(
       deps.log.error({ error }, "reaping cancelled runs failed"),
     );
   const candidate = await findClaimableRun(deps.db, new Date());
-  if (!candidate) return "idle";
+  if (!candidate) {
+    // Nothing enqueued: turn any content-change stamp into a SYNC (spec-20). Guarded like the
+    // reap — a planner that fails must not cost the tick, and the next one tries again.
+    const planned = await deps.autoSync().catch((error: unknown) => {
+      deps.log.error({ error }, "planning automatic syncs failed");
+      return [] as string[];
+    });
+    if (planned.length === 0) return "idle";
+    deps.log.info({ runIds: planned }, "planned automatic syncs");
+    return "worked";
+  }
 
   deps.log.info(
     { runId: candidate.id, locale: candidate.locale, kind: candidate.kind },

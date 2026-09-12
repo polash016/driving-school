@@ -33,6 +33,7 @@ function finishedRun(overrides: Partial<FinishedRun> = {}): FinishedRun {
     kind: "SYNC",
     status: "COMPLETED",
     startedById: null,
+    plannedUnits: 9,
     translatedUnits: 9,
     flaggedUnits: 1,
     failedUnits: 0,
@@ -221,6 +222,36 @@ d("notifyRunEvent (spec-19)", () => {
     });
 
     expect(capturedMail()).toHaveLength(0);
+  });
+
+  it("says nothing about a small sync nobody started — routine upkeep is not news", async () => {
+    clearCapturedMail();
+    await notifyRunEvent(
+      db,
+      finishedRun({
+        startedById: null,
+        plannedUnits: 3,
+        translatedUnits: 3,
+        flaggedUnits: 0,
+      }),
+      NO_REPAIR,
+    );
+    expect(capturedMail()).toHaveLength(0);
+  });
+
+  it("still reports a small unattended sync that flagged something", async () => {
+    clearCapturedMail();
+    await notifyRunEvent(
+      db,
+      finishedRun({
+        startedById: null,
+        plannedUnits: 3,
+        translatedUnits: 3,
+        flaggedUnits: 1,
+      }),
+      NO_REPAIR,
+    );
+    expect(capturedMail().length).toBeGreaterThan(0);
   });
 
   it("says nothing about a run an admin paused or cancelled — they are watching the board", async () => {

@@ -98,6 +98,8 @@ beforeAll(async () => {
     shortLabel: "ZR",
     direction: "LTR",
     requiresApproval: false,
+    // Spec-19 suites drive runs by hand; spec-20 would otherwise enqueue a FULL run on add.
+    autoTranslate: false,
   });
   for (let i = 0; i < 15; i++) {
     const topic = await db.topic.create({

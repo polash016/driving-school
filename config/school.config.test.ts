@@ -54,6 +54,10 @@ describe("school.config", () => {
   it("waits out a 429 on the same route at least once before falling through (spec-19a)", () => {
     expect(schoolConfig.ai.rateLimitRetries).toBeGreaterThanOrEqual(1);
   });
+
+  it("keeps quiet about small unattended syncs below a configured size (spec-20)", () => {
+    expect(schoolConfig.ai.translationNotifyMinUnits).toBeGreaterThanOrEqual(1);
+  });
 });
 
 describe("locale formatting", () => {

@@ -5,12 +5,15 @@ import type {
 } from "@prisma/client";
 import { z } from "zod";
 import { ConflictError, ValidationError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 import { BUILTIN_PREFIXES, isBuiltinLocale, localeSchema } from "@/lib/locale";
 import { AUDIT, auditLog } from "@/server/audit";
 import type { SessionUser } from "@/server/authz";
 import { invalidateMessages } from "./catalogue";
 import { extractAll } from "./extract";
 import { invalidateRegistry } from "./registry";
+import { startBackgroundRun } from "./run-control";
+import type { RunPlan } from "./runs";
 
 /**
  * Managing the languages a school offers (spec-15).
@@ -24,6 +27,10 @@ import { invalidateRegistry } from "./registry";
  *    the grandfathered exception and is compiled in.
  * 2. **A language reaches students only at full coverage.** Half a test in your own language and
  *    half in English is worse than a test honestly in English.
+ *
+ * And one default (spec-20, developer decision 2026-09-12): a new language publishes clean
+ * machine output without a human sign-off. With approval required, a school with no speaker of
+ * the language could never publish it; QA still holds anything it flags, and the switch stays.
  */
 
 export const createLanguageInputSchema = z
@@ -33,7 +40,9 @@ export const createLanguageInputSchema = z
     nativeName: z.string().min(1).max(80),
     shortLabel: z.string().min(1).max(6),
     direction: z.enum(["LTR", "RTL"]).default("LTR"),
-    requiresApproval: z.boolean().default(true),
+    requiresApproval: z.boolean().default(false),
+    /** Enqueue a FULL run now, and a SYNC whenever content changes (spec-20). */
+    autoTranslate: z.boolean().default(true),
     styleNote: z.string().max(500).optional(),
   })
   .strict();
@@ -43,6 +52,7 @@ export const updateLanguageInputSchema = z
     code: localeSchema,
     requiresApproval: z.boolean().optional(),
     studentVisible: z.boolean().optional(),
+    autoTranslate: z.boolean().optional(),
     qaSampleRate: z.number().min(0).max(1).optional(),
     styleNote: z.string().max(500).nullable().optional(),
     sortOrder: z.int().min(0).max(999).optional(),
@@ -357,6 +367,8 @@ export async function listLanguages(db: PrismaClient) {
       styleNote: true,
       sortOrder: true,
       lastSyncedAt: true,
+      autoTranslate: true,
+      syncRequestedAt: true,
     },
   });
 }
@@ -395,6 +407,7 @@ export async function createLanguage(
       urlPrefix: `/${input.code}`,
       direction: input.direction,
       requiresApproval: input.requiresApproval,
+      autoTranslate: input.autoTranslate,
       styleNote: input.styleNote ?? null,
       studentVisible: false,
       sortOrder: (await db.language.count()) + 1,
@@ -408,9 +421,31 @@ export async function createLanguage(
     action: AUDIT.languageAdded,
     entityType: "Language",
     entityId: language.code,
-    meta: { englishName: language.englishName, direction: input.direction },
+    meta: {
+      englishName: language.englishName,
+      direction: input.direction,
+      autoTranslate: input.autoTranslate,
+    },
   });
-  return language;
+
+  // Adding a language IS asking for it to be translated (spec-20): the FULL run goes to the
+  // worker's queue at once. The row exists either way — a plan that cannot be made is reported,
+  // and the card's "Start in background" is the way back in.
+  let run: RunPlan | null = null;
+  if (input.autoTranslate) {
+    try {
+      run = await startBackgroundRun(db, actor, {
+        locale: language.code,
+        kind: "FULL",
+      });
+    } catch (error) {
+      logger.error(
+        { error, locale: language.code },
+        "could not start the first translation run for a new language",
+      );
+    }
+  }
+  return { ...language, run };
 }
 
 export async function updateLanguage(
@@ -453,13 +488,21 @@ export async function updateLanguage(
       ...(input.studentVisible !== undefined
         ? { studentVisible: input.studentVisible }
         : {}),
+      ...(input.autoTranslate !== undefined
+        ? { autoTranslate: input.autoTranslate }
+        : {}),
       ...(input.qaSampleRate !== undefined
         ? { qaSampleRate: input.qaSampleRate }
         : {}),
       ...(input.styleNote !== undefined ? { styleNote: input.styleNote } : {}),
       ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
     },
-    select: { code: true, studentVisible: true, requiresApproval: true },
+    select: {
+      code: true,
+      studentVisible: true,
+      requiresApproval: true,
+      autoTranslate: true,
+    },
   });
 
   await invalidateRegistry();

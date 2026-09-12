@@ -4,6 +4,7 @@ import { AUDIT, auditLog } from "@/server/audit";
 import type { SessionUser } from "@/server/authz";
 import { ingestSourceInputSchema } from "@/server/contracts/kb";
 import { aiEmbed } from "@/server/ai/client";
+import { requestTranslationSync } from "@/server/services/i18n/sync";
 import { chunkLegalText } from "./chunking";
 
 /**
@@ -117,6 +118,9 @@ export async function ingestSource(
     data: { lastIngestedAt: new Date() },
     select: { id: true },
   });
+  // The source's display name is a translation unit (spec-15 D6); a new or renamed source leaves
+  // the stamp the idle worker turns into a SYNC (spec-20).
+  await requestTranslationSync(db);
 
   await auditLog({
     actorId: actor?.id ?? null,

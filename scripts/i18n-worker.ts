@@ -16,6 +16,7 @@ import { env } from "../src/lib/env";
 import { keys, redis } from "../src/server/redis";
 import { reapAbandonedCancels } from "../src/server/services/i18n/run-control";
 import { executeRun } from "../src/server/services/i18n/runs";
+import { planAutoSyncs } from "../src/server/services/i18n/sync";
 import {
   defaultAfterRun,
   runWorker,
@@ -73,6 +74,7 @@ runWorker({
   reap: () => reapAbandonedCancels(db, new Date()),
   execute: (runId, options) => executeRun(db, runId, options),
   afterRun: defaultAfterRun({ db, log }),
+  autoSync: () => planAutoSyncs(db),
   log,
 })
   .catch((error) => {

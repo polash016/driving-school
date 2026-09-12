@@ -95,6 +95,11 @@ export const schoolConfigSchema = z
        *  the pool. Prisma's pool defaults to CPUs × 2 + 1 — 5 on the 2-vCPU VPS, too small for 3
        *  slots — unless `connection_limit` is set on `DATABASE_URL`; see .env.example. */
       translationParallelSlots: z.number().int().min(1).max(8),
+      /**
+       * A sync the worker planned itself (spec-20) that lands fewer units than this, with nothing
+       * flagged, sends no mail: routine upkeep is not news. Admin-started runs always report.
+       */
+      translationNotifyMinUnits: z.number().int().min(1),
       /** A 429 is waited out on the same route — base × 2^attempt, capped at 60 s (at 4 retries
        *  from 5 s: 5/10/20/40 s) — before the chain moves on. Per-minute quotas recover; falling
        *  through only wastes the next route's quota too. */
@@ -183,6 +188,7 @@ export const schoolConfig: SchoolConfig = Object.freeze(
       // QA_UNAVAILABLE because the embedding retries ran out. Raise this to 3 once the key is on a
       // paid tier — the runner is correct at 3, it is the quota that is not.
       translationParallelSlots: 1,
+      translationNotifyMinUnits: 20,
       rateLimitRetries: 4,
       rateLimitBaseDelayMs: 5_000,
     },

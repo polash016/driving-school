@@ -114,6 +114,8 @@ beforeAll(async () => {
     shortLabel: "ZS",
     direction: "LTR",
     requiresApproval: false,
+    // Spec-19 suites drive runs by hand; spec-20 would otherwise enqueue a FULL run on add.
+    autoTranslate: false,
   });
   // Two extra entity kinds beyond the UI messages every install has, so "spread across kinds" is
   // something this fixture can actually demonstrate rather than assume.

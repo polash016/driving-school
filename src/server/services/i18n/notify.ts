@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { schoolConfig } from "../../../../config/school.config";
 import { env } from "@/lib/env";
 import { localeSchema, type Locale } from "@/lib/locale";
 import { absoluteUrl } from "@/lib/locale-url";
@@ -85,6 +86,17 @@ export async function notifyRunEvent(
   decision: RepairDecision,
 ): Promise<void> {
   if (run.kind === "SAMPLE" || decision.action === "planned") return;
+  // Routine upkeep is not news (spec-20): a small sync the worker planned itself, that flagged
+  // nothing and chained nothing, says nothing. Anything an admin started, anything flagged, any
+  // failure and any repair outcome still mails.
+  if (
+    run.status === "COMPLETED" &&
+    run.startedById === null &&
+    decision.action === "none" &&
+    run.flaggedUnits === 0 &&
+    run.plannedUnits < schoolConfig.ai.translationNotifyMinUnits
+  )
+    return;
 
   // Index: Language primary key (code).
   const language = await db.language.findUnique({

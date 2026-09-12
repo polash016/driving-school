@@ -483,6 +483,8 @@ erDiagram
   Int glossaryVersion
   String styleNote "nullable"
   DateTime lastSyncedAt "nullable"
+  Boolean autoTranslate
+  DateTime syncRequestedAt "nullable"
   DateTime createdAt
   DateTime updatedAt
 }
@@ -569,6 +571,7 @@ erDiagram
   String sourceHash
   TranslationJobState state
   Int attempts
+  Int priority
   String claimedBy "nullable"
   String error "nullable"
   DateTime startedAt "nullable"
@@ -1330,6 +1333,12 @@ Properties as follows:
   > because the terminology it should use has changed.
 - `styleNote`: Register/script guidance appended to the prompt ("formal, second person, Modern Standard").
 - `lastSyncedAt`:
+- `autoTranslate`
+  > Keep this language translated without an admin's click (spec-20): a FULL run when it is
+  > added, and a SYNC planned by the idle worker after any translatable content changes.
+- `syncRequestedAt`
+  > Stamped by any write to translatable source content. The worker plans a SYNC when this is
+  > newer than the latest SYNC/FULL run's createdAt, and clears it when nothing is pending.
 - `createdAt`:
 - `updatedAt`:
 
@@ -1475,6 +1484,9 @@ Properties as follows:
 - `sourceHash`:
 - `state`:
 - `attempts`:
+- `priority`
+  > Claim order inside a run — questions first (ENTITY_PRIORITY in units.ts). Set at plan time,
+  > because the enum's declaration order put UI_MESSAGE ahead of every question (spec-20).
 - `claimedBy`
   > Lease owner that claimed this job. Lets a runner learn exactly which of a batch it won when
   > another runner took part of it (Prisma here has no updateManyAndReturn).
