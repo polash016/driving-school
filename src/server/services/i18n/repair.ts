@@ -19,7 +19,12 @@ import {
   type LanguagePolicy,
   type TranslatedUnit,
 } from "./translate";
-import { memoryHash, type TranslationUnit, type UnitPayload } from "./units";
+import {
+  ENTITY_PRIORITY,
+  memoryHash,
+  type TranslationUnit,
+  type UnitPayload,
+} from "./units";
 import { allCodes, checkTranslation, NOT_A_QUALITY_FLAG } from "./validation";
 
 /**
@@ -210,6 +215,7 @@ export async function planRepairRun(
         entity: unit.entity,
         entityId: unit.entityId,
         sourceHash: unit.sourceHash,
+        priority: ENTITY_PRIORITY[unit.entity],
       })),
       skipDuplicates: true,
     });

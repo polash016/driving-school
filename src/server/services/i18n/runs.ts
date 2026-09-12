@@ -19,7 +19,7 @@ import {
   type Rejection,
   type TranslatedUnit,
 } from "./translate";
-import type { TranslationUnit } from "./units";
+import { ENTITY_PRIORITY, type TranslationUnit } from "./units";
 import { isNonLatinScript } from "./validation";
 
 /**
@@ -162,6 +162,7 @@ export async function planRun(
         entity: unit.entity,
         entityId: unit.entityId,
         sourceHash: unit.sourceHash,
+        priority: ENTITY_PRIORITY[unit.entity],
       })),
       skipDuplicates: true,
     });
@@ -275,7 +276,7 @@ async function retireExhausted(
   // flipped jobs to SKIPPED that no runner would ever count — and the new owner could not recover
   // them either, because its own sweep matches `state: "FAILED"`. Both statements now stand or
   // fall on the same predicate, so a runner that has already lost the lease retires nothing.
-  // Index: TranslationJob[runId, state, entity].
+  // Index: TranslationJob[runId, state, priority, entity] (prefix runId, state).
   const retired = await db.translationJob.updateMany({
     where: {
       runId,
@@ -391,7 +392,7 @@ export async function executeRun(
 
   // The lease is exclusive from here. Anything a dead runner left RUNNING goes back to the queue —
   // attempts are kept, so a unit that keeps killing its runner still reaches SKIPPED.
-  // Index: TranslationJob[runId, state, entity].
+  // Index: TranslationJob[runId, state, priority, entity] (prefix runId, state).
   await db.translationJob.updateMany({
     where: { runId, state: "RUNNING" },
     data: { state: "QUEUED", startedAt: null, claimedBy: null },
@@ -570,7 +571,7 @@ export async function executeRun(
 
       // A batch that failed on a provider outage is worth another go; one that has failed three
       // times is a real problem with that unit, and is left alone so the run can finish.
-      // Index: TranslationJob[runId, state, entity].
+      // Index: TranslationJob[runId, state, priority, entity] (prefix runId, state).
       await db.translationJob.updateMany({
         where: { runId, state: "FAILED", attempts: { lt: MAX_ATTEMPTS } },
         data: { state: "QUEUED", error: null },
@@ -586,11 +587,11 @@ export async function executeRun(
         // Reserved before the first await in this block, so two slots cannot both spend it.
         reserved += take;
 
-        // One entity kind at a time, so a batch shares a prompt shape.
-        // Index: TranslationJob[runId, state, entity].
+        // Questions first, then one entity kind at a time so a batch shares a prompt shape.
+        // Index: TranslationJob[runId, state, priority, entity].
         const jobs = await db.translationJob.findMany({
           where: { runId, state: "QUEUED" },
-          orderBy: [{ entity: "asc" }, { id: "asc" }],
+          orderBy: [{ priority: "asc" }, { entity: "asc" }, { id: "asc" }],
           take,
           select: { id: true, entity: true, entityId: true },
         });
@@ -923,7 +924,7 @@ export async function executeRun(
 
   const releaseLease = { leaseOwner: null, leaseExpiresAt: null };
   if (stopReason === "cancelled") {
-    // Index: TranslationJob[runId, state, entity].
+    // Index: TranslationJob[runId, state, priority, entity] (prefix runId, state).
     await db.translationJob.updateMany({
       where: { runId, state: { in: ["QUEUED", "RUNNING"] } },
       data: { state: "SKIPPED", error: "cancelled", finishedAt: new Date() },
@@ -941,7 +942,7 @@ export async function executeRun(
   }
 
   // RUNNING counts too: a job this runner could not finish is not a finished run.
-  // Index: TranslationJob[runId, state, entity].
+  // Index: TranslationJob[runId, state, priority, entity] (prefix runId, state).
   const remaining = await db.translationJob.count({
     where: {
       runId,
@@ -1106,7 +1107,7 @@ export async function progressOf(
     },
   });
   // A job left RUNNING by a killed process is outstanding work, not finished work.
-  // Index: TranslationJob[runId, state, entity].
+  // Index: TranslationJob[runId, state, priority, entity] (prefix runId, state).
   const remaining = await db.translationJob.count({
     where: {
       runId,

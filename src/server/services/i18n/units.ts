@@ -110,6 +110,26 @@ export function isQuestionEntity(entity: TranslatableEntity): boolean {
   return entity === "MASTER_ITEM" || entity === "ITEM_VARIANT";
 }
 
+/**
+ * Claim order inside a run — lower first (spec-20).
+ *
+ * Questions are the exam and the bulk of every language; the taxonomy names are what result and
+ * setup screens read; UI strings are quick and come last; sign names are read by no student
+ * screen yet (spec-10). The enum's own declaration order put UI_MESSAGE first, which is how a run
+ * that stalled on a quota had translated everything except the exam.
+ */
+export const ENTITY_PRIORITY: Record<TranslatableEntity, number> = {
+  MASTER_ITEM: 0,
+  TOPIC: 1,
+  LICENSE_CLASS: 1,
+  KB_SOURCE: 1,
+  UI_MESSAGE: 2,
+  SIGN: 3,
+  ITEM_VARIANT: 9,
+  EXAM_BLUEPRINT: 9,
+  FACT: 9,
+};
+
 /** Every string in a payload, for the checks that do not care about structure. */
 export function payloadStrings(payload: UnitPayload): string[] {
   const out: string[] = [];

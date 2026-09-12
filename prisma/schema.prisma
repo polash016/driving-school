@@ -1206,6 +1206,12 @@ model Language {
   /// Register/script guidance appended to the prompt ("formal, second person, Modern Standard").
   styleNote        String?
   lastSyncedAt     DateTime?
+  /// Keep this language translated without an admin's click (spec-20): a FULL run when it is
+  /// added, and a SYNC planned by the idle worker after any translatable content changes.
+  autoTranslate    Boolean       @default(true)
+  /// Stamped by any write to translatable source content. The worker plans a SYNC when this is
+  /// newer than the latest SYNC/FULL run's createdAt, and clears it when nothing is pending.
+  syncRequestedAt  DateTime?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -1388,6 +1394,9 @@ model TranslationJob {
   sourceHash String
   state      TranslationJobState @default(QUEUED)
   attempts   Int                 @default(0)
+  /// Claim order inside a run — questions first (ENTITY_PRIORITY in units.ts). Set at plan time,
+  /// because the enum's declaration order put UI_MESSAGE ahead of every question (spec-20).
+  priority   Int                 @default(0)
   /// Lease owner that claimed this job. Lets a runner learn exactly which of a batch it won when
   /// another runner took part of it (Prisma here has no updateManyAndReturn).
   claimedBy  String?
@@ -1399,6 +1408,6 @@ model TranslationJob {
 
   // A unit is planned at most once per run.
   @@unique([runId, entity, entityId])
-  // The claim query: the next QUEUED batch for this run, grouped by entity kind.
-  @@index([runId, state, entity])
+  // The claim query: the next QUEUED batch for this run, questions first, grouped by entity kind.
+  @@index([runId, state, priority, entity])
 }

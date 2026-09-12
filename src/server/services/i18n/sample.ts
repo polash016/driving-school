@@ -5,7 +5,11 @@ import { ESTIMATED_USD_PER_1K_TOKENS } from "./run-math";
 // Type-only: erased at compile time, so runs.ts is free to grow a runtime import of this module
 // later without closing a loop.
 import type { RunPlan } from "./runs";
-import type { TranslationUnit, UnitPayload } from "./units";
+import {
+  ENTITY_PRIORITY,
+  type TranslationUnit,
+  type UnitPayload,
+} from "./units";
 
 /**
  * The sample-first dry run (spec-19).
@@ -94,6 +98,7 @@ export async function planSampleRun(
         entity: unit.entity,
         entityId: unit.entityId,
         sourceHash: unit.sourceHash,
+        priority: ENTITY_PRIORITY[unit.entity],
       })),
     });
   }

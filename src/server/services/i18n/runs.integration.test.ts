@@ -227,6 +227,61 @@ async function jobStates(runId: string) {
 }
 
 d("executeRun (spec-19)", () => {
+  it("claims a question before any UI string, whatever order the enum declares", async () => {
+    // Spec-20: `UI_MESSAGE` is the first value of the TranslatableEntity enum, so a claim ordered
+    // by entity drained 248 UI strings before the first question — and a run that stalled on a
+    // quota had translated everything except the exam. Questions come first now.
+    const master = await db.masterItem.create({
+      data: {
+        type: "TEXT",
+        status: "APPROVED",
+        topicId: topicIds[0],
+        difficulty: 3,
+        content: {
+          en: {
+            stem: `Question ${RUN}?`,
+            options: [
+              { key: "a", text: "Yes" },
+              { key: "b", text: "No" },
+            ],
+            explanation: "Because.",
+          },
+          nb: {
+            stem: `Spørsmål ${RUN}?`,
+            options: [
+              { key: "a", text: "Ja" },
+              { key: "b", text: "Nei" },
+            ],
+            explanation: "Fordi.",
+          },
+        },
+        correctOptionKey: "a",
+        legalCitations: [],
+        createdBy: "HUMAN",
+      },
+      select: { id: true },
+    });
+    try {
+      const plan = await planRun(db, CODE, {
+        kind: "SINGLE_ENTITY",
+        only: ["UI_MESSAGE", "MASTER_ITEM"],
+        startedById: actor.id,
+      });
+      expect(plan.byEntity.UI_MESSAGE).toBeGreaterThan(0);
+      expect(plan.byEntity.MASTER_ITEM).toBeGreaterThan(0);
+
+      await executeRun(db, plan.runId, { leaseOwner: "t-order", maxUnits: 1 });
+
+      const touched = await db.translationJob.findMany({
+        where: { runId: plan.runId, state: { not: "QUEUED" } },
+        select: { entity: true },
+      });
+      expect(touched.map((job) => job.entity)).toEqual(["MASTER_ITEM"]);
+    } finally {
+      await db.masterItem.delete({ where: { id: master.id } });
+    }
+  });
+
   it("re-queues jobs a crashed runner left RUNNING, and completion waits for them", async () => {
     const plan = await planTopics();
     // Simulate a crash mid-batch: two jobs RUNNING, lease lapsed.
