@@ -553,3 +553,23 @@ fixture (15 units over ~10.4 s): the literal formula reported 53/min where the r
 - **Impact:** `specs/spec-21-broken-translations.md`, `specs/plans/spec-21-plan.md`; no migration.
   Production remediation: audit `bn`, apply, repair run, verify no Latin-only rows remain.
 - **Approved by:** developer (2026-09-12, plan mode)
+
+## 2026-09-12 · spec-21 · Implementation notes: native digits, consented findings, five hand translations
+
+- **The gate compares digit values, not glyphs.** The first production dry run refused 91 Bangla
+  rows: 21 romanised, and 75 flagged `NUMBER_DRIFT` because the translation wrote 80 as ৮০ — which
+  a Bengali reader reads as 80. Every native decimal-digit block is normalised to ASCII before the
+  number and § checks, so ৮০ km/h is 80 km/h and § ১১ is § 11, while a changed value is still
+  drift whatever the digits.
+- **A finding a reviewer already consented to is not raised again.** Bulk approve keeps the
+  consented flags on the row; the audit raises a row only for a code it has never carried. So the
+  75 rows a reviewer waved through on 2026-09-09 stay approved, and a `SCRIPT_MISMATCH` beside an
+  old `NUMBER_DRIFT` still counts.
+- **Five questions were translated by hand.** The repair run fixed 16 of the 21 romanised
+  questions; five came back romanised on all three attempts (the model transliterates those
+  particular items deterministically at temperature 0). They were written in Bengali by the
+  assistant and loaded with `pnpm i18n:import bn`, through the same structural gate, as
+  `MACHINE` with `providerLabel: "import"`. A Bengali-speaking reviewer should read them; they are
+  listed in `specs/notes/spec-21-notes.md`.
+- **Approved by:** not yet — corrections within the approved design, flagged for the developer in
+  the notes.

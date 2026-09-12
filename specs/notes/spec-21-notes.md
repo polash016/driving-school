@@ -91,16 +91,16 @@ flag chips. Both catalogues; `messages.test.ts` parity green. `pnpm i18n:audit <
 
 ## Acceptance checklist
 
-| Item | Result | Evidence |
-|---|---|---|
-| Romanised Bengali refused with `SCRIPT_MISMATCH` naming the fields; numeric option and bracketed name not flagged; Spanish untouched | PASS | translation.test.ts (6 cases) |
-| Both prompts state the script rule at 1.1.0 | PASS | prompts/translation.test.ts |
-| Admin marks an APPROVED translation broken with a note; out of service at once; note in the repair prompt; repair queued; instructor refused | PASS | review.integration.test.ts (3), board e2e |
-| Re-check flags what the gate refuses, writes nothing on a dry run, queues a repair on apply | PASS | audit.integration.test.ts (3) |
-| A repaired unit returns to `MACHINE` and is served; three failures reach the queue | PASS | spec-19 repair suites unchanged and green (662 total); production run below |
-| Both languages, 390 px, keyboard on the form and button | PASS | board e2e at Pixel 7 viewport, both catalogues |
-| Production: no Bangla row without Bengali script after the repair; two repaired questions read correctly | see below | |
-| `pnpm test`, `tsc`, `eslint`, `pnpm build`, e2e clean | see below | |
+| Item                                                                                                                                         | Result    | Evidence                                                                    |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | --------- | --------------------------------------------------------------------------- |
+| Romanised Bengali refused with `SCRIPT_MISMATCH` naming the fields; numeric option and bracketed name not flagged; Spanish untouched         | PASS      | translation.test.ts (6 cases)                                               |
+| Both prompts state the script rule at 1.1.0                                                                                                  | PASS      | prompts/translation.test.ts                                                 |
+| Admin marks an APPROVED translation broken with a note; out of service at once; note in the repair prompt; repair queued; instructor refused | PASS      | review.integration.test.ts (3), board e2e                                   |
+| Re-check flags what the gate refuses, writes nothing on a dry run, queues a repair on apply                                                  | PASS      | audit.integration.test.ts (3)                                               |
+| A repaired unit returns to `MACHINE` and is served; three failures reach the queue                                                           | PASS      | spec-19 repair suites unchanged and green (662 total); production run below |
+| Both languages, 390 px, keyboard on the form and button                                                                                      | PASS      | board e2e at Pixel 7 viewport, both catalogues                              |
+| Production: no Bangla row without Bengali script after the repair; two repaired questions read correctly                                     | see below |                                                                             |
+| `pnpm test`, `tsc`, `eslint`, `pnpm build`, e2e clean                                                                                        | see below |                                                                             |
 
 ## Final gate
 
@@ -119,4 +119,45 @@ locator now targets the badge by its title, as the review spec already does.
 
 ## Production repair
 
-PRODUCTION_PLACEHOLDER
+Deployed twice on 2026-09-12 (bundle → `git merge --ff-only` on the server, build, `pm2 restart`
+both apps), the second time for two things the first dry run taught:
+
+```
+pnpm i18n:audit bn      (first build)   checked 1335 · 91 refused · NUMBER_DRIFT 75 · SCRIPT_MISMATCH 21
+```
+
+The 75 were correct Bangla rows writing 80 as ৮০, which the number check read as a missing
+number, and which a reviewer had consented to on 2026-09-09 (the flag stays on an approved row).
+Two fixes, each with a RED test first: the gate normalises native digits before comparing values,
+and the audit raises a row only for a code it has never carried. After the second deploy:
+
+```
+pnpm i18n:audit bn                       checked 1335 · 21 refused · SCRIPT_MISMATCH 21
+pnpm i18n:audit es / ar                  0 refused
+pnpm i18n:audit bn --apply --repair      held 21 · REPAIR run cmtyiouyp0003l57iraeyq8vr queued
+
+REPAIR cmtyiouyp…   COMPLETED in 37 s · 21/21 · flagged 5 · failed 0   → 16 questions back in Bengali script, served
+REPAIR cmtyipr25…   (chained by the worker)   5/5 · flagged 5
+REPAIR cmtyj1lvq…   (third attempt, via --repair)  5/5 · flagged 5     → repairAttempts 3, held for a human
+```
+
+The five that survived three attempts came back romanised every time (temperature 0 is
+deterministic for those items). They were translated by hand — `cmt8d0i4u0009kkc174eclxqi`,
+`cmt8h0vpc0009kkl7pmq7f7ts`, `cmt8h2s7y000fkkrqgcktfae8`, `cmt8hcogi000bkk9wbjq7z4yf`,
+`cmt9wjtex0007kkaaz6f12uz8` — and loaded with `pnpm i18n:import bn .deploy/bn-fixes.json`, through
+the same structural gate ("wrote 5, held 0"). A Bengali-speaking reviewer should read them.
+
+```
+final scan (letters-aware): bn MASTER_ITEM rows without Bengali script   MACHINE 0/21 · APPROVED 0/701
+bn MASTER_ITEM rows servable                                             722 of 722
+bn UI_MESSAGE rows without Bengali script                                1 — "{correct}/{total}", placeholders only, correctly identical
+pnpm i18n:audit bn                                                       checked 1335 · 0 refused
+```
+
+Backups before each deploy: `.deploy/prod-backup-20260912T114234Z.sql.gz` and
+`…T145652Z.sql.gz`, both `gunzip -t` clean. The two "approved Latin" rows a coarse scan lists are
+numeric-only option sets (50/60/40/70 km/h and 1.6/2/3/4 mm) — nothing to translate.
+
+Not verified: reading two repaired questions in `/bn` as a student — no student account is
+available to this session. The rows are servable (`MACHINE`, Bangla publishes machine output) and
+the engine reads them through the master, which spec-20's suite proves.
