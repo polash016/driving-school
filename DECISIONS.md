@@ -573,3 +573,65 @@ fixture (15 units over ~10.4 s): the literal formula reported 53/min where the r
   listed in `specs/notes/spec-21-notes.md`.
 - **Approved by:** not yet — corrections within the approved design, flagged for the developer in
   the notes.
+
+## 2026-09-20 · spec-22 · A brevity contract, and an in-place rewrite of the approved bank
+
+- **A budget, stated in words, in config.** stem ≤ 15, option ≤ 8, sign meaning ≤ 12, explanation
+  ≤ 2 sentences, at A2/B1. It lives in `config/school.config.ts` and not in the DB, because it is
+  editorial house style that must stay in lockstep with prompt text held in git — a DB value could
+  drift from the prompt silently, leaving the gate refusing what the prompt asked for.
+- **Counted with `Intl.Segmenter`, not spaces and not characters.** `split(/\s+/)` scores a 40-word
+  Thai sentence as 1; a character budget punishes Norwegian compounds (`vikepliktsskiltet`) for
+  being correct and short. Measured across eight scripts; only Japanese needed a factor, because
+  ICU segments it into morphemes.
+- **Two thresholds, and brevity is NEVER an error on a human path.** Generation refuses one
+  candidate past target × 1.4 and feeds the code back through `buildRejectionLessons`. The approval
+  gate only warns, because `transitionItem` turns any error into a `ValidationError` with no
+  override in the UI — an error there would make every already-approved long question permanently
+  unapprovable. The reviewer who reads the warning and approves anyway IS the override.
+- **`VERBOSE` is non-blocking and non-repairable.** Blocking would stop German, Tamil or Arabic
+  publishing for being themselves; repairing it would have a model shorten by trimming meaning,
+  which on a legal exam is the worse failure.
+- **An approved item is rewritten IN PLACE, through a keyed database exception.** `replaceItem`
+  retires the original immediately, so running it 722 times would drain the approved pool and
+  orphan every `TaskSetMember`. The freeze is a DB trigger (`tp_approved_item_frozen`) that refuses
+  even the version bump, so the campaign needed a migration, not only a service. The exception is
+  opened by `SET LOCAL teoripro.inplace_rewrite`, which reverts on commit and rollback, and which
+  exactly one file may set. Even when open, the trigger still refuses any change to the answer key,
+  the citations, the topic, the difficulty or the type — so during the campaign the one thing that
+  must never move is guarded by Postgres, not by application code. Verified four ways.
+- **Approved by:** developer (2026-09-20, plan mode).
+
+## 2026-09-21 · spec-22 · No-gap swap instead of parking translations, and what it uncovered
+
+- **The developer chose the no-gap option.** The approved plan parked stale translations to
+  `NEEDS_REVIEW` so a rewritten question read English until re-translation. With bn and es each
+  holding ~2 040 approved translations in production, that window is days of students reading a
+  language they did not choose. Instead the shortened text is translated into every language
+  FIRST, held in a new `SimplificationProposal` table, and master content, variant and all
+  translations are written in ONE transaction. All four non-built-in languages (bn, es, ar, fr)
+  are re-translated; the run is all-or-nothing per item, because swapping with three of four ready
+  would put the fourth language back on English.
+- **A latent serving bug made this necessary, and it outlives the campaign.** `loadOverlay` selects
+  a translation by status alone and never compares `sourceHash`; `loadQuestionOverlay` only checks
+  that the variant's `masterVersion` equals the master's, which an in-place rewrite satisfies
+  because it bumps both; and `mergeQuestion` merges by option key, which a faithful rewrite
+  preserves. So every guard in the serving path passes while the text underneath has changed. It is
+  unreachable today only because approved items are frozen. `nogap.integration.test.ts` proves it
+  directly: with a deliberately stale `sourceHash`, the old translation is still served. **A
+  follow-up spec should compare `sourceHash` in the serving path**, so "stale reads as absent"
+  holds there as it already does in coverage and blockers.
+- **A translation written by the swap is MACHINE, never APPROVED.** The old row's approval was for
+  the old text; carrying it over would forge a human sign-off for words nobody read. bn and es
+  serve MACHINE (`requiresApproval = false`), which is what keeps the swap gap-free and honest.
+- **The distinctness gate compares against a baseline.** Production already has two SERVICE signs,
+  XSE015 and XSE016, with identical names and identical meanings, from the original extraction. A
+  gate blocking on absolute state could never be satisfied, so only collisions the rewrite
+  introduces stop a run; pre-existing faults are reported.
+- **Recognition sign questions are out of scope by default.** Their options are sign NAMES, median
+  3 words, 24 of 1148 over budget — the problem is entirely in the 287 meanings, whose options are
+  median 22 words with 1137 of 1148 over budget. `--include-recognition` opts in at roughly double
+  the translation cost, for text a student only sees after grading.
+- **Production is on Gemini Paid, not the free tier.** Earlier pacing estimates in the plan assumed
+  free-tier per-minute and 1000/day embedding caps and should be re-measured before scheduling.
+- **Approved by:** developer (2026-09-21, the two follow-up questions).

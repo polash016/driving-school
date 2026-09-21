@@ -64,6 +64,14 @@ export const AUDIT = {
   signUpdated: "sign.updated",
   taskSetsBuilt: "taskset.built",
   taskSetsPublished: "taskset.published",
+  /**
+   * spec-22. Distinct from `itemUpserted` ("a draft was edited") and `itemReplaced`
+   * ("retired and superseded"): this is an approved question whose text was shortened in place.
+   * Its `meta` carries `previousContent`, which is the rollback record.
+   */
+  itemSimplified: "item.simplified",
+  itemRewriteRolledBack: "item.rewrite_rolled_back",
+  signSimplified: "sign.simplified",
 } as const;
 
 export type AuditAction = (typeof AUDIT)[keyof typeof AUDIT];

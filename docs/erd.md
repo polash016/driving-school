@@ -144,6 +144,28 @@ erDiagram
   DateTime updatedAt
   DateTime deletedAt "nullable"
 }
+"SimplificationProposal" {
+  String id PK
+  String runId
+  String masterItemId FK "nullable"
+  String signId FK "nullable"
+  Json proposed
+  Json previous
+  Int expectedVersion "nullable"
+  String expectedFingerprint
+  Json translations "nullable"
+  String translatedLocales
+  SimplificationStatus status
+  String findings
+  Json checks "nullable"
+  String modelVersion "nullable"
+  String promptVersion "nullable"
+  String verifierModel "nullable"
+  DateTime appliedAt "nullable"
+  String appliedById "nullable"
+  DateTime createdAt
+  DateTime updatedAt
+}
 "ItemApproval" {
   String id PK
   String masterItemId FK
@@ -593,6 +615,8 @@ erDiagram
 "MasterItem" }o--o| "MasterItem" : replaces
 "MasterItem" }o--o| "User" : createdByUser
 "MasterItem" }o--o| "User" : reviewedBy
+"SimplificationProposal" }o--o| "MasterItem" : masterItem
+"SimplificationProposal" }o--o| "Sign" : sign
 "ItemApproval" }o--|| "MasterItem" : masterItem
 "ItemApproval" }o--|| "User" : approver
 "GenerationBatch" }o--o| "ImageAsset" : sourceImage
@@ -827,6 +851,52 @@ Properties as follows:
 - `createdAt`:
 - `updatedAt`:
 - `deletedAt`:
+
+### `SimplificationProposal`
+
+A proposed shortening of one already-approved question, and its translations, held until the
+whole set is ready to go live in one transaction (spec-22).
+
+This table exists for ONE reason: to make the rewrite invisible to students.
+
+`Translation` is unique on (locale, entity, entityId), so there is nowhere in that table to
+keep "the Bangla for the text this question is ABOUT to have" beside the Bangla for the text it
+has now. Without somewhere to stage it, rewriting the source would leave every non-built-in
+language stale — and `loadOverlay` selects a translation by status alone, never comparing
+`sourceHash`, so the OLD Bangla would be served over the NEW English, merged by option key. For
+a sign question, where an option's text IS another sign's meaning, that can make a wrong option
+defensible.
+
+So: the shortened text and every locale's translation of it are assembled and checked here
+first, and the swap writes master content, variant and all translations together. A student
+never reads a stale pairing, and never falls back to English either.
+
+Properties as follows:
+
+- `id`:
+- `runId`: Groups one CLI invocation, so a batch can be reviewed, applied and rolled back as a unit.
+- `masterItemId`:
+- `signId`: Set instead of `masterItemId` when the proposal shortens a sign's registry meaning.
+- `proposed`: The proposed `{ en, nb }` content, in MasterItem.content shape (or `{ name, meaning }` for a sign).
+- `previous`: A snapshot of the text being replaced — the rollback record, independent of the audit log.
+- `expectedVersion`
+  > Optimistic concurrency: the swap refuses unless the row still matches what was proposed and
+  > reviewed. This is what makes "propose against a prod restore on Monday, apply on Friday" safe.
+- `expectedFingerprint`:
+- `translations`
+  > Per-locale translations of `proposed`, as `{ bn: {stem,options,explanation}, es: {...} }`.
+  > Written by the shadow-translation pass, consumed by the swap.
+- `translatedLocales`: Which locales are translated AND passed their QA gate — the swap requires all of them.
+- `status`:
+- `findings`: Why a proposal was refused, or which check failed: `["STEM_TOO_LONG"]`, `["BLIND_DISAGREED"]`.
+- `checks`: The full verification record, for the notes file and for a disputed item later.
+- `modelVersion`:
+- `promptVersion`:
+- `verifierModel`: Which model sat the question blind, so an accuracy regression is traceable to a model.
+- `appliedAt`:
+- `appliedById`:
+- `createdAt`:
+- `updatedAt`:
 
 ### `ItemApproval`
 

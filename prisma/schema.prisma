@@ -385,7 +385,8 @@ model Sign {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  detections ImageDetection[]
+  detections      ImageDetection[]
+  simplifications SimplificationProposal[]
 
   // Sign catalog grouped by class (spec-10)
   @@index([signClass])
@@ -473,8 +474,91 @@ model MasterItem {
   @@index([searchText], type: Gin)
   // "what replaced this retired question" (spec-04b)
   @@index([replacesId])
+  simplifications SimplificationProposal[]
+
   // "other phrasings of this same point" — assembly excludes repeats within one attempt
   @@index([conceptGroupId])
+}
+
+/// A proposed shortening of one already-approved question, and its translations, held until the
+/// whole set is ready to go live in one transaction (spec-22).
+///
+/// This table exists for ONE reason: to make the rewrite invisible to students.
+///
+/// `Translation` is unique on (locale, entity, entityId), so there is nowhere in that table to
+/// keep "the Bangla for the text this question is ABOUT to have" beside the Bangla for the text it
+/// has now. Without somewhere to stage it, rewriting the source would leave every non-built-in
+/// language stale — and `loadOverlay` selects a translation by status alone, never comparing
+/// `sourceHash`, so the OLD Bangla would be served over the NEW English, merged by option key. For
+/// a sign question, where an option's text IS another sign's meaning, that can make a wrong option
+/// defensible.
+///
+/// So: the shortened text and every locale's translation of it are assembled and checked here
+/// first, and the swap writes master content, variant and all translations together. A student
+/// never reads a stale pairing, and never falls back to English either.
+model SimplificationProposal {
+  id           String   @id @default(cuid())
+  /// Groups one CLI invocation, so a batch can be reviewed, applied and rolled back as a unit.
+  runId        String
+  masterItemId String?
+  /// Set instead of `masterItemId` when the proposal shortens a sign's registry meaning.
+  signId       String?
+
+  /// The proposed `{ en, nb }` content, in MasterItem.content shape (or `{ name, meaning }` for a sign).
+  proposed     Json
+  /// A snapshot of the text being replaced — the rollback record, independent of the audit log.
+  previous     Json
+  /// Optimistic concurrency: the swap refuses unless the row still matches what was proposed and
+  /// reviewed. This is what makes "propose against a prod restore on Monday, apply on Friday" safe.
+  expectedVersion     Int?
+  expectedFingerprint String
+
+  /// Per-locale translations of `proposed`, as `{ bn: {stem,options,explanation}, es: {...} }`.
+  /// Written by the shadow-translation pass, consumed by the swap.
+  translations Json?
+  /// Which locales are translated AND passed their QA gate — the swap requires all of them.
+  translatedLocales String[]
+
+  status  SimplificationStatus @default(PROPOSED)
+  /// Why a proposal was refused, or which check failed: `["STEM_TOO_LONG"]`, `["BLIND_DISAGREED"]`.
+  findings String[]
+  /// The full verification record, for the notes file and for a disputed item later.
+  checks   Json?
+
+  modelVersion  String?
+  promptVersion String?
+  /// Which model sat the question blind, so an accuracy regression is traceable to a model.
+  verifierModel String?
+
+  appliedAt  DateTime?
+  appliedById String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  masterItem MasterItem? @relation(fields: [masterItemId], references: [id], onDelete: Cascade)
+  sign       Sign?       @relation(fields: [signId], references: [id], onDelete: Cascade)
+
+  /// One live proposal per item per run.
+  @@unique([runId, masterItemId])
+  @@unique([runId, signId])
+  /// The CLI's own listing: everything in this run, worst first.
+  @@index([runId, status])
+  /// "is this item already proposed?" during a resumed run.
+  @@index([masterItemId, status])
+  @@index([signId, status])
+}
+
+enum SimplificationStatus {
+  /// The model answered and the deterministic checks passed; not yet translated.
+  PROPOSED
+  /// Every locale is translated and QA-clean; ready for the atomic swap.
+  READY
+  /// Live. `appliedAt` is set.
+  APPLIED
+  /// A check refused it. The item was left exactly as it was; `findings` says why.
+  REFUSED
+  /// Rolled back after being applied.
+  ROLLED_BACK
 }
 
 /// One reviewer's sign-off on one question (spec-04b). AI-drafted questions need two distinct
