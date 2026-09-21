@@ -1,4 +1,6 @@
 import type { TranslatableEntity } from "@prisma/client";
+import { schoolConfig } from "../../../../config/school.config";
+import { countWords, wordBudget, type BrevityKind } from "@/lib/brevity";
 import {
   isQuestionEntity,
   payloadStrings,
@@ -31,6 +33,9 @@ import {
 export const NOT_A_QUALITY_FLAG: ReadonlySet<string> = new Set([
   "QA_UNAVAILABLE",
   "LENGTH_OUTLIER",
+  // Verbosity is not a statement about correctness, and repair must never chase it: a model told
+  // to "make it shorter" trims meaning, which on a legal exam is the worse failure (spec-22).
+  "VERBOSE",
 ]);
 
 export interface TranslationIssue {
@@ -389,8 +394,53 @@ export function checkTranslation(input: {
     }
   }
 
+  // 8. Brevity, per field, against the TARGET language's own budget (spec-22).
+  //
+  //    Non-blocking by construction. A blocking flag routes the unit to NEEDS_REVIEW, which
+  //    `partitionBlockers` counts as FLAGGED — so a shortness blocker would stop German, Tamil or
+  //    Arabic publishing for the crime of being themselves. It is also in NOT_A_QUALITY_FLAG, so
+  //    auto-repair never spends a model call trying to shorten a faithful translation.
+  // SIGN is included here although `isQuestionEntity` excludes it: a sign's meaning is the option
+  // text of 574 sign questions, so it carries a word budget even though it is not a question.
+  if (isQuestionEntity(input.entity) || input.entity === "SIGN") {
+    const targets = schoolConfig.content.brevity;
+    const optionKind: BrevityKind =
+      input.entity === "SIGN" ? "signMeaning" : "option";
+    const verbose = fieldPairs(source, translated).filter(({ field, to }) => {
+      const kind: BrevityKind = field.startsWith("option")
+        ? optionKind
+        : field === "stem"
+          ? "stem"
+          : field === "explanation"
+            ? "explanation"
+            : "stem";
+      if (!["stem", "explanation"].includes(field) && !field.startsWith("option"))
+        return false;
+      const max = wordBudget({
+        kind,
+        locale: input.locale,
+        targets,
+        mode: "ceiling",
+        translation: true,
+      });
+      return countWords(to, input.locale) > max;
+    });
+    if (verbose.length > 0) {
+      issues.push({
+        code: "VERBOSE",
+        blocking: false,
+        detail: verbose
+          .map(
+            ({ field, to }) => `${field} ${countWords(to, input.locale)} words`,
+          )
+          .join(", "),
+      });
+    }
+  }
+
   return { passed: !issues.some((issue) => issue.blocking), issues };
 }
+
 
 export function blockingCodes(check: TranslationCheck): string[] {
   return check.issues

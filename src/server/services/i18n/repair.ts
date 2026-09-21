@@ -1,5 +1,6 @@
 import type { PrismaClient, TranslatableEntity } from "@prisma/client";
 import { schoolConfig } from "../../../../config/school.config";
+import { brevityBudgetSentence } from "@/lib/brevity";
 import { logger } from "@/lib/logger";
 import { aiJson } from "@/server/ai/client";
 import {
@@ -385,6 +386,11 @@ export async function repairBatch(
           targetScript: targetScript(language.code)?.name ?? null,
           styleNote: language.styleNote ?? "",
           glossaryBlock: glossaryBlock(language.glossary),
+          lengthBudget: brevityBudgetSentence(
+            language.code,
+            schoolConfig.content.brevity,
+            language.englishName,
+          ),
           unitsJson: JSON.stringify(
             pending.map((unit) => {
               const ctx = context.get(unit.entityId)!;

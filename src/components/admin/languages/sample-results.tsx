@@ -37,6 +37,7 @@ const FLAG_KEYS = [
   "QA_UNAVAILABLE",
   "SCRIPT_MISMATCH",
   "ADMIN_FLAGGED",
+  "VERBOSE",
 ] as const;
 
 type FlagKey = (typeof FLAG_KEYS)[number];

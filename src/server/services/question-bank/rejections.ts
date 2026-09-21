@@ -78,6 +78,10 @@ const LESSON_BY_CODE: Record<string, string> = {
   BANNED_OPTION: "it used 'all of the above' or similar",
   MISSING_LOCALE: "one language was missing or incomplete",
   PLACEHOLDER_TEXT: "it still contained placeholder text",
+  STEM_TOO_LONG: "the question ran past the word limit — ask it in fewer, plainer words",
+  OPTION_TOO_LONG: "an answer option ran past the word limit — every option must be short",
+  EXPLANATION_TOO_LONG:
+    "the explanation ran past two short sentences",
   WRONG_ANSWER: "the answer marked correct was wrong",
   AMBIGUOUS_DISTRACTOR: "a wrong option was arguably also correct",
   CITATION_MISMATCH: "the citation did not support the question",

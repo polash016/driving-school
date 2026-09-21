@@ -1,6 +1,7 @@
 import type { PrismaClient, TranslationStatus } from "@prisma/client";
 import { z } from "zod";
 import { schoolConfig } from "../../../../config/school.config";
+import { brevityBudgetSentence } from "@/lib/brevity";
 import { logger } from "@/lib/logger";
 import { aiJson } from "@/server/ai/client";
 import {
@@ -210,6 +211,11 @@ export async function translateBatch(
       styleNote: language.styleNote ? `STYLE: ${language.styleNote}` : "",
       glossaryBlock: glossaryBlock(language.glossary),
       rejectedBlock: rejectedBlock(rejections),
+      lengthBudget: brevityBudgetSentence(
+        language.code,
+        schoolConfig.content.brevity,
+        language.englishName,
+      ),
       unitsJson: JSON.stringify(
         pending.map((unit) => ({
           id: unit.entityId,

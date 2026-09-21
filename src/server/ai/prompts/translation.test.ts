@@ -6,6 +6,7 @@ describe("translation.repair prompt", () => {
     const text = translateRepairPrompt.render({
       targetLanguage: "Spanish",
       targetCode: "es",
+      lengthBudget: "For Spanish that means about 20 words in a question, 11 in an option and 32 in an explanation.",
       targetScript: null,
       styleNote: "",
       glossaryBlock: "",
@@ -39,6 +40,7 @@ describe("the script rule (spec-21)", () => {
     const units = translateUnitsPrompt.render({
       targetLanguage: "Bengali (বাংলা)",
       targetCode: "bn",
+      lengthBudget: "For Spanish that means about 20 words in a question, 11 in an option and 32 in an explanation.",
       targetScript: "Bengali",
       styleNote: "",
       glossaryBlock: "",
@@ -51,6 +53,7 @@ describe("the script rule (spec-21)", () => {
     const repair = translateRepairPrompt.render({
       targetLanguage: "Bengali",
       targetCode: "bn",
+      lengthBudget: "For Spanish that means about 20 words in a question, 11 in an option and 32 in an explanation.",
       targetScript: "Bengali",
       styleNote: "",
       glossaryBlock: "",
@@ -60,10 +63,11 @@ describe("the script rule (spec-21)", () => {
     expect(repair).toMatch(/never romani[sz]e/i);
   });
 
-  it("asks a Latin-script language for its own orthography instead, and both prompts are 1.1.0", () => {
+  it("asks a Latin-script language for its own orthography instead, and both prompts are 1.2.0", () => {
     const units = translateUnitsPrompt.render({
       targetLanguage: "Spanish (Español)",
       targetCode: "es",
+      lengthBudget: "For Spanish that means about 20 words in a question, 11 in an option and 32 in an explanation.",
       targetScript: null,
       styleNote: "",
       glossaryBlock: "",
@@ -72,7 +76,8 @@ describe("the script rule (spec-21)", () => {
     });
     expect(units).toMatch(/own orthography/i);
     expect(units).not.toMatch(/script\./);
-    expect(translateUnitsPrompt.version).toBe("1.1.0");
-    expect(translateRepairPrompt.version).toBe("1.1.0");
+    // 1.2.0 since spec-22 added the length budget (rule 10 / rule 7).
+    expect(translateUnitsPrompt.version).toBe("1.2.0");
+    expect(translateRepairPrompt.version).toBe("1.2.0");
   });
 });

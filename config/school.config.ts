@@ -109,6 +109,37 @@ export const schoolConfigSchema = z
       rateLimitBaseDelayMs: z.number().int().min(1_000).max(60_000),
     }),
     /**
+     * How long a question a student reads may be (spec-22).
+     *
+     * Editorial house style, not an exam rule — which is why it lives here and not in the DB
+     * beside questionCount/timeLimitMin/passMark. It must stay in lockstep with the prompt text
+     * that states the same numbers, and a prompt is a versioned TS module in git; a DB value could
+     * drift from it silently, leaving the gate refusing what the prompt asked for with no commit
+     * to blame.
+     *
+     * Counted in WORDS, per script, by `src/lib/brevity.ts` — never in characters. Norwegian and
+     * German compound (`vikepliktsskiltet`), so a character budget punishes text for being correct
+     * and short.
+     */
+    content: z.object({
+      brevity: z.object({
+        /** Target for the question itself. Warned at this, refused by generation at x CEILING. */
+        stemWords: z.int().min(5).max(40),
+        /** Target per answer option. The tightest budget: four of these share one phone screen. */
+        optionWords: z.int().min(3).max(20),
+        /** "Two short sentences", expressed in the unit the gate can actually verify. */
+        explanationWords: z.int().min(8).max(60),
+        /** Advisory only, and only for en/nb — see `countSentences` in `src/lib/brevity.ts`. */
+        explanationSentences: z.int().min(1).max(4),
+        /**
+         * A sign's meaning IS the option text of 574 sign questions (`seed-sign-questions.ts`),
+         * so it needs its own, larger budget: eight words cannot hold a prohibition sign carrying
+         * a weight, time or vehicle-class condition.
+         */
+        signMeaningWords: z.int().min(5).max(20),
+      }),
+    }),
+    /**
      * Where uploaded question images live (spec-06 amendment D3). The driver is config, not code,
      * so a school can start on a VPS directory and move to object storage without a rewrite.
      *
@@ -191,6 +222,15 @@ export const schoolConfig: SchoolConfig = Object.freeze(
       translationNotifyMinUnits: 20,
       rateLimitRetries: 4,
       rateLimitBaseDelayMs: 5_000,
+    },
+    content: {
+      brevity: {
+        stemWords: 15,
+        optionWords: 8,
+        explanationWords: 24,
+        explanationSentences: 2,
+        signMeaningWords: 12,
+      },
     },
     storage: {
       driver: "local",

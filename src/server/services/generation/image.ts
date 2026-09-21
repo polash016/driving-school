@@ -1,5 +1,9 @@
 import type { PrismaClient, SignClass } from "@prisma/client";
 import { z } from "zod";
+import {
+  candidateSchema,
+  generationResponseSchema as responseSchema,
+} from "./schemas";
 import { AiPipelineError, NotFoundError, ValidationError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { aiJson } from "@/server/ai/client";
@@ -11,7 +15,10 @@ import {
   type ContextSheet,
 } from "@/server/contracts/image-pipeline";
 import { search } from "@/server/services/kb/search";
-import { checkItemQuality } from "@/server/services/question-bank/validation";
+import {
+  brevityBlockers,
+  checkItemQuality,
+} from "@/server/services/question-bank/validation";
 import {
   buildRejectionLessons,
   recordRejection,
@@ -60,33 +67,6 @@ const TOPIC_FOR_CLASS: Record<SignClass, string> = {
 /** A picture with no identified sign is still a traffic situation. */
 const FALLBACK_TOPIC = "right-of-way";
 
-const optionSchema = z.object({
-  key: z.string().min(1).max(2),
-  text: z.string().min(1).max(300),
-});
-const localizedSchema = z.object({
-  stem: z.string().min(10).max(400),
-  options: z.array(optionSchema).min(3).max(4),
-  explanation: z.string().min(10).max(1000),
-});
-const candidateSchema = z.object({
-  en: localizedSchema,
-  nb: localizedSchema,
-  correctOptionKey: z.string().min(1).max(2),
-  difficulty: z.number().int().min(1).max(5),
-  citations: z
-    .array(z.object({ sourceCode: z.string().min(1), ref: z.string().min(1) }))
-    .min(1),
-  testsPoint: z.string().min(3).max(200).optional(),
-});
-const responseSchema = z.union([
-  z.object({ questions: z.array(candidateSchema).min(1).max(10) }),
-  z
-    .array(candidateSchema)
-    .min(1)
-    .max(10)
-    .transform((questions) => ({ questions })),
-]);
 
 export interface ImageGenerationOutcome {
   batchId: string;
@@ -304,6 +284,15 @@ export async function generateImageQuestions(
         quality.errors.map((issue) => issue.code),
         "GATE",
       );
+      continue;
+    }
+
+    // Brevity BEFORE the blind check and the embeddings below: an over-long candidate is going
+    // to be dropped either way, and this ordering means it never costs a vision round-trip
+    // (spec-22).
+    const tooLong = brevityBlockers(content, "IMAGE");
+    if (tooLong.length > 0) {
+      await refuse(candidate, tooLong, "GATE");
       continue;
     }
 

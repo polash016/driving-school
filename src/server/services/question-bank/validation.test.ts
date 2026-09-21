@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkItemQuality, stemFingerprint } from "./validation";
+import { brevityBlockers, checkItemQuality, stemFingerprint } from "./validation";
 
 /**
  * Spec-04b: a wrong or ambiguous question must not reach a student, because a pass here decides
@@ -140,5 +140,138 @@ describe("question quality gate", () => {
       }).content,
     );
     expect(a).toBe(b);
+  });
+});
+
+/**
+ * Brevity (spec-22).
+ *
+ * The single most important assertion in this block is that `passed` stays true. `transitionItem`
+ * turns any error into a ValidationError with no override in the UI, so brevity-as-error would
+ * make every already-approved long question permanently unapprovable.
+ */
+describe("brevity", () => {
+  const words = (n: number) => Array.from({ length: n }, () => "word").join(" ");
+
+  const item = (over: Partial<{ stem: string; option: string; explanation: string }>, type?: "TEXT" | "SIGN") => ({
+    type,
+    content: {
+      en: {
+        stem: over.stem ?? "Who has priority at this junction?",
+        options: [
+          { key: "a", text: over.option ?? "You do" },
+          { key: "b", text: "Traffic from the right" },
+          { key: "c", text: "Traffic from the left" },
+        ],
+        explanation: over.explanation ?? "Give way to the right.",
+      },
+      nb: {
+        stem: "Hvem har forkjørsrett her?",
+        options: [
+          { key: "a", text: "Du" },
+          { key: "b", text: "Trafikk fra høyre" },
+          { key: "c", text: "Trafikk fra venstre" },
+        ],
+        explanation: "Vikeplikt for trafikk fra høyre.",
+      },
+    },
+    correctOptionKey: "b",
+    legalCitations: [{ sourceCode: "trafikkreglene", ref: "§ 7" }],
+  });
+
+  it("says nothing at the boundary", () => {
+    const report = checkItemQuality(item({ stem: `${words(14)}?` }));
+    expect(report.warnings.map((w) => w.code)).not.toContain("STEM_LONG");
+  });
+
+  it("warns one word past the limit — and still PASSES", () => {
+    const report = checkItemQuality(item({ stem: `${words(16)}?` }));
+    const stemLong = report.warnings.find((w) => w.code === "STEM_LONG");
+    expect(stemLong).toBeDefined();
+    expect(stemLong?.locale).toBe("en");
+    expect(stemLong?.values).toMatchObject({ max: 15 });
+    // THE assertion: a reviewer can still approve it.
+    expect(report.passed).toBe(true);
+    expect(report.errors).toHaveLength(0);
+  });
+
+  it("warns on a long option and a long explanation, still passing", () => {
+    const report = checkItemQuality(
+      item({ option: words(12), explanation: words(40) }),
+    );
+    const codes = report.warnings.map((w) => w.code);
+    expect(codes).toContain("OPTION_LONG");
+    expect(codes).toContain("EXPLANATION_LONG");
+    expect(report.passed).toBe(true);
+  });
+
+  it("gives a SIGN option the larger sign budget", () => {
+    const eleven = words(11);
+    expect(
+      checkItemQuality(item({ option: eleven }, "SIGN")).warnings.map((w) => w.code),
+    ).not.toContain("OPTION_LONG");
+    // …but 14 is past even the sign budget of 12.
+    expect(
+      checkItemQuality(item({ option: words(14) }, "SIGN")).warnings.map((w) => w.code),
+    ).toContain("OPTION_LONG");
+  });
+
+  it("does not punish a Norwegian compound for being short and correct", () => {
+    // A character budget would flag this; a word budget does not.
+    const nbItem = item({});
+    (nbItem.content.nb as { stem: string }).stem =
+      "Hva betyr vikepliktsskiltet ved denne vegkrysningen?";
+    const nb = checkItemQuality(nbItem).warnings.filter(
+      (w) => w.locale === "nb" && w.code === "STEM_LONG",
+    );
+    expect(nb).toHaveLength(0);
+  });
+
+  it("flags an explanation of too many sentences, advisory only", () => {
+    const report = checkItemQuality(
+      item({ explanation: "One. Two. Three. Four." }),
+    );
+    expect(report.warnings.map((w) => w.code)).toContain("EXPLANATION_SENTENCES");
+    expect(report.passed).toBe(true);
+  });
+});
+
+describe("brevityBlockers", () => {
+  const words = (n: number) => Array.from({ length: n }, () => "word").join(" ");
+  const content = (stem: string) => ({
+    en: {
+      stem,
+      options: [
+        { key: "a", text: "Yes" },
+        { key: "b", text: "No" },
+        { key: "c", text: "Maybe" },
+      ],
+      explanation: "Because the rule says so.",
+    },
+    nb: {
+      stem: "Kort?",
+      options: [
+        { key: "a", text: "Ja" },
+        { key: "b", text: "Nei" },
+        { key: "c", text: "Kanskje" },
+      ],
+      explanation: "Fordi regelen sier det.",
+    },
+  });
+
+  it("is silent between the target and the ceiling", () => {
+    // 16 words is over the 15 target (a warning) but under the 21 ceiling (not a refusal).
+    expect(brevityBlockers(content(words(16)))).toEqual([]);
+  });
+
+  it("refuses past the ceiling", () => {
+    expect(brevityBlockers(content(words(22)))).toContain("STEM_TOO_LONG");
+  });
+
+  it("returns each code once, however many fields break it", () => {
+    const many = content(words(22));
+    many.en.options = many.en.options.map((o) => ({ ...o, text: words(15) }));
+    const codes = brevityBlockers(many);
+    expect(codes.filter((c) => c === "OPTION_TOO_LONG")).toHaveLength(1);
   });
 });

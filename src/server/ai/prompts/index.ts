@@ -52,7 +52,7 @@ export const theoryGenerationPrompt: PromptTemplate<{
   rejectionLessons: string;
 }> = {
   id: "generation.theory-questions",
-  version: "1.2.0",
+  version: "1.3.0",
   render: ({
     topicName,
     kbExcerpts,
@@ -69,12 +69,20 @@ export const theoryGenerationPrompt: PromptTemplate<{
       "2. Each question cites at least one excerpt by its sourceCode and ref.",
       "3. Exactly one option is defensibly correct; the others must be clearly wrong to someone who knows the rule, never a matter of judgement.",
       "4. 3 or 4 options. Never use 'all of the above', 'none of the above' or similar.",
-      "5. Do not make the correct option noticeably longer than the others — that gives the answer away.",
+      "5. LENGTH IS A HARD LIMIT, not a preference: the stem at most 15 words, each option at most 8 words, the explanation at most 2 sentences. Count the words before you answer. A question over the limit is thrown away even when it is correct. And never make the correct option noticeably longer than the others — that gives the answer away.",
       "6. Write both languages: en (English) and nb (Norwegian Bokmål). Both must test exactly the same thing with the same option order and the same correct key.",
       "7. The explanation states the rule and why the other options are wrong.",
       "8. A learner driver must be able to answer from the rule alone — no trick questions, no obscure edge cases.",
       "9. Every question must test a DIFFERENT point. Do not rewrite one rule several ways, and do not write two questions whose answers are the same fact.",
       "10. Vary the situation: some questions about what a driver must do, some about what a rule means, some about a specific scenario on the road.",
+      "",
+      "SHORT AND EASY — the student is reading on a phone, in a hurry, and often in a second language:",
+      "- Everyday words. Keep a legal term only where the rule turns on that exact word; otherwise say it the way an instructor says it out loud.",
+      "- One idea per sentence. No stacked sub-clauses, no 'in the event that', no chains of conditions.",
+      "- Active voice, second person: 'You must stop', never 'Stopping is required of the driver'.",
+      "- Cut every word that carries no meaning. 'This sign indicates that you must stop' is 'You must stop'. Drop scene-setting the question does not turn on — if the speed limit is irrelevant to the rule, it is padding.",
+      "- Keep all options about the same length. Never pad an option to match another; trim the others instead.",
+      "- Norwegian obeys the same limits. Norwegian grammar is not a licence to run long: if the Bokmål grows past the limit, rewrite it shorter.",
       "",
       difficultyBrief,
       "",
@@ -145,7 +153,7 @@ export const imageQuestionPrompt: PromptTemplate<{
   rejectionLessons: string;
 }> = {
   id: "generation.image-questions",
-  version: "1.0.0",
+  version: "1.1.0",
   render: ({
     situationSummary,
     signList,
@@ -178,7 +186,9 @@ export const imageQuestionPrompt: PromptTemplate<{
       "- be answerable from the scene facts plus the regulation text above, and from nothing else;",
       "- cite at least one of the excerpts above by its sourceCode and ref;",
       "- have exactly one defensible answer and 3 wrong options that are plausible to someone who half-knows the rule — not absurd, not near-synonyms of each other;",
-      "- be complete in BOTH English (en) and Norwegian Bokmål (nb), with the same option keys in the same order and an explanation in each language.",
+      "- be complete in BOTH English (en) and Norwegian Bokmål (nb), with the same option keys in the same order and an explanation in each language;",
+      "- keep to the length limit: stem at most 15 words, each option at most 8 words, explanation at most 2 sentences. A longer question is thrown away even when it is correct;",
+      "- be written in everyday words, active voice and second person ('You must…'), one idea per sentence, with every option about the same length — in BOTH languages, the Norwegian as short as the English.",
       "",
       difficultyBrief,
       avoidStems

@@ -1,5 +1,12 @@
 import type { PrismaClient } from "@prisma/client";
 import { createHash } from "node:crypto";
+import { schoolConfig } from "@/../config/school.config";
+import {
+  countSentences,
+  countWords,
+  wordBudget,
+  type BrevityKind,
+} from "@/lib/brevity";
 
 /**
  * Pre-approval quality gate (spec-04b).
@@ -20,6 +27,8 @@ export interface QualityIssue {
   messageKey: string;
   locale?: "en" | "nb";
   detail?: string;
+  /** ICU arguments for the message, so a warning can say "19 words — the limit is 15". */
+  values?: Record<string, string | number>;
 }
 
 export interface QualityReport {
@@ -44,6 +53,14 @@ interface CheckableItem {
    * so it belongs in the fingerprint.
    */
   sourceImageId?: string | null;
+  /**
+   * What kind of question this is, when the caller knows.
+   *
+   * Only brevity uses it, and only to give a SIGN question the sign budget for its options: those
+   * options are `Sign.meaning` rows copied verbatim by `seed-sign-questions.ts`, and eight words
+   * cannot hold a prohibition sign that carries a weight or time condition.
+   */
+  type?: "TEXT" | "IMAGE" | "SIGN";
 }
 
 type Side = {
@@ -53,6 +70,13 @@ type Side = {
 };
 
 const MIN_OPTIONS = 3;
+/**
+ * A runaway-output rail, not an editorial limit.
+ *
+ * Brevity is enforced in words by the checks below; this stays as a cheap guard against a model
+ * returning a paragraph, and is reported as STEM_RUNAWAY so it is never confused with being
+ * merely over the word budget.
+ */
 const MAX_STEM_LENGTH = 400;
 /** A correct answer this much longer than the average distractor gives itself away. */
 const LENGTH_TELL_RATIO = 1.6;
@@ -90,6 +114,105 @@ export function stemFingerprint(
     .digest("hex");
 }
 
+/**
+ * The brevity budget (spec-22), measured in words by `src/lib/brevity.ts`.
+ *
+ * Two thresholds, deliberately:
+ *
+ *   target  — what the prompt asks for, and what a reviewer is WARNED about here.
+ *   ceiling — target × 1.4, which only the generation loop enforces, by refusing that one
+ *             candidate (see `brevityBlockers`).
+ *
+ * Nothing in this file turns brevity into an error, and that is the whole design. `transitionItem`
+ * converts any error into a `ValidationError` with no override path in the UI, so an error here
+ * would make every already-approved long question permanently unapprovable, and would make "this
+ * rule genuinely needs eighteen words" an unfixable dead end. The reviewer who reads the warning
+ * and approves anyway IS the override.
+ */
+function brevityIssues(
+  content: { en?: Side; nb?: Side } | null,
+  type: CheckableItem["type"],
+  mode: "target" | "ceiling",
+): QualityIssue[] {
+  const targets = schoolConfig.content.brevity;
+  const issues: QualityIssue[] = [];
+  const optionKind: BrevityKind = type === "SIGN" ? "signMeaning" : "option";
+  const suffix = mode === "ceiling" ? "_TOO_LONG" : "_LONG";
+
+  for (const locale of ["en", "nb"] as const) {
+    const side = content?.[locale];
+    if (!side) continue;
+
+    const check = (
+      text: string | undefined,
+      kind: BrevityKind,
+      code: string,
+      messageKey: string,
+      detail?: string,
+    ) => {
+      if (!text?.trim()) return;
+      const max = wordBudget({ kind, locale, targets, mode });
+      const actual = countWords(text, locale);
+      if (actual > max) {
+        issues.push({ code, messageKey, locale, detail, values: { actual, max } });
+      }
+    };
+
+    check(side.stem, "stem", `STEM${suffix}`, "admin.quality.stemLong");
+    for (const option of side.options ?? []) {
+      check(
+        option.text,
+        optionKind,
+        `OPTION${suffix}`,
+        "admin.quality.optionLong",
+        option.text,
+      );
+    }
+    check(
+      side.explanation,
+      "explanation",
+      `EXPLANATION${suffix}`,
+      "admin.quality.explanationLong",
+    );
+
+    // Sentence count is advisory and en/nb only: Thai has no terminator, Japanese inflates, and
+    // a comma splice defeats it everywhere. The enforced explanation measure is words, above.
+    if (mode === "target" && side.explanation?.trim()) {
+      const sentences = countSentences(side.explanation);
+      if (sentences > targets.explanationSentences) {
+        issues.push({
+          code: "EXPLANATION_SENTENCES",
+          messageKey: "admin.quality.explanationSentences",
+          locale,
+          values: { actual: sentences, max: targets.explanationSentences },
+        });
+      }
+    }
+  }
+  return issues;
+}
+
+/**
+ * The codes that justify dropping ONE freshly generated candidate: past the ceiling, not merely
+ * past the target.
+ *
+ * Used by the generation loops and by the spec-22 rewrite campaign, never by the approval path.
+ * Refusing here is cheap and self-correcting — `buildRejectionLessons` feeds the code straight
+ * back into the next prompt — which is why the machine gets the strict threshold and the human
+ * gets the warning.
+ */
+export function brevityBlockers(
+  content: unknown,
+  type?: CheckableItem["type"],
+): string[] {
+  const issues = brevityIssues(
+    content as { en?: Side; nb?: Side } | null,
+    type,
+    "ceiling",
+  );
+  return [...new Set(issues.map((issue) => issue.code))];
+}
+
 export function checkItemQuality(item: CheckableItem): QualityReport {
   const errors: QualityIssue[] = [];
   const warnings: QualityIssue[] = [];
@@ -115,8 +238,8 @@ export function checkItemQuality(item: CheckableItem): QualityReport {
     }
     if (side.stem.length > MAX_STEM_LENGTH) {
       warnings.push({
-        code: "STEM_LONG",
-        messageKey: "admin.quality.stemLong",
+        code: "STEM_RUNAWAY",
+        messageKey: "admin.quality.stemRunaway",
         locale,
       });
     }
@@ -249,6 +372,9 @@ export function checkItemQuality(item: CheckableItem): QualityReport {
       });
     }
   }
+
+  // Brevity last, so a genuinely broken question reports its real fault first.
+  warnings.push(...brevityIssues(content, item.type, "target"));
 
   return { errors, warnings, passed: errors.length === 0 };
 }

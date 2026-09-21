@@ -337,7 +337,8 @@
         "onlyApprovedReplaceable": "Bare et godkjent spørsmål kan erstattes.",
         "selfApproval": "Du kan ikke godkjenne ditt eget spørsmål — det trenger en annen vurderer.",
         "secondApproverNeeded": "Registrert. Et KI-skrevet spørsmål trenger en vurderer til før det tas i bruk.",
-        "imageRequired": "Et bilde- eller skiltspørsmål må ha et bilde."
+        "imageRequired": "Et bilde- eller skiltspørsmål må ha et bilde.",
+        "rewriteStale": "Spørsmålet er endret siden omskrivingen ble foreslått — kjør forslaget på nytt."
       },
       "rows": {
         "imported": "Importert som utkast",
@@ -487,8 +488,12 @@
       "citationIncomplete": "En lovhenvisning mangler kilde eller paragraf.",
       "placeholderLeft": "En uerstattet plassholder står fortsatt i teksten.",
       "duplicateItem": "Det finnes allerede et spørsmål med denne teksten.",
-      "stemLong": "Spørsmålsteksten er uvanlig lang.",
-      "lengthTell": "Det riktige svaret er mye lengre enn de andre — det legger elevene merke til."
+      "lengthTell": "Det riktige svaret er mye lengre enn de andre — det legger elevene merke til.",
+      "stemLong": "Spørsmålet er på {actual} ord — grensen er {max}.",
+      "optionLong": "Et svaralternativ er på {actual} ord — grensen er {max}.",
+      "explanationLong": "Forklaringen er på {actual} ord — grensen er {max}.",
+      "explanationSentences": "Forklaringen er på {actual} setninger — grensen er {max}.",
+      "stemRunaway": "Spørsmålsteksten er uvanlig lang."
     },
     "ai": {
       "title": "KI-leverandører",
@@ -670,7 +675,8 @@
         "MODEL_FLAGGED": "KI-en sa den ikke kunne oversette dette trofast",
         "QA_UNAVAILABLE": "Kvalitetskontrollen kunne ikke kjøres",
         "SCRIPT_MISMATCH": "Ikke skrevet med språkets eget skriftsystem",
-        "ADMIN_FLAGGED": "Merket som ødelagt av en administrator"
+        "ADMIN_FLAGGED": "Merket som ødelagt av en administrator",
+        "VERBOSE": "Lengre enn budsjettet for dette språket"
       },
       "errors": {
         "alreadyExists": "Det språket er allerede lagt til.",

@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  OPTION_TEXT_MAX,
+  STEM_MAX,
+} from "@/server/services/generation/schemas";
 import { bilingualTextSchema, idSchema, localeSchema } from "./common";
 
 /**
@@ -67,15 +71,23 @@ export const factTypeSchema = z.enum(["NUMBER", "STRING", "BOOLEAN"]);
 
 // ── Content building blocks ─────────────────────────────────────────────────
 
-/** One answer option as authored/rendered — key is stable, text is per-locale. */
+/**
+ * One answer option as authored/rendered — key is stable, text is per-locale.
+ *
+ * The max is the same runaway-output rail the AI path uses (`generation/schemas.ts`), imported
+ * rather than restated. Until spec-22 this path had NO maximum at all, so a hand-authored or
+ * imported option could be any length while a generated one was capped at 300 — the kind of
+ * divergence that is invisible until someone pastes an essay into the editor. It is a rail, not
+ * the brevity budget: an 18-word option passes here and is warned about by the quality gate.
+ */
 export const optionContentSchema = z.object({
   key: z.string().min(1).max(8),
-  text: z.string().min(1),
+  text: z.string().min(1).max(OPTION_TEXT_MAX),
 });
 
 /** Per-locale question rendering. */
 export const localizedQuestionSchema = z.object({
-  stem: z.string().min(1),
+  stem: z.string().min(1).max(STEM_MAX),
   options: z.array(optionContentSchema).min(2).max(6),
 });
 

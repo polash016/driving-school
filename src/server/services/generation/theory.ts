@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import { z } from "zod";
+import { generationResponseSchema } from "./schemas";
 import { AiPipelineError, NotFoundError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { aiJson } from "@/server/ai/client";
@@ -8,7 +8,7 @@ import { AUDIT, auditLog } from "@/server/audit";
 import type { SessionUser } from "@/server/authz";
 import { pickBilingualText } from "@/lib/i18n-content";
 import { search } from "@/server/services/kb/search";
-import { checkItemQuality } from "@/server/services/question-bank/validation";
+import { brevityBlockers, checkItemQuality } from "@/server/services/question-bank/validation";
 import {
   buildRejectionLessons,
   recordRejection,
@@ -34,42 +34,6 @@ import {
 
 const MIN_EXCERPTS = 3;
 
-const optionSchema = z.object({
-  key: z.string().min(1).max(2),
-  text: z.string().min(1).max(300),
-});
-
-const localizedSchema = z.object({
-  stem: z.string().min(10).max(400),
-  options: z.array(optionSchema).min(3).max(4),
-  explanation: z.string().min(10).max(1000),
-});
-
-/** The model must answer in exactly this shape; anything else fails at the gateway. */
-const candidateSchema = z.object({
-  en: localizedSchema,
-  nb: localizedSchema,
-  correctOptionKey: z.string().min(1).max(2),
-  difficulty: z.number().int().min(1).max(5),
-  citations: z
-    .array(z.object({ sourceCode: z.string().min(1), ref: z.string().min(1) }))
-    .min(1),
-  /** What this question actually tests — makes the model commit to one point per question. */
-  testsPoint: z.string().min(3).max(200).optional(),
-});
-
-/**
- * Models vary on whether they wrap a list: some answer `{questions: [...]}`, some a bare array.
- * Both are accepted and normalised — rejecting a good batch over its envelope would be silly.
- */
-const generationResponseSchema = z.union([
-  z.object({ questions: z.array(candidateSchema).min(1).max(10) }),
-  z
-    .array(candidateSchema)
-    .min(1)
-    .max(10)
-    .transform((questions) => ({ questions })),
-]);
 
 export interface GenerationOutcome {
   batchId: string;
@@ -246,6 +210,16 @@ export async function generateTheoryQuestions(
         quality.errors.map((issue) => issue.code),
         "GATE",
       );
+      continue;
+    }
+
+    // Past the brevity CEILING (target x 1.4), this one candidate is dropped and the reason is
+    // filed as a lesson for the next run (spec-22). The other candidates in the batch are
+    // unaffected — which is why brevity is enforced here and not as a Zod cap, where one long
+    // option would take the whole batch down with it.
+    const tooLong = brevityBlockers(content, "TEXT");
+    if (tooLong.length > 0) {
+      await refuse(candidate, tooLong, "GATE");
       continue;
     }
 

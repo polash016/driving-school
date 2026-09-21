@@ -337,7 +337,8 @@
         "onlyApprovedReplaceable": "Only an approved question can be replaced.",
         "selfApproval": "You cannot approve your own question — it needs another reviewer.",
         "secondApproverNeeded": "Recorded. An AI-written question needs a second reviewer before it goes live.",
-        "imageRequired": "An image or sign question must have a picture."
+        "imageRequired": "An image or sign question must have a picture.",
+        "rewriteStale": "This question changed since the rewrite was proposed — re-run the proposal."
       },
       "rows": {
         "imported": "Imported as draft",
@@ -487,8 +488,12 @@
       "citationIncomplete": "A legal reference is missing its source or section.",
       "placeholderLeft": "An unfilled placeholder is still in the text.",
       "duplicateItem": "A question with this text already exists.",
-      "stemLong": "The question text is unusually long.",
-      "lengthTell": "The correct answer is much longer than the others — students notice that."
+      "lengthTell": "The correct answer is much longer than the others — students notice that.",
+      "stemLong": "The question is {actual} words long — the limit is {max}.",
+      "optionLong": "An answer option is {actual} words long — the limit is {max}.",
+      "explanationLong": "The explanation is {actual} words long — the limit is {max}.",
+      "explanationSentences": "The explanation is {actual} sentences — the limit is {max}.",
+      "stemRunaway": "The question text is unusually long."
     },
     "ai": {
       "title": "AI providers",
@@ -670,7 +675,8 @@
         "MODEL_FLAGGED": "The AI said it could not translate this faithfully",
         "QA_UNAVAILABLE": "The quality check could not run",
         "SCRIPT_MISMATCH": "Not written in the language's own script",
-        "ADMIN_FLAGGED": "Marked broken by an admin"
+        "ADMIN_FLAGGED": "Marked broken by an admin",
+        "VERBOSE": "Longer than this language's budget"
       },
       "errors": {
         "alreadyExists": "That language has already been added.",

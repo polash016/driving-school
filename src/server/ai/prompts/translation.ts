@@ -36,9 +36,15 @@ export const translateUnitsPrompt: PromptTemplate<{
   glossaryBlock: string;
   rejectedBlock: string;
   unitsJson: string;
+  /**
+   * The target language's own word budget, rendered by `brevityBudgetSentence` from the same
+   * config the gate reads (spec-22). Passed in rather than written here so that the prompt and
+   * the check can never state different numbers.
+   */
+  lengthBudget: string;
 }> = {
   id: "translation.units",
-  version: "1.1.0",
+  version: "1.2.0",
   render: ({
     targetLanguage,
     targetCode,
@@ -47,6 +53,7 @@ export const translateUnitsPrompt: PromptTemplate<{
     glossaryBlock,
     rejectedBlock,
     unitsJson,
+    lengthBudget,
   }) =>
     [
       `You are translating a Norwegian driving-theory examination into ${targetLanguage} (${targetCode}).`,
@@ -60,8 +67,9 @@ export const translateUnitsPrompt: PromptTemplate<{
       "5. Preserve every {placeholder} and {{slot}} token exactly as written, including its spelling.",
       "6. Do not translate Norwegian institution names (Statens vegvesen). Transliterate where the script differs and put the original in brackets on first use.",
       "7. The option named as correct must remain the ONLY defensible answer, and every other option must stay clearly wrong.",
-      "8. Write for a learner driver: second person, plain, the same reading level as the source. Do not explain more than the source explains.",
+      "8. Write for a learner driver reading on a phone: second person, everyday words, one idea per sentence, active voice. Match the source's reading level or make it simpler — never harder. Do not explain more than the source explains.",
       `9. ${scriptRule(targetScript)}`,
+      `10. NEVER LONGER THAN IT HAS TO BE. The source was written to a strict budget: 15 words for a question, 8 for an option, 2 sentences for an explanation. ${lengthBudget} If ${targetLanguage} genuinely needs more words to say the same thing, take them — but never add an idea, an example, a courtesy or an explanation the source does not have. Being a word over is fine; cutting meaning to hit a number is not.`,
       "",
       'IF YOU CANNOT TRANSLATE FAITHFULLY, SAY SO. If a faithful translation would make two options mean the same thing, or would make a wrong option arguably correct, do NOT paraphrase your way around it — return that item with `"issue"` set to a short explanation and leave its text as best you can. A flagged item goes to a human; a quietly fudged one goes to a student.',
       "",
@@ -119,9 +127,10 @@ export const translateRepairPrompt: PromptTemplate<{
   styleNote: string;
   glossaryBlock: string;
   unitsJson: string;
+  lengthBudget: string;
 }> = {
   id: "translation.repair",
-  version: "1.1.0",
+  version: "1.2.0",
   render: ({
     targetLanguage,
     targetCode,
@@ -129,6 +138,7 @@ export const translateRepairPrompt: PromptTemplate<{
     styleNote,
     glossaryBlock,
     unitsJson,
+    lengthBudget,
   }) =>
     [
       `You are repairing driving-theory translations into ${targetLanguage} (${targetCode}) that automated checks rejected.`,
@@ -141,7 +151,7 @@ export const translateRepairPrompt: PromptTemplate<{
       "4. Preserve {placeholder} and {{slot}} tokens exactly.",
       "5. Institution names stay untranslated.",
       "6. The correct option must remain the only defensible answer.",
-      "7. Write for a learner driver: plain, precise, no jargon.",
+      `7. Write for a learner driver: plain, precise, no jargon, second person — and no longer than it needs to be. ${lengthBudget} Never shorten by dropping meaning: a flagged item is better than a trimmed one.`,
       `8. ${scriptRule(targetScript)}`,
       "IF YOU CANNOT FIX AN ITEM FAITHFULLY, SAY SO in its `issue` field and return the previous translation unchanged for it.",
       styleNote ? `STYLE: ${styleNote}` : "",
