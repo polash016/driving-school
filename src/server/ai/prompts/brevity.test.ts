@@ -3,6 +3,7 @@ import { schoolConfig } from "../../../../config/school.config";
 import { imageQuestionPrompt, theoryGenerationPrompt } from "./index";
 import { signMeaningPrompt } from "./signs";
 import { translateRepairPrompt, translateUnitsPrompt } from "./translation";
+import { simplifyQuestionPrompt } from "./simplify";
 
 const theoryVars = {
   topicName: "Priority rules",
@@ -47,6 +48,7 @@ describe("prompt versions are pinned", () => {
     [signMeaningPrompt, "signs.meaning", "1.1.0"],
     [translateUnitsPrompt, "translation.units", "1.2.0"],
     [translateRepairPrompt, "translation.repair", "1.2.0"],
+    [simplifyQuestionPrompt, "rewrite.simplify-question", "1.1.0"],
   ])("%#: id and version", (prompt, id, version) => {
     expect(prompt.id).toBe(id);
     expect(prompt.version).toBe(version);

@@ -21,7 +21,7 @@ export const simplifyQuestionPrompt: PromptTemplate<{
   maxExplanationSentences: number;
 }> = {
   id: "rewrite.simplify-question",
-  version: "1.0.0",
+  version: "1.1.0",
   render: ({
     questionJson,
     correctOptionKey,
@@ -39,14 +39,15 @@ export const simplifyQuestionPrompt: PromptTemplate<{
       `1. The correct answer stays the option with key "${correctOptionKey}". It must remain the only defensible answer.`,
       "2. Every option key is copied byte for byte, in the same order, in both languages. Never add, remove, merge or reorder options.",
       "3. Each option keeps the MEANING it has now. A wrong option must stay wrong for the same reason it is wrong today. Never make a wrong option closer to correct, and never make it absurd.",
-      "4. Every number, unit, percentage and legal reference stays exactly as it is: 50 km/h stays 50 km/h, 0,2 stays 0,2, § 7 stays § 7. If you cannot keep a number, keep that sentence as it was.",
+      "4. Every number, unit, percentage and legal reference stays exactly as it is: 50 km/h stays 50 km/h, 0,2 stays 0,2, § 7 stays § 7, § 7 nr. 3 stays § 7 nr. 3. If you cannot keep a number, keep that sentence as it was.",
+      "4a. THE LEGAL REFERENCE IS THE MOST COMMONLY DROPPED THING HERE, so read this twice. If the explanation you were given ends with a section reference, yours must end with the SAME one, complete, including any 'nr.' part. It does NOT count towards the two-sentence limit — write your two short sentences and then the reference. Dropping it is the single most common way this task is failed.",
       "5. The point being tested stays the same. Do not shift to an easier rule, a different rule, or a more general one.",
       "6. Nothing is added. No advice, no penalties, no examples, no extra conditions, no 'usually' or 'normally' that the original does not have.",
       "",
       "THE BUDGET:",
       `- stem: at most ${maxStemWords} words, one sentence, one question mark.`,
       `- each option: at most ${maxOptionWords} words.`,
-      `- explanation: at most ${maxExplanationSentences} short sentences — the rule, then briefly why the others are wrong.`,
+      `- explanation: at most ${maxExplanationSentences} short sentences — the rule, then briefly why the others are wrong — followed by the same section reference it has now, which is free and does not count.`,
       "",
       "HOW to shorten:",
       "- Cut words that carry no meaning. 'This sign indicates that you must stop' is 'You must stop'.",
