@@ -131,43 +131,58 @@ export interface ShadowSet {
 }
 
 /**
- * Translate one proposal into EVERY target language.
+ * Translate one proposal into every target language.
  *
- * `ready` is all-or-nothing on purpose. A proposal that swapped with three of four languages ready
- * would put the fourth language's students back on English — a smaller version of exactly the
- * outage this design prevents. Holding the item back costs nothing: it stays correct, just long.
+ * `ready` is decided by the STUDENT-VISIBLE languages only, and that distinction is load-bearing.
+ *
+ * The no-gap guarantee is about what a student reads. A language nobody can open cannot show
+ * anyone a stale pairing or an English fallback, so it has no vote on whether the swap may
+ * proceed. Requiring it anyway is not caution, it is a deadlock: `ar` carries
+ * `requiresApproval = true`, so a freshly machine-translated unit is never servable in it until a
+ * human approves, and an all-or-nothing rule would therefore hold every item in the campaign
+ * forever while changing nothing for any student.
+ *
+ * Unpublished languages are still translated, and their result still travels with the swap when it
+ * is good — they simply do not block it. `bn` and `es` are the ones that must be ready, and both
+ * serve MACHINE, so both can be.
  */
 export async function shadowTranslateAll(
   db: PrismaClient,
-  languages: Array<LanguagePolicy & { requiresApproval: boolean }>,
+  languages: Array<
+    LanguagePolicy & { requiresApproval: boolean; studentVisible: boolean }
+  >,
   input: { itemId: string; proposed: QuestionContent; correctOptionKey: string; label: string },
 ): Promise<ShadowSet> {
   const translations: RewriteTranslation[] = [];
   const failures: ShadowSet["failures"] = [];
+  const blocking: ShadowSet["failures"] = [];
 
-  // Serially, not in parallel: `translationParallelSlots` is 1 because the school's key is on a
-  // free tier that measured 161 rate-limit rejections at three slots. Fanning out per language
-  // here would reintroduce exactly that.
+  // Serially, not in parallel: `translationParallelSlots` is 1 because three slots measured 161
+  // rate-limit rejections in one run. Fanning out per language here would reintroduce exactly that.
   for (const language of languages) {
     const result = await shadowTranslate(db, language, input);
     if (result.translation) {
       translations.push(result.translation);
-    } else {
-      failures.push({
-        locale: language.code,
-        reason: result.reason ?? "unknown",
-        qaFlags: result.qaFlags,
-      });
+      continue;
     }
+    const failure = {
+      locale: language.code,
+      reason: result.reason ?? "unknown",
+      qaFlags: result.qaFlags,
+    };
+    failures.push(failure);
+    if (language.studentVisible) blocking.push(failure);
   }
 
-  return { ready: failures.length === 0, translations, failures };
+  return { ready: blocking.length === 0, translations, failures };
 }
 
 /** The languages a campaign must satisfy: everything a student could be reading. */
 export async function targetLanguages(
   db: PrismaClient,
-): Promise<Array<LanguagePolicy & { requiresApproval: boolean }>> {
+): Promise<
+  Array<LanguagePolicy & { requiresApproval: boolean; studentVisible: boolean }>
+> {
   const rows = await db.language.findMany({
     where: { isBuiltIn: false },
     select: {
@@ -179,6 +194,7 @@ export async function targetLanguages(
       styleNote: true,
       qaSampleRate: true,
       requiresApproval: true,
+      studentVisible: true,
     },
     orderBy: { code: "asc" },
   });
