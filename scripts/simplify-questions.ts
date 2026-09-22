@@ -382,11 +382,30 @@ async function runText(runId: string): Promise<void> {
 
   for (const item of items) {
     const before = item.content as unknown as QuestionContent;
-    const proposal = await proposeSimplification(
-      db,
-      item as unknown as SimplifiableItem,
-      { poolFingerprints: pool },
-    );
+
+    // One item must never abort the campaign. A provider hiccup, a contract-validation failure or a
+    // rate limit is a fact about that call, not about the other 147 questions — and a run that dies
+    // on item 3 of 148 wastes every proposal before it.
+    let proposal;
+    try {
+      proposal = await proposeSimplification(
+        db,
+        item as unknown as SimplifiableItem,
+        { poolFingerprints: pool },
+      );
+    } catch (error) {
+      refused++;
+      const detail =
+        error instanceof Error ? error.message.slice(0, 40) : String(error).slice(0, 40);
+      rows.push([
+        item.id.slice(-6),
+        `${words(before.en.stem)}`,
+        `${worstOption(before)}`,
+        "ERROR",
+        detail,
+      ]);
+      continue;
+    }
 
     if (proposal.verdict === "UNCHANGED") {
       unchanged++;

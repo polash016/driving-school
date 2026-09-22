@@ -19,7 +19,14 @@ import { logger } from "@/lib/logger";
  * one thing it certainly is not is independent confirmation of the key.
  */
 const verdictSchema = z.object({
-  choice: z.coerce.number().int().min(1).optional(),
+  /**
+   * NOT `.min(1)`. A verifier that answers `choice: 0` — observed on Gemini against the production
+   * bank — is giving an unusable answer, which the doc comment above says must be treated as a
+   * dispute. Rejecting it in the schema instead throws `AiPipelineError` for the whole call and
+   * aborts the run. Out-of-range values fall through to the `!chosen` branch below and refuse the
+   * item, which is the documented behaviour.
+   */
+  choice: z.coerce.number().int().optional(),
   quote: z.string().default(""),
   unanswerable: z.boolean().default(false),
   /** Default true: only an explicit "no" refuses, so a model that omits it cannot fail the item. */
