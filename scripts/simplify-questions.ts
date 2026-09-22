@@ -556,14 +556,19 @@ ${"─".repeat(78)}`);
     console.log(`    -   ${before.stem}`);
     console.log(`    +   ${after.stem}`);
 
-    // Words the original stem carried that the rewrite dropped. A dropped qualifier is how a
-    // question silently becomes a broader question, so they are surfaced rather than counted.
-    const stop = new Set(["a","an","the","is","are","you","your","to","of","and","or","in","on","at","it","that","this","what","must","do","if","for","with","from","be","as","not","no"]);
+    // Shortening drops words by definition — 92 of 93 accepted rewrites did, so "words were
+    // dropped" is not a signal. What matters is which KIND of word. A qualifier narrows the case
+    // the question is about ("unmarked", "not regulated", "private", "only"), and losing one turns
+    // a specific question into a general one while every automated gate still passes. Those are
+    // the pairs a human must actually read, so they are the only ones flagged.
+    const QUALIFIERS =
+      /^(not|no|never|only|unless|except|without|marked|unmarked|signed|unsigned|private|public|regulated|unregulated|controlled|uncontrolled|oncoming|approaching|inside|outside|built|residential|motorway|urban|rural|night|dark|wet|icy|dry|first|second|before|after|while|during|blind|narrow|steep|one-way|two-way|priority|yield|emergency|heavy|light|towing|trailer)$/i;
     const beforeWords = new Set(before.stem.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []);
     const afterWords = new Set(after.stem.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []);
-    const dropped = [...beforeWords].filter((w) => !afterWords.has(w) && !stop.has(w) && w.length > 3);
-    if (dropped.length > 0) {
-      console.log(`    !   dropped from stem: ${dropped.join(", ")}`);
+    const droppedAll = [...beforeWords].filter((w) => !afterWords.has(w));
+    const droppedQualifiers = droppedAll.filter((w) => QUALIFIERS.test(w));
+    if (droppedQualifiers.length > 0) {
+      console.log(`    !!  SCOPE: lost qualifier(s) ${droppedQualifiers.join(", ")}`);
       scopeSuspects++;
     }
 
@@ -581,9 +586,9 @@ ${"─".repeat(78)}`);
 
   console.log(`
 ${"═".repeat(78)}`);
-  console.log(`${proposals.length} accepted · ${scopeSuspects} dropped words from the stem — read those closely`);
-  console.log("A dropped qualifier ('not regulated by lights', 'private', 'unmarked') changes what");
-  console.log("the question asks even when the answer stays right. No gate can catch that.");
+  console.log(`${proposals.length} accepted · ${scopeSuspects} lost a QUALIFIER from the stem`);
+  console.log("Those are the ones to read: a lost qualifier ('unmarked', 'not regulated', 'private')");
+  console.log("changes what the question asks even when the answer stays right. No gate sees it.");
 }
 
 async function runReport(runId: string): Promise<void> {
