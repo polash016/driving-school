@@ -1,7 +1,11 @@
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { schoolConfig } from "../../../../config/school.config";
-import { countWords } from "@/lib/brevity";
+import {
+  countWords,
+  wordBudget,
+  type BrevityKind,
+} from "@/lib/brevity";
 import { logger } from "@/lib/logger";
 import { aiJson } from "@/server/ai/client";
 import { simplifyQuestionPrompt } from "@/server/ai/prompts/simplify";
@@ -88,6 +92,41 @@ export interface SimplifiableItem {
   legalCitations: unknown;
   difficulty: number;
   sourceImageId: string | null;
+}
+
+/** True when every field is already inside the TARGET budget (not merely under the ceiling). */
+export function withinTargets(
+  content: QuestionContent,
+  type: SimplifiableItem["type"],
+): boolean {
+  const targets = schoolConfig.content.brevity;
+  const optionKind: BrevityKind = type === "SIGN" ? "signMeaning" : "option";
+  for (const locale of ["en", "nb"] as const) {
+    const side = content[locale];
+    if (!side) continue;
+    if (
+      countWords(side.stem, locale) >
+      wordBudget({ kind: "stem", locale, targets })
+    ) {
+      return false;
+    }
+    for (const option of side.options ?? []) {
+      if (
+        countWords(option.text, locale) >
+        wordBudget({ kind: optionKind, locale, targets })
+      ) {
+        return false;
+      }
+    }
+    if (
+      side.explanation &&
+      countWords(side.explanation, locale) >
+        wordBudget({ kind: "explanation", locale, targets })
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /** Everything a rewrite is forbidden to change, checked without spending a token. */
@@ -307,6 +346,17 @@ export async function proposeSimplification(
 
   if (!item.correctOptionKey) return refuse(["ANSWER_MISSING"]);
 
+  // Already short enough? Then do not touch it.
+  //
+  // Measured on the production bank: 3 of the first 8 text questions were inside budget already
+  // (a 14-word stem with a 3-word worst option, for instance). Sending those to a model buys
+  // nothing a student would notice and costs a call, a version bump, a re-translation in four
+  // languages, and a real chance of introducing drift — one of them came back with a changed
+  // number and had to be refused. The cheapest safe rewrite is the one not attempted.
+  if (brevityBlockers(previous, item.type).length === 0 && withinTargets(previous, item.type)) {
+    return { ...base, verdict: "UNCHANGED", findings: ["ALREADY_SHORT"], proposed: null };
+  }
+
   const legal = await citedText(db, item);
   if (!legal) {
     // A citation pointing at nothing means the blind check has no ground truth to work from.
@@ -429,6 +479,44 @@ export async function proposeSimplification(
       seed: `simplify:${item.id}:${contentFingerprint(proposed)}`,
     });
     if (!blind.verified) {
+      // Before blaming the rewrite, sit the ORIGINAL question the same way.
+      //
+      // "The verifier disagrees with the key" has two very different causes: the shortening moved
+      // the answer, or the question was already arguable and nobody had checked — the theory
+      // generation path never ran a blind check, so ~148 production questions have never had their
+      // key independently reproduced. Only the second call tells them apart, and it is worth its
+      // cost because the two need opposite responses: the first is a rewrite to discard, the second
+      // is a defect in the live bank that a human must look at.
+      //
+      // Run only on disagreement, so a healthy item never pays for it.
+      const baseline = await verifyAnswerBlind({
+        stem: previous.en.stem,
+        options: previous.en.options,
+        correctOptionKey: item.correctOptionKey,
+        situationSummary:
+          item.type === "TEXT"
+            ? "A learner sitting the Norwegian class B theory test. No picture is shown."
+            : "",
+        signNames: [],
+        legalText: legal,
+        seed: `baseline:${item.id}`,
+      }).catch(() => null);
+
+      if (baseline && !baseline.verified) {
+        logger.warn(
+          { itemId: item.id, reason: baseline.reason },
+          "PRE-EXISTING DISPUTE: the approved question fails a blind answer check as it stands",
+        );
+        return {
+          ...refuse(["PREEXISTING_DISPUTE"], {
+            rewriteReason: blind.reason,
+            originalReason: baseline.reason,
+          }),
+          ...meta,
+          verifierModel: blind.verifierModel,
+        };
+      }
+
       return {
         ...refuse(["BLIND_DISAGREED"], { reason: blind.reason }),
         ...meta,
