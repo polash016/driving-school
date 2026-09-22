@@ -236,3 +236,38 @@ describe("restoreTruncatedReferences", () => {
     expect(restored.en.options).toEqual(after.en.options);
   });
 });
+
+describe("restoreTruncatedReferences — the reference dropped entirely", () => {
+  const q = (explanation: string): QuestionContent => ({
+    en: {
+      stem: "Stem?",
+      options: [{ key: "a", text: "A" }, { key: "b", text: "B" }, { key: "c", text: "C" }],
+      explanation,
+    },
+    nb: {
+      stem: "Stem?",
+      options: [{ key: "a", text: "A" }, { key: "b", text: "B" }, { key: "c", text: "C" }],
+      explanation: "Se § 15 nr. 5.",
+    },
+  });
+
+  it("appends the reference when the model cut it out completely", () => {
+    // The dominant remaining refusal: the whole citation is gone, so there is no bare section to
+    // extend and the lost subsection number reads as number drift.
+    const restored = restoreTruncatedReferences(
+      q("Rule applies. See § 15 nr. 5."),
+      q("Rule applies. Others are wrong."),
+    );
+    expect(restored.en.explanation).toBe("Rule applies. Others are wrong. § 15 nr. 5.");
+  });
+
+  it("does not double up the full stop", () => {
+    const restored = restoreTruncatedReferences(q("R. See § 9 nr. 2."), q("Short."));
+    expect(restored.en.explanation).not.toMatch(/\.\s*\.$/);
+  });
+
+  it("still appends nothing when the original had no reference", () => {
+    const restored = restoreTruncatedReferences(q("No reference here."), q("Short."));
+    expect(restored.en.explanation).toBe("Short.");
+  });
+});

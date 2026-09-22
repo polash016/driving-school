@@ -303,6 +303,17 @@ export function restoreTruncatedReferences(
       );
       if (bare.test(side.explanation)) {
         side.explanation = side.explanation.replace(bare, full);
+        continue;
+      }
+      // Dropped altogether, not merely truncated — there is no bare section to extend. Put the
+      // reference back on the end. This is the common case: the model cuts the whole citation when
+      // squeezing the explanation into two sentences, which leaves the subsection number missing
+      // and the item refused for "drift" that is really an omission.
+      if (!/\u00a7\s*\d/.test(side.explanation)) {
+        side.explanation = `${side.explanation.trimEnd().replace(/[.]$/, ".")} ${full}.`.replace(
+          /\.\s*\.$/,
+          ".",
+        );
       }
     }
   }
