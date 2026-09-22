@@ -3,6 +3,7 @@ import {
   checkGotShorter,
   checkNumbersPreserved,
   checkStructuralIdentity,
+  restoreTruncatedReferences,
   type QuestionContent,
 } from "./simplify";
 
@@ -139,5 +140,99 @@ describe("checkGotShorter", () => {
     const result = checkGotShorter(previous, clone(previous));
     expect(result.shorter).toBe(false);
     expect(result.findings).toEqual([]);
+  });
+});
+
+/**
+ * The number and reference cases seen on the real production bank (spec-22 full dry run).
+ * Each string here is a `checks.drift` detail copied from a refused proposal.
+ */
+describe("number drift, as production actually produced it", () => {
+  const q = (stem: string, explanation: string): QuestionContent => ({
+    en: {
+      stem,
+      options: [
+        { key: "a", text: "Yes" },
+        { key: "b", text: "No" },
+        { key: "c", text: "Sometimes" },
+      ],
+      explanation,
+    },
+    nb: {
+      stem: "Kort?",
+      options: [
+        { key: "a", text: "Ja" },
+        { key: "b", text: "Nei" },
+        { key: "c", text: "Av og til" },
+      ],
+      explanation: "Kort forklaring.",
+    },
+  });
+
+  it("REFUSES a changed speed limit — 80 became 50", () => {
+    const before = q("The limit is 80 km/h. May you pass?", "See § 13 nr. 1.");
+    const after = q("Limit 50 km/h. May you pass?", "See § 13 nr. 1.");
+    const result = checkNumbersPreserved(before, after, "a");
+    expect(result.findings).toContain("NUMBER_DRIFT");
+    expect(result.details.join(" ")).toContain("lost [80]");
+  });
+
+  it("ALLOWS a repeated figure being said fewer times", () => {
+    // "40 ... 40 ... 40" -> "40 ... 40" changed no value; the multiset check called this drift and
+    // would have rejected a correct rewrite for the crime of being shorter.
+    const before = q("At 40 km/h and 60 km/h, is 40 the limit?", "Both 40 and 60 apply. See § 4.");
+    const after = q("At 40 and 60 km/h, which applies?", "40 and 60 apply. See § 4.");
+    expect(checkNumbersPreserved(before, after, "a").findings).not.toContain("NUMBER_DRIFT");
+  });
+
+  it("REFUSES an invented number", () => {
+    const before = q("Is there a limit?", "See § 7.");
+    const after = q("Is the limit 90 km/h?", "See § 7.");
+    const result = checkNumbersPreserved(before, after, "a");
+    expect(result.findings).toContain("NUMBER_DRIFT");
+    expect(result.details.join(" ")).toContain("invented [90]");
+  });
+});
+
+describe("restoreTruncatedReferences", () => {
+  const q = (explanation: string): QuestionContent => ({
+    en: {
+      stem: "Stem?",
+      options: [{ key: "a", text: "A" }, { key: "b", text: "B" }, { key: "c", text: "C" }],
+      explanation,
+    },
+    nb: {
+      stem: "Stem?",
+      options: [{ key: "a", text: "A" }, { key: "b", text: "B" }, { key: "c", text: "C" }],
+      explanation: "Se § 15 nr. 5.",
+    },
+  });
+
+  it("puts back the 'nr.' part the model dropped — the dominant production refusal", () => {
+    const restored = restoreTruncatedReferences(q("Rule. See § 15 nr. 5."), q("Rule. See § 15."));
+    expect(restored.en.explanation).toBe("Rule. See § 15 nr. 5.");
+  });
+
+  it("restores a hyphenated subsection too", () => {
+    const restored = restoreTruncatedReferences(q("Rule. See § 13-3."), q("Rule. See § 13."));
+    expect(restored.en.explanation).toBe("Rule. See § 13-3.");
+  });
+
+  it("leaves a complete reference alone", () => {
+    const restored = restoreTruncatedReferences(q("Rule. See § 15 nr. 5."), q("Short. See § 15 nr. 5."));
+    expect(restored.en.explanation).toBe("Short. See § 15 nr. 5.");
+  });
+
+  it("never invents a reference the original did not carry", () => {
+    const restored = restoreTruncatedReferences(q("Rule, no reference at all."), q("Short. See § 9."));
+    expect(restored.en.explanation).toBe("Short. See § 9.");
+  });
+
+  it("does not touch the stem or the options", () => {
+    const before = q("Rule. See § 15 nr. 5.");
+    const after = q("Rule. See § 15.");
+    const restored = restoreTruncatedReferences(before, after);
+    expect(restored.en.stem).toBe(after.en.stem);
+    expect(restored.en.options).toEqual(after.en.options);
   });
 });

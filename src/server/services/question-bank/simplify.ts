@@ -206,6 +206,21 @@ export function checkGotShorter(
  * native-digit normalisation that took a production run to get right — for free, and keeps one
  * implementation of a rule that must never differ between the two paths.
  */
+/** Every number in a payload, as a SET of values. Native digits are normalised to ASCII. */
+function numberSet(payload: QuestionSide | undefined): Set<string> {
+  if (!payload) return new Set();
+  const text = [
+    payload.stem,
+    ...(payload.options ?? []).map((o) => o.text),
+    payload.explanation ?? "",
+  ]
+    .join(" ")
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06f0-\u06f9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/[\u09e6-\u09ef]/g, (d) => String(d.charCodeAt(0) - 0x09e6));
+  return new Set(text.match(/\d+(?:[.,]\d+)?/g) ?? []);
+}
+
 export function checkNumbersPreserved(
   previous: QuestionContent,
   proposed: QuestionContent,
@@ -213,6 +228,7 @@ export function checkNumbersPreserved(
 ): { findings: string[]; details: string[] } {
   const findings: string[] = [];
   const details: string[] = [];
+
   for (const locale of ["en", "nb"] as const) {
     const check = checkTranslation({
       entity: "MASTER_ITEM",
@@ -223,15 +239,74 @@ export function checkNumbersPreserved(
     });
     for (const issue of check.issues) {
       // UNTRANSLATED means "the text is unchanged", which is the point here, not a fault.
-      // VERBOSE and LENGTH_OUTLIER are about length, which is what we are deliberately changing.
+      // VERBOSE and LENGTH_OUTLIER are about length, which is what we deliberately change.
       if (["UNTRANSLATED", "VERBOSE", "LENGTH_OUTLIER"].includes(issue.code)) continue;
+
+      // NUMBER_DRIFT and CITATION_DRIFT are re-judged below with SET semantics rather than the
+      // gate's multiset. The gate is right for a translation, where a repeated figure repeated a
+      // different number of times is a real signal. It is wrong for a shortening, whose whole job
+      // is to stop saying the same thing three times: "40 ... 40 ... 40" becoming "40 ... 40"
+      // changed no value, and refusing it would reject a correct rewrite for being shorter.
+      if (issue.code === "NUMBER_DRIFT" || issue.code === "CITATION_DRIFT") continue;
+
       if (issue.blocking) {
         findings.push(issue.code);
         if (issue.detail) details.push(`${locale}/${issue.code}: ${issue.detail}`);
       }
     }
+
+    // A value that disappeared, or one that appeared out of nowhere. This is what catches
+    // "80 km/h" becoming "50 km/h" — observed on the production bank — while ignoring how many
+    // times a surviving figure is mentioned.
+    const before = numberSet(previous[locale]);
+    const after = numberSet(proposed[locale]);
+    const lost = [...before].filter((n) => !after.has(n));
+    const invented = [...after].filter((n) => !before.has(n));
+    if (lost.length > 0 || invented.length > 0) {
+      findings.push("NUMBER_DRIFT");
+      details.push(
+        `${locale}/NUMBER_DRIFT: lost [${lost.join(", ")}] invented [${invented.join(", ")}]`,
+      );
+    }
   }
   return { findings: [...new Set(findings)], details };
+}
+
+/**
+ * Put back a section reference the rewrite truncated.
+ *
+ * The dominant refusal on the first full run was "§ 15 nr. 1" coming back as "§ 15": the model
+ * carries the section and drops the subsection, even when told twice not to. Restoring it is exact
+ * and safe — the replacement text is copied verbatim from the question's own explanation, so it
+ * cannot introduce a reference that was not already there — and it recovers a correct rewrite that
+ * would otherwise be thrown away over the four characters it forgot.
+ */
+export function restoreTruncatedReferences(
+  previous: QuestionContent,
+  proposed: QuestionContent,
+): QuestionContent {
+  const FULL = /\u00a7\s*\d+(?:\s*nr\.\s*\d+|-\d+)/g;
+  const next = JSON.parse(JSON.stringify(proposed)) as QuestionContent;
+
+  for (const locale of ["en", "nb"] as const) {
+    const source = previous[locale];
+    const side = next[locale];
+    if (!source?.explanation || !side?.explanation) continue;
+
+    for (const full of source.explanation.match(FULL) ?? []) {
+      if (side.explanation.includes(full)) continue;
+      const section = full.match(/\u00a7\s*\d+/)?.[0];
+      if (!section) continue;
+      // Only rewrite a bare section that is not already part of a longer reference.
+      const bare = new RegExp(
+        `${section.replace(/[.*+?^\${}()|[\]\\]/g, "\\$&")}(?!\\s*(?:nr\\.|-)\\s*\\d)`,
+      );
+      if (bare.test(side.explanation)) {
+        side.explanation = side.explanation.replace(bare, full);
+      }
+    }
+  }
+  return next;
 }
 
 /** The legal text behind a question, resolved without spending an embedding call. */
@@ -401,7 +476,10 @@ export async function proposeSimplification(
   const structural = checkStructuralIdentity(previous, proposed, item.correctOptionKey);
   if (structural.length > 0) return { ...refuse(structural), ...meta };
 
-  // 2. Numbers, units and § references.
+  // 2. Numbers, units and § references. A truncated reference is restored first, verbatim from
+  //    the question's own explanation, because losing "nr. 5" is not a reason to discard a rewrite.
+  const restored = restoreTruncatedReferences(previous, proposed);
+  Object.assign(proposed, restored);
   const numbers = checkNumbersPreserved(previous, proposed, item.correctOptionKey);
   if (numbers.findings.length > 0) {
     return {
