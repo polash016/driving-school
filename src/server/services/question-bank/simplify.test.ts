@@ -93,26 +93,26 @@ describe("checkStructuralIdentity", () => {
 
 describe("checkNumbersPreserved", () => {
   it("passes when every number and section survives", () => {
-    expect(checkNumbersPreserved(previous, shortened, "b")).toEqual([]);
+    expect(checkNumbersPreserved(previous, shortened, "b").findings).toEqual([]);
   });
 
   it("refuses a changed speed limit — the silent wrong answer", () => {
     const bad = clone(shortened);
     bad.en.stem = bad.en.stem.replace("50 km/h", "60 km/h");
-    expect(checkNumbersPreserved(previous, bad, "b")).toContain("NUMBER_DRIFT");
+    expect(checkNumbersPreserved(previous, bad, "b").findings).toContain("NUMBER_DRIFT");
   });
 
   it("refuses a dropped legal reference", () => {
     const bad = clone(shortened);
     bad.en.explanation = "Unmarked junctions follow the rule of the right.";
-    expect(checkNumbersPreserved(previous, bad, "b").length).toBeGreaterThan(0);
+    expect(checkNumbersPreserved(previous, bad, "b").findings.length).toBeGreaterThan(0);
   });
 
   it("does not mistake mere shortening for drift", () => {
     const trimmed = clone(shortened);
     trimmed.en.explanation = "Give way to the right. See § 7.";
     trimmed.nb.explanation = "Vikeplikt for hoyre. Se § 7.";
-    expect(checkNumbersPreserved(previous, trimmed, "b")).toEqual([]);
+    expect(checkNumbersPreserved(previous, trimmed, "b").findings).toEqual([]);
   });
 });
 

@@ -414,7 +414,39 @@ async function runText(runId: string): Promise<void> {
     }
     if (proposal.verdict === "REFUSE" || !proposal.proposed) {
       refused++;
-      rows.push([item.id.slice(-6), `${words(before.en.stem)}`, `${worstOption(before)}`, "refused", proposal.findings.join(",")]);
+      // Persist refusals too. A campaign you cannot audit after the fact is a campaign you cannot
+      // trust: without the row there is no way to ask later WHY an item was skipped, and the first
+      // real run produced thirteen identical refusals whose cause was invisible for exactly this
+      // reason.
+      await db.simplificationProposal.upsert({
+        where: { runId_masterItemId: { runId, masterItemId: item.id } },
+        create: {
+          runId,
+          masterItemId: item.id,
+          proposed: {},
+          previous: proposal.previous as never,
+          expectedVersion: proposal.expectedVersion,
+          expectedFingerprint: proposal.expectedFingerprint,
+          status: "REFUSED",
+          findings: proposal.findings,
+          checks: proposal.checks as never,
+          modelVersion: proposal.modelVersion,
+          promptVersion: proposal.promptVersion,
+          verifierModel: proposal.verifierModel,
+        },
+        update: { status: "REFUSED", findings: proposal.findings, checks: proposal.checks as never },
+        select: { id: true },
+      });
+      const drift = (proposal.checks as { drift?: string[] } | undefined)?.drift;
+      rows.push([
+        item.id.slice(-6),
+        `${words(before.en.stem)}`,
+        `${worstOption(before)}`,
+        "refused",
+        drift?.length
+          ? `${proposal.findings.join(",")} · ${drift[0]!.slice(0, 60)}`
+          : proposal.findings.join(","),
+      ]);
       continue;
     }
 

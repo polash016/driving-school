@@ -210,8 +210,9 @@ export function checkNumbersPreserved(
   previous: QuestionContent,
   proposed: QuestionContent,
   correctOptionKey: string,
-): string[] {
+): { findings: string[]; details: string[] } {
   const findings: string[] = [];
+  const details: string[] = [];
   for (const locale of ["en", "nb"] as const) {
     const check = checkTranslation({
       entity: "MASTER_ITEM",
@@ -224,10 +225,13 @@ export function checkNumbersPreserved(
       // UNTRANSLATED means "the text is unchanged", which is the point here, not a fault.
       // VERBOSE and LENGTH_OUTLIER are about length, which is what we are deliberately changing.
       if (["UNTRANSLATED", "VERBOSE", "LENGTH_OUTLIER"].includes(issue.code)) continue;
-      if (issue.blocking) findings.push(issue.code);
+      if (issue.blocking) {
+        findings.push(issue.code);
+        if (issue.detail) details.push(`${locale}/${issue.code}: ${issue.detail}`);
+      }
     }
   }
-  return [...new Set(findings)];
+  return { findings: [...new Set(findings)], details };
 }
 
 /** The legal text behind a question, resolved without spending an embedding call. */
@@ -399,7 +403,12 @@ export async function proposeSimplification(
 
   // 2. Numbers, units and § references.
   const numbers = checkNumbersPreserved(previous, proposed, item.correctOptionKey);
-  if (numbers.length > 0) return { ...refuse(numbers), ...meta };
+  if (numbers.findings.length > 0) {
+    return {
+      ...refuse(numbers.findings, { drift: numbers.details }),
+      ...meta,
+    };
+  }
 
   // 3. The deterministic quality gate, at the CEILING — the rewrite must actually meet the budget.
   const quality = checkItemQuality({
