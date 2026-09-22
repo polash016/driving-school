@@ -285,7 +285,12 @@ export function restoreTruncatedReferences(
   previous: QuestionContent,
   proposed: QuestionContent,
 ): QuestionContent {
-  const FULL = /\u00a7\s*\d+(?:\s*nr\.\s*\d+|-\d+)/g;
+  // The subsection may be written several ways, and the bank uses more than one. Observed on
+  // production: "§ 15 paragraph 1" is the COMMON form, not "§ 15 nr. 1" — an earlier version of
+  // this regex knew only about `nr.` and hyphens, so restoration silently never fired and ~14% of
+  // the bank was refused for a citation the model had merely reworded away.
+  const FULL =
+    /\u00a7\s*\d+(?:\s*(?:nr\.?|paragraph|ledd|punkt|stk\.?)\s*\d+|-\d+)/gi;
   const next = JSON.parse(JSON.stringify(proposed)) as QuestionContent;
 
   for (const locale of ["en", "nb"] as const) {

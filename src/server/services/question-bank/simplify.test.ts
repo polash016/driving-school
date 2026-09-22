@@ -271,3 +271,45 @@ describe("restoreTruncatedReferences — the reference dropped entirely", () => 
     expect(restored.en.explanation).toBe("Short.");
   });
 });
+
+describe("restoreTruncatedReferences — the wording the bank actually uses", () => {
+  const q = (explanation: string): QuestionContent => ({
+    en: {
+      stem: "Stem?",
+      options: [{ key: "a", text: "A" }, { key: "b", text: "B" }, { key: "c", text: "C" }],
+      explanation,
+    },
+    nb: {
+      stem: "Stem?",
+      options: [{ key: "a", text: "A" }, { key: "b", text: "B" }, { key: "c", text: "C" }],
+      explanation: "Se § 15 nr. 5.",
+    },
+  });
+
+  // These source strings are copied from real refused proposals. "paragraph" is the common form in
+  // this bank; an earlier regex matched only "nr." and hyphens and therefore never fired at all.
+  it("handles 'paragraph N', the form production actually writes", () => {
+    const restored = restoreTruncatedReferences(
+      q("According to trafikkreglene § 15 paragraph 1, lights must be on."),
+      q("Lights must always be on."),
+    );
+    expect(restored.en.explanation).toContain("§ 15 paragraph 1");
+  });
+
+  it("truncated 'paragraph N' is extended rather than appended twice", () => {
+    const restored = restoreTruncatedReferences(
+      q("Per § 15 paragraph 5, auxiliary lights are limited."),
+      q("Auxiliary lights are limited. See § 15."),
+    );
+    expect(restored.en.explanation).toBe("Auxiliary lights are limited. See § 15 paragraph 5.");
+    expect(restored.en.explanation.match(/§/g)).toHaveLength(1);
+  });
+
+  it("handles the Norwegian 'ledd'", () => {
+    const restored = restoreTruncatedReferences(
+      q("Etter § 9 ledd 2 gjelder vikeplikt."),
+      q("Vikeplikt gjelder."),
+    );
+    expect(restored.en.explanation).toContain("§ 9 ledd 2");
+  });
+});
