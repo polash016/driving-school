@@ -520,6 +520,72 @@ async function runText(runId: string): Promise<void> {
 
 // ──────────────────────────────────────────────────────── report / undo ──
 
+/**
+ * Every accepted rewrite, before and after, for a human to read.
+ *
+ * The automated gates catch mechanical faults — a moved key, a dropped number, collapsed
+ * distractors, a duplicate. They do NOT catch a shortening that stays legally true while testing
+ * something broader: one observed rewrite dropped "where traffic is not regulated by police or
+ * traffic lights" from a crossing question, which every gate passed because the answer is still
+ * correct in the general case. Only a person reading the pair catches that, which is why this
+ * exists and why it should be read before --apply.
+ */
+async function runDiffs(runId: string): Promise<void> {
+  const proposals = await db.simplificationProposal.findMany({
+    where: { runId, status: "PROPOSED", masterItemId: { not: null } },
+    select: { masterItemId: true, previous: true, proposed: true },
+    orderBy: { createdAt: "asc" },
+  });
+  if (proposals.length === 0) {
+    console.log(`No accepted proposals in run ${runId}.`);
+    return;
+  }
+
+  const side = (v: unknown) => (v as QuestionContent | null)?.en;
+  let scopeSuspects = 0;
+
+  for (const [index, p] of proposals.entries()) {
+    const before = side(p.previous);
+    const after = side(p.proposed);
+    if (!before || !after) continue;
+
+    console.log(`
+${"─".repeat(78)}`);
+    console.log(`${index + 1}/${proposals.length}  ${p.masterItemId?.slice(-8)}`);
+    console.log(`  STEM  ${words(before.stem)}w → ${words(after.stem)}w`);
+    console.log(`    -   ${before.stem}`);
+    console.log(`    +   ${after.stem}`);
+
+    // Words the original stem carried that the rewrite dropped. A dropped qualifier is how a
+    // question silently becomes a broader question, so they are surfaced rather than counted.
+    const stop = new Set(["a","an","the","is","are","you","your","to","of","and","or","in","on","at","it","that","this","what","must","do","if","for","with","from","be","as","not","no"]);
+    const beforeWords = new Set(before.stem.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []);
+    const afterWords = new Set(after.stem.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []);
+    const dropped = [...beforeWords].filter((w) => !afterWords.has(w) && !stop.has(w) && w.length > 3);
+    if (dropped.length > 0) {
+      console.log(`    !   dropped from stem: ${dropped.join(", ")}`);
+      scopeSuspects++;
+    }
+
+    for (const option of after.options) {
+      const was = before.options.find((o) => o.key === option.key);
+      if (!was) continue;
+      if (was.text !== option.text) {
+        console.log(`  OPT ${option.key}  ${words(was.text)}w → ${words(option.text)}w`);
+        console.log(`    -   ${was.text}`);
+        console.log(`    +   ${option.text}`);
+      }
+    }
+    console.log(`  EXPL  ${after.explanation}`);
+  }
+
+  console.log(`
+${"═".repeat(78)}`);
+  console.log(`${proposals.length} accepted · ${scopeSuspects} dropped words from the stem — read those closely`);
+  console.log("A dropped qualifier ('not regulated by lights', 'private', 'unmarked') changes what");
+  console.log("the question asks even when the answer stays right. No gate can catch that.");
+}
+
 async function runReport(runId: string): Promise<void> {
   const proposals = await db.simplificationProposal.findMany({
     where: { runId },
@@ -633,11 +699,13 @@ async function main(): Promise<void> {
       return runText(runId);
     case "report":
       return runReport(runId);
+    case "diffs":
+      return runDiffs(runId);
     case "rollback":
       return runRollback(runId);
     default:
       throw new Error(
-        "Usage: pnpm qb:simplify <signs|text|report|rollback> [--apply] [--limit N] [--run <id>] [--include-recognition] [--yes]",
+        "Usage: pnpm qb:simplify <signs|text|report|diffs|rollback> [--apply] [--limit N] [--run <id>] [--include-recognition] [--yes]",
       );
   }
 }
