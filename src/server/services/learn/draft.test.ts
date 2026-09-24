@@ -109,7 +109,7 @@ describe("draftDocument", () => {
     expect(out.body.en).not.toContain("![x]");
     expect(out.body.en).not.toContain("<b>");
     expect(out.body.en).toContain("law");
-    expect(out.warnings).toEqual(expect.arrayContaining(["stripped.images", "stripped.links", "stripped.html", "stripped.code"]));
+    expect(out.warnings).toEqual(expect.arrayContaining(["strippedImages", "strippedLinks", "strippedHtml", "strippedCode"]));
   });
 });
 

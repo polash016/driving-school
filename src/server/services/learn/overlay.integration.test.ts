@@ -21,9 +21,15 @@ const body = { en: "## One\n\nFirst rule.\n\n## Two\n\nSecond rule.\n", nb: "## 
 
 d("learn overlay", () => {
   beforeAll(async () => {
-    await db.$executeRawUnsafe(`TRUNCATE "LearnReadingProgress","LearnCitation","LearnDocument","LearnBook","Translation","Topic","User" CASCADE`);
+    await db.learnReadingProgress.deleteMany({});
+    await db.learnCitation.deleteMany({});
+    await db.learnDocument.deleteMany({});
+    await db.learnBook.deleteMany({});
+    await db.translation.deleteMany({ where: { locale: LOCALE } });
     await db.language.deleteMany({ where: { code: LOCALE } });
+    await db.user.deleteMany({ where: { id: actor } });
     await db.user.create({ data: { id: actor, email: "learn-admin-3@test.local", role: "ADMIN" } });
+    await db.topic.deleteMany({ where: { slug: "lo" } });
     topicId = (await db.topic.create({ data: { slug: "lo", name: { en: "Topic", nb: "Emne" } } })).id;
     await db.language.create({
       data: { code: LOCALE, englishName: "Test", nativeName: "Test", shortLabel: "ZZ", urlPrefix: `/${LOCALE}`, direction: "LTR", requiresApproval: false, studentVisible: true, sortOrder: 99 },
@@ -33,6 +39,12 @@ d("learn overlay", () => {
   afterAll(async () => {
     await db.translation.deleteMany({ where: { locale: LOCALE } });
     await db.language.deleteMany({ where: { code: LOCALE } });
+    await db.learnReadingProgress.deleteMany({});
+    await db.learnCitation.deleteMany({});
+    await db.learnDocument.deleteMany({});
+    await db.learnBook.deleteMany({});
+    await db.topic.deleteMany({ where: { id: topicId } });
+    await db.user.deleteMany({ where: { id: actor } });
     await db.$disconnect();
   });
 

@@ -1067,11 +1067,11 @@
           "length": "Shorter or longer than asked",
           "modelIssue": "The AI said the material was thin",
           "uncitedReference": "A § in the text is not in the sources list",
-          "stripped.images": "Images were removed",
-          "stripped.links": "Links were removed",
-          "stripped.html": "HTML was removed",
-          "stripped.code": "Code was removed",
-          "stripped.h1": "A top heading was removed"
+          "strippedImages": "Images were removed",
+          "strippedLinks": "Links were removed",
+          "strippedHtml": "HTML was removed",
+          "strippedCode": "Code was removed",
+          "strippedH1": "A top heading was removed"
         }
       }
     }

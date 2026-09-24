@@ -1067,11 +1067,11 @@
           "length": "Kortere eller lengre enn ønsket",
           "modelIssue": "KI-en sa at materialet var tynt",
           "uncitedReference": "En § i teksten står ikke i kildelisten",
-          "stripped.images": "Bilder ble fjernet",
-          "stripped.links": "Lenker ble fjernet",
-          "stripped.html": "HTML ble fjernet",
-          "stripped.code": "Kode ble fjernet",
-          "stripped.h1": "En toppoverskrift ble fjernet"
+          "strippedImages": "Bilder ble fjernet",
+          "strippedLinks": "Lenker ble fjernet",
+          "strippedHtml": "HTML ble fjernet",
+          "strippedCode": "Kode ble fjernet",
+          "strippedH1": "En toppoverskrift ble fjernet"
         }
       }
     }

@@ -28,17 +28,28 @@ async function doc(slug: string, kind: "ARTICLE" | "CHAPTER", bookId: string | n
 
 d("student learn services", () => {
   beforeAll(async () => {
-    await db.$executeRawUnsafe(`TRUNCATE "LearnReadingProgress","LearnCitation","LearnDocument","LearnBook","Topic","User" CASCADE`);
+    await db.learnReadingProgress.deleteMany({});
+    await db.learnCitation.deleteMany({});
+    await db.learnDocument.deleteMany({});
+    await db.learnBook.deleteMany({});
+    await db.user.deleteMany({ where: { id: { in: [actor, student] } } });
     await db.user.createMany({
       data: [
         { id: actor, email: "learn-admin-2@test.local", role: "ADMIN" },
         { id: student, email: "learn-student@test.local", role: "STUDENT" },
       ],
     });
+    await db.topic.deleteMany({ where: { slug: "lt" } });
     topicId = (await db.topic.create({ data: { slug: "lt", name: { en: "Topic", nb: "Emne" } } })).id;
     service = createLearnService(db);
   });
   afterAll(async () => {
+    await db.learnReadingProgress.deleteMany({});
+    await db.learnCitation.deleteMany({});
+    await db.learnDocument.deleteMany({});
+    await db.learnBook.deleteMany({});
+    await db.topic.deleteMany({ where: { id: topicId } });
+    await db.user.deleteMany({ where: { id: { in: [actor, student] } } });
     await db.$disconnect();
   });
 
@@ -56,7 +67,7 @@ d("student learn services", () => {
     expect(hub.books.map((b) => b.slug)).toEqual(["pub-book"]);
     expect(hub.books[0]!.chapterCount).toBe(1);
     expect(hub.articles.items.map((a) => a.slug)).toEqual(["art-pub"]);
-    expect(hub.topics).toEqual([{ id: topicId, name: "Topic", count: 1 }]);
+    expect(hub.topics).toContainEqual({ id: topicId, name: "Topic", count: 1 });
 
     const book = await service.bookPage("en", student, "pub-book");
     expect(book.chapters.map((c) => c.slug)).toEqual(["pub-ch-1"]);

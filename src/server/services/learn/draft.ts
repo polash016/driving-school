@@ -224,7 +224,7 @@ export async function draftDocument(
   }
 
   const warnings: string[] = [];
-  for (const removed of new Set([...en.removed, ...nb.removed])) warnings.push(`stripped.${removed}`);
+  for (const removed of new Set([...en.removed, ...nb.removed])) warnings.push(`stripped${removed[0]!.toUpperCase()}${removed.slice(1)}`);
   if (response.data.issue) warnings.push("modelIssue");
 
   const citations = response.data.citations.map(({ sourceCode, ref }) => ({ sourceCode, ref }));

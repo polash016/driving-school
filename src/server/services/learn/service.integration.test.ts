@@ -28,22 +28,40 @@ const doc = (slug: string, kind: "ARTICLE" | "CHAPTER", bookId: string | null, e
 });
 
 d("learn services", () => {
+  // Own rows only — the test database's seeded topics and questions are what other files read.
+  let sourceId = "";
   beforeAll(async () => {
-    await db.$executeRawUnsafe(`
-      TRUNCATE "LearnReadingProgress","LearnCitation","LearnDocument","LearnBook",
-        "KbChunk","KbSource","Topic","User" CASCADE
-    `);
+    await db.learnReadingProgress.deleteMany({});
+    await db.learnCitation.deleteMany({});
+    await db.learnDocument.deleteMany({});
+    await db.learnBook.deleteMany({});
+    await db.user.deleteMany({ where: { id: actor } });
     await db.user.create({ data: { id: actor, email: "learn-admin@test.local", role: "ADMIN" } });
+    await db.topic.deleteMany({ where: { slug: "learn-topic" } });
     const topic = await db.topic.create({ data: { slug: "learn-topic", name: { en: "Right of way", nb: "Vikeplikt" } } });
     topicId = topic.id;
-    const source = await db.kbSource.create({ data: { code: "trafikkreglene", kind: "REGULATION", name: "Trafikkreglene" } });
+    const source = await db.kbSource.upsert({
+      where: { code: "trafikkreglene" },
+      create: { code: "trafikkreglene", kind: "REGULATION", name: "Trafikkreglene" },
+      update: {},
+      select: { id: true },
+    });
+    sourceId = source.id;
+    await db.kbChunk.deleteMany({ where: { sourceId, ref: "§ 7", text: "Section seven." } });
     const chunk = await db.kbChunk.create({
-      data: { sourceId: source.id, ref: "§ 7", text: "Section seven.", isActive: true },
+      data: { sourceId, ref: "§ 7", text: "Section seven.", isActive: true },
     });
     chunkId = chunk.id;
     service = createLearnService(db);
   });
   afterAll(async () => {
+    await db.learnReadingProgress.deleteMany({});
+    await db.learnCitation.deleteMany({});
+    await db.learnDocument.deleteMany({});
+    await db.learnBook.deleteMany({});
+    await db.kbChunk.deleteMany({ where: { id: chunkId } });
+    await db.topic.deleteMany({ where: { id: topicId } });
+    await db.user.deleteMany({ where: { id: actor } });
     await db.$disconnect();
   });
 
