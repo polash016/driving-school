@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@prisma/client";
-import { draftDocument, stripForbidden, structureMismatch, type DraftDeps } from "./draft";
+import { draftDocument, generateWithOneRetry, stripForbidden, structureMismatch, type DraftDeps } from "./draft";
 
 const actor = { id: "admin", role: "ADMIN" as const, email: "a@test.local" };
 const topic = { id: "t1", slug: "right-of-way", name: { en: "Right of way", nb: "Vikeplikt" } };
@@ -121,5 +121,20 @@ describe("helpers", () => {
   });
   it("stripForbidden removes an H1 and collapses blank runs", () => {
     expect(stripForbidden("# Title\n\n\n\n## A\n\ntext").markdown).toBe("## A\n\ntext\n");
+  });
+});
+
+describe("generateWithOneRetry", () => {
+  const vars = { topicNameEn: "x", topicNameNb: "y", kindLabel: "an article", siblingTitles: "", brief: "", targetWords: 500, kbExcerpts: "", feedback: "" };
+  const malformed = Object.assign(new Error("errors.internal"), { meta: { reason: "response failed contract validation" } });
+  it("retries once, colder, when the model's JSON did not parse", async () => {
+    const call = vi.fn<(t: number) => ReturnType<DraftDeps["generate"]>>().mockRejectedValueOnce(malformed).mockResolvedValueOnce(response());
+    await expect(generateWithOneRetry(vars, call)).resolves.toMatchObject({ modelVersion: "m1" });
+    expect(call.mock.calls.map((c) => c[0])).toEqual([0.4, 0.2]);
+  });
+  it("does not retry any other failure", async () => {
+    const call = vi.fn<(t: number) => ReturnType<DraftDeps["generate"]>>().mockRejectedValue(new Error("quota"));
+    await expect(generateWithOneRetry(vars, call)).rejects.toThrow("quota");
+    expect(call).toHaveBeenCalledTimes(1);
   });
 });

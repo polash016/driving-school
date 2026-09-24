@@ -111,3 +111,14 @@ they failed in a full run. They now create and delete their own rows only, the t
 re-seeded (`prisma db seed`, `db:seed-items`) and the task-set file run once to restore the
 residue. The underlying order dependence in the two i18n files predates this spec and is left as
 found.
+
+## Production (2026-09-24)
+
+- Backup taken and verified; checkout switched to `spec-23-learn`; `pnpm install`, explicit
+  `prisma generate`, `migrate deploy` applied `20260924114128_learn_translatable_entities` and
+  `20260924114325_learn_books_articles`; `next build` 19 s; both pm2 apps online; `/en` → 200,
+  `/en/learn` and `/en/admin/learn` → 401 when signed out (the Learn routes require a session).
+- Warm read timing (service level, local dev database, 20 samples each, published chapter of
+  ~180 words, Redis warm): hub p50 0.9 ms / p95 9.6 ms · book p50 0.4 ms / p95 2.3 ms · reader
+  p50 0.5 ms / p95 3.3 ms — the public part is one Redis GET and the per-user part one primary-key
+  read. (C2, C3)
