@@ -14,6 +14,9 @@ import { db } from "@/server/db";
 import { toActionError } from "@/server/http/action-result";
 import { uploadImage } from "@/server/services/images/upload";
 import { learnService } from "@/server/services/learn";
+import { draftDocument } from "@/server/services/learn/draft";
+import { rateLimit } from "@/server/rate-limit";
+import type { DraftResult } from "@/server/contracts/learn";
 import { storage } from "@/server/storage";
 import { schoolConfig } from "../../../../../../config/school.config";
 
@@ -178,6 +181,36 @@ export async function uploadLearnImageAction(
     );
     revalidatePath("/admin/images");
     return { ok: true, data: { id: result.id, url: result.url, duplicateOfId: result.duplicateOfId ?? null } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+/**
+ * Draft a chapter or article with the AI (spec-23 C8). Synchronous, like the two existing
+ * generation actions: the result is an editable proposal, nothing is stored until the admin saves.
+ */
+export async function draftDocumentAction(
+  _prev: ActionResult<DraftResult> | undefined,
+  formData: FormData,
+): Promise<ActionResult<DraftResult>> {
+  const user = await requireUser("INSTRUCTOR");
+  try {
+    await rateLimit("learnDraft", user.id);
+    const result = await draftDocument(db, user, parsePayload(formData));
+    await auditLog({
+      actorId: user.id,
+      action: AUDIT.learnDocumentDrafted,
+      entityType: "LearnDocument",
+      meta: {
+        excerpts: result.excerptCount,
+        modelVersion: result.modelVersion,
+        promptVersion: result.promptVersion,
+        warnings: result.warnings,
+        unresolved: result.unresolvedCitations.length,
+      },
+    });
+    return { ok: true, data: result };
   } catch (error) {
     return toActionError(error);
   }

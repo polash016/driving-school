@@ -276,6 +276,15 @@
     border-bottom: 0;
   }
 
+  @keyframes learn-indeterminate {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(300%);
+    }
+  }
+
   /* WCAG: always-visible focus for keyboard users */
   :focus-visible {
     outline: 2px solid var(--focus-ring);

@@ -1029,7 +1029,43 @@
         "topicMissing": "Choose a topic that exists.",
         "licenseClassMissing": "Choose a licence class that exists.",
         "reorderMismatch": "The order must list every chapter exactly once. Reload and try again.",
-        "kindFixed": "A chapter cannot become an article, or change book. Create a new one instead."
+        "kindFixed": "A chapter cannot become an article, or change book. Create a new one instead.",
+        "aiNoMaterial": "The knowledge base has too little material on this topic to write from. Ingest the relevant regulation first.",
+        "aiNoCitations": "The draft cited nothing the knowledge base can back. Try a narrower section.",
+        "aiStructure": "The AI could not produce the same structure in both languages. Try again or narrow the brief."
+      },
+      "ai": {
+        "button": "Draft with AI",
+        "title": "Draft with AI",
+        "intro": "The AI writes a first version from the school's ingested law text, in both languages, with sources. You read and edit before anything is published.",
+        "topic": "Topic",
+        "sources": "Limit to sources",
+        "sourcesAny": "Any source",
+        "sectionRef": "Section (optional)",
+        "sectionRefHint": "For example § 7 — the draft is grounded in that section.",
+        "brief": "What to focus on (optional)",
+        "briefHint": "One or two sentences: the angle, what to leave out, the reader.",
+        "length": "Length",
+        "lengthWords": "{words} words",
+        "draft": "Write the draft",
+        "drafting": "Writing…",
+        "draftingHint": "Usually 20–40 seconds. Keep this open.",
+        "use": "Use draft",
+        "useConfirm": "Replace the current title, summary, text and sources with the draft?",
+        "discard": "Discard",
+        "ready": "Draft ready",
+        "excerpts": "Grounded in {count} excerpts",
+        "unresolved": "{count, plural, =1 {1 source could not be matched} other {# sources could not be matched}} to the knowledge base and was left out",
+        "warnings": {
+          "length": "Shorter or longer than asked",
+          "modelIssue": "The AI said the material was thin",
+          "uncitedReference": "A § in the text is not in the sources list",
+          "stripped.images": "Images were removed",
+          "stripped.links": "Links were removed",
+          "stripped.html": "HTML was removed",
+          "stripped.code": "Code was removed",
+          "stripped.h1": "A top heading was removed"
+        }
       }
     }
   },

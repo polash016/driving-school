@@ -34,6 +34,7 @@ export default async function NewDocumentPage({
         document={null}
         defaults={{ kind, bookId: book?.id ?? null, bookTitle: book ? pickBilingualText(book.title, locale) : null }}
         readingWpm={schoolConfig.learn.readingWpm}
+        draftDefaultWords={schoolConfig.learn.draftDefaultWords}
         {...data}
       />
     </div>

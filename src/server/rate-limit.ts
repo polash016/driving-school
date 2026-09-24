@@ -24,6 +24,8 @@ export const RATE_LIMITS = {
   passwordResetEmail: { limit: 3, windowSec: 3600 },
   tokenConsumeIp: { limit: 10, windowSec: 60 },
   totpUser: { limit: 5, windowSec: 60 },
+  /** AI chapter drafts per user (spec-23): each is a long, paid model call. */
+  learnDraft: { limit: 12, windowSec: 3600 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitRoute = keyof typeof RATE_LIMITS;

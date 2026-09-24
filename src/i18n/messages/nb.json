@@ -1029,7 +1029,43 @@
         "topicMissing": "Velg et emne som finnes.",
         "licenseClassMissing": "Velg en førerkortklasse som finnes.",
         "reorderMismatch": "Rekkefølgen må nevne hvert kapittel nøyaktig én gang. Last inn på nytt og prøv igjen.",
-        "kindFixed": "Et kapittel kan ikke bli en artikkel eller bytte bok. Opprett et nytt i stedet."
+        "kindFixed": "Et kapittel kan ikke bli en artikkel eller bytte bok. Opprett et nytt i stedet.",
+        "aiNoMaterial": "Kunnskapsbasen har for lite stoff om dette emnet. Les inn den aktuelle forskriften først.",
+        "aiNoCitations": "Utkastet siterte ingenting kunnskapsbasen kan bekrefte. Prøv en smalere paragraf.",
+        "aiStructure": "KI-en klarte ikke å lage samme struktur på begge språk. Prøv igjen eller avgrens bestillingen."
+      },
+      "ai": {
+        "button": "Skriv utkast med KI",
+        "title": "Skriv utkast med KI",
+        "intro": "KI-en skriver en første versjon fra skolens innleste lovtekst, på begge språk, med kilder. Du leser og redigerer før noe publiseres.",
+        "topic": "Emne",
+        "sources": "Begrens til kilder",
+        "sourcesAny": "Alle kilder",
+        "sectionRef": "Paragraf (valgfritt)",
+        "sectionRefHint": "For eksempel § 7 — utkastet bygger på den paragrafen.",
+        "brief": "Hva som skal vektlegges (valgfritt)",
+        "briefHint": "Én eller to setninger: vinkling, hva som skal utelates, leseren.",
+        "length": "Lengde",
+        "lengthWords": "{words} ord",
+        "draft": "Skriv utkastet",
+        "drafting": "Skriver …",
+        "draftingHint": "Tar vanligvis 20–40 sekunder. La vinduet stå åpent.",
+        "use": "Bruk utkastet",
+        "useConfirm": "Erstatte nåværende tittel, sammendrag, tekst og kilder med utkastet?",
+        "discard": "Forkast",
+        "ready": "Utkastet er klart",
+        "excerpts": "Bygger på {count} utdrag",
+        "unresolved": "{count, plural, =1 {1 kilde kunne ikke} other {# kilder kunne ikke}} knyttes til kunnskapsbasen og ble utelatt",
+        "warnings": {
+          "length": "Kortere eller lengre enn ønsket",
+          "modelIssue": "KI-en sa at materialet var tynt",
+          "uncitedReference": "En § i teksten står ikke i kildelisten",
+          "stripped.images": "Bilder ble fjernet",
+          "stripped.links": "Lenker ble fjernet",
+          "stripped.html": "HTML ble fjernet",
+          "stripped.code": "Kode ble fjernet",
+          "stripped.h1": "En toppoverskrift ble fjernet"
+        }
       }
     }
   },

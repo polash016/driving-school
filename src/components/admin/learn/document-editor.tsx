@@ -12,8 +12,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "@/i18n/navigation";
 import type { ActionResult } from "@/server/contracts/common";
-import type { AdminDocument, LearnDocKind } from "@/server/contracts/learn";
+import type { AdminDocument, DraftResult, LearnDocKind } from "@/server/contracts/learn";
 import type { PickableImage } from "@/server/services/images/library";
+import { AiDraftDialog } from "./ai-draft-dialog";
 import { ImageInsertDialog } from "./image-insert-dialog";
 import { ImagePicker } from "./image-picker";
 import { slugFrom } from "./slug";
@@ -47,6 +48,7 @@ export function DocumentEditor({
   images,
   sources,
   readingWpm,
+  draftDefaultWords,
 }: {
   document: AdminDocument | null;
   defaults: EditorDefaults;
@@ -55,9 +57,11 @@ export function DocumentEditor({
   images: PickableImage[];
   sources: Array<{ code: string; name: string }>;
   readingWpm: number;
+  draftDefaultWords: number;
 }) {
   const t = useTranslations("admin.learn.doc");
   const tActions = useTranslations("admin.learn.actions");
+  const tAi = useTranslations("admin.learn.ai");
   const tErrors = useTranslations();
   const router = useRouter();
 
@@ -75,6 +79,8 @@ export function DocumentEditor({
   const [heroImageId, setHeroImageId] = useState(document?.heroImageId ?? "");
   const [citations, setCitations] = useState(document?.citations ?? []);
   const [imageOpen, setImageOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [provenance, setProvenance] = useState<{ createdBy: "AI"; modelVersion: string; promptVersion: string } | null>(null);
   const [dirty, setDirty] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -114,9 +120,21 @@ export function DocumentEditor({
         body,
         heroImageId: heroImageId || null,
         citations: citations.filter((c) => c.sourceCode && c.ref.trim()),
+        ...(provenance && !document ? { provenance } : {}),
       }),
-    [document, kind, bookId, effectiveSlug, topicId, licenseClassId, title, summary, body, heroImageId, citations],
+    [document, kind, bookId, effectiveSlug, topicId, licenseClassId, title, summary, body, heroImageId, citations, provenance],
   );
+
+  function useDraft(draft: DraftResult) {
+    const hasContent = title.en || title.nb || body.en || body.nb;
+    if (hasContent && !window.confirm(tAi("useConfirm"))) return;
+    setTitle(draft.title);
+    setSummary(draft.summary);
+    setBody(draft.body);
+    setCitations(draft.citations);
+    setProvenance({ createdBy: "AI", modelVersion: draft.modelVersion, promptVersion: draft.promptVersion });
+    setDirty(true);
+  }
   const fieldError = (name: string) => (state?.ok === false ? state.fieldErrors?.[name] : undefined);
   const unresolved = new Set(document?.unresolvedCitations.map((c) => `${c.sourceCode}|${c.ref}`) ?? []);
 
@@ -160,11 +178,18 @@ export function DocumentEditor({
       <input type="hidden" name="payload" value={payload} />
       {state?.ok === false ? <FormAlert>{tErrors(state.messageKey)}</FormAlert> : null}
       {state?.ok ? <FormAlert tone="success">{tActions("saved")}</FormAlert> : null}
-      {dirty ? (
-        <p role="status" className="text-xs text-muted-foreground">
-          {t("unsaved")}
-        </p>
-      ) : null}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {dirty ? (
+          <p role="status" className="text-xs text-muted-foreground">
+            {t("unsaved")}
+          </p>
+        ) : (
+          <span />
+        )}
+        <Button type="button" variant="outline" size="sm" onClick={() => setAiOpen(true)}>
+          {tAi("button")}
+        </Button>
+      </div>
 
       <Card className="[--card-spacing:--spacing(5)]">
         <CardHeader>
@@ -331,6 +356,17 @@ export function DocumentEditor({
 
       <SubmitButton label={tActions("save")} pendingLabel={tActions("saving")} />
 
+      <AiDraftDialog
+        open={aiOpen}
+        onOpenChange={setAiOpen}
+        kind={kind}
+        bookId={bookId}
+        topics={topics}
+        currentTopicId={topicId}
+        sources={sources}
+        defaultWords={draftDefaultWords}
+        onUse={useDraft}
+      />
       <ImageInsertDialog
         open={imageOpen}
         onOpenChange={setImageOpen}

@@ -40,6 +40,7 @@ export default async function EditDocumentPage({ params }: { params: Promise<{ l
         document={document}
         defaults={{ kind: document.kind, bookId: document.bookId, bookTitle: document.book ? pickBilingualText(document.book.title, locale) : null }}
         readingWpm={schoolConfig.learn.readingWpm}
+        draftDefaultWords={schoolConfig.learn.draftDefaultWords}
         {...data}
       />
     </div>
