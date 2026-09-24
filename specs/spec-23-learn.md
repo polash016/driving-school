@@ -1,6 +1,6 @@
 # Spec 23 — Learn: traffic-law books, chapters and articles
 
-**Status:** 🔍 Verifying (Fable, 2026-09-24) · depends on 01, 02, 03, 05, 06, 15, 18, 20
+**Status:** ✅ Done (Fable, 2026-09-24) — deployed to production the same day · depends on 01, 02, 03, 05, 06, 15, 18, 20
 **Approved:** 2026-09-24 (plan mode, with the developer's answers on content model and editor)
 
 ## Why

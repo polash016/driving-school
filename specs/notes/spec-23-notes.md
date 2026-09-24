@@ -122,3 +122,18 @@ found.
   ~180 words, Redis warm): hub p50 0.9 ms / p95 9.6 ms · book p50 0.4 ms / p95 2.3 ms · reader
   p50 0.5 ms / p95 3.3 ms — the public part is one Redis GET and the per-user part one primary-key
   read. (C2, C3)
+- **Live AI draft on production** (C8), route "Gemini Paid" / `gemini-3.5-flash-lite`, prompt
+  `learn.draft-document@1.0.0`, topic "Right of way", brief "unmarked junctions and the
+  right-hand rule", asked for 500 words, nothing stored:
+
+  ```
+  3 491 ms · 12 excerpts · citations trafikkreglene § 7 nr. 1, § 7 nr. 2, § 5 nr. 4 (all resolved,
+  0 unresolved) · warnings: length (207 words en / 193 nb — shorter than asked, reported, not hidden)
+  en: ## Introduction to right of way / ## Unmarked junctions and the right-hand rule /
+      ## Approaching junctions / ## Key points
+  nb: ## Introduksjon til vikeplikt / ## Umerkede kryss og høyreregelen / ## Nærmere kryss /
+      ## Det viktigste
+  ```
+
+  Every rule sentence ends with its reference in prose, identically in both languages; the
+  first attempt of the day failed on malformed JSON from the model and the colder retry passed.
