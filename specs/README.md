@@ -32,6 +32,7 @@ Legend: ⬜ Not started · 📝 Planned (plan approved) · 🔨 In progress · �
 | 20  | [Question translation end to end & publish gate](spec-20-question-translation.md) 🌐 | 15, 19, 07         | ✅ Done (Fable) — questions served from the master translation; auto-start + sync; staff-only preview                    | [plan](plans/spec-20-plan.md)                                          | [notes](notes/spec-20-notes.md) |
 | 21  | [Broken translations: detect, mark, repair](spec-21-broken-translations.md) 🔤       | 15, 19, 20         | ✅ Done (Fable) — per-field script gate, mark broken, re-check; Bangla repaired in production (16 by AI, 5 by hand)      | [plan](plans/spec-21-plan.md)                                          | [notes](notes/spec-21-notes.md) |
 | 22  | [Short, easy questions & bank rewrite](spec-22-short-questions.md) ✂️            | 04, 15, 19, 20, 21 | ✅ Done (Fable) — production run 2026-09-24: 285/287 sign questions, 84/148 text/image; residue documented | [plan](plans/spec-22-plan.md)                                          | [notes](notes/spec-22-notes.md) |
+| 23  | [Learn: books, chapters & articles](spec-23-learn.md) 📚                          | 01, 02, 03, 05, 06, 15, 18, 20 | 📝 Planned (Fable) — approved 2026-09-24; four slices: admin CRUD → reader → AI draft → translation | [plan](plans/spec-23-plan.md)                                          | —                               |
 
 **Handoff:** Fable phase complete — Opus sessions start at [docs/handoff-opus.md](../docs/handoff-opus.md) and execute 03 → 14.
 

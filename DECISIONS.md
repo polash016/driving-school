@@ -680,3 +680,28 @@ fixture (15 units over ~10.4 s): the literal formula reported 53/min where the r
   script gate passed them; `MIXED_SCRIPT_WORD` now blocks that, and the audit repairs them.
 - **Approved by:** developer's standing instruction "finish it fully now" (2026-09-24); the
   residue counts are reported for confirmation.
+
+## 2026-09-24 · spec-23 · Learn section: the decisions taken at planning
+
+- **Content model.** Books with ordered chapters plus standalone articles; a chapter and an
+  article are one `LearnDocument` model with a `kind`. `chapterOrder` is indexed, not unique, so a
+  reorder is one transaction rather than a two-phase shuffle around a unique constraint.
+- **Authoring.** Markdown with live preview (react-markdown + remark-gfm + rehype-sanitize, one
+  sanitise schema shared by editor and reader) — not a WYSIWYG editor, because markdown sections
+  are what the translation pipeline can carry. Plus an AI draft grounded in the knowledge base.
+- **AI drafting runs synchronously in a server action** with a pending state, like the two
+  existing generation actions; there is no job queue to reuse and the result is an editable
+  proposal, so a dropped connection loses tokens, never content.
+- **Translation unit is an H2-bounded section ≤ 450 words**, all-or-nothing per document with a
+  visible "not in your language yet" chip; `LEARN_*` units are translated by sync runs but do
+  not count toward language readiness, otherwise one published book would flip every language
+  to incomplete.
+- **Roles.** Instructors may author and publish; only admins delete.
+- **A human-authored document needs no citation to publish** (warning only); an AI draft must
+  cite, and every citation must resolve to a knowledge-base chunk.
+- **Desktop reader keeps the centred student column** with a sticky chapter strip and a sheet;
+  no sidebar (mandate: student panel is `max-w-md` on desktop).
+- **Chapter reorder is Move up / Move down buttons**, keyboard-accessible by construction; drag
+  can be layered on later.
+- **Wrong-answer "Read more" stays in spec-10**; the topic index and slugs are in place for it.
+- **Approved by:** developer (2026-09-24, plan approval).
