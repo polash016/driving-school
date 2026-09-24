@@ -41,8 +41,35 @@ export interface MessagePayload {
   text: string;
 }
 
+/** A Learn book's title and description (spec-23). */
+export interface LearnBookPayload {
+  title: string;
+  description?: string;
+}
+
+/** A Learn document's title and summary; its body travels as LEARN_SECTION units (spec-23). */
+export interface LearnDocumentPayload {
+  title: string;
+  summary?: string;
+}
+
+/**
+ * One markdown section of a Learn document (spec-23). `text`, on purpose: it is the key the
+ * response schema and `shapeLike` already accept, so the translation runner needs no new branch.
+ */
+export interface LearnSectionPayload {
+  text: string;
+}
+
 export type UnitPayload =
-  QuestionPayload | TopicPayload | SignPayload | NamePayload | MessagePayload;
+  | QuestionPayload
+  | TopicPayload
+  | SignPayload
+  | NamePayload
+  | MessagePayload
+  | LearnBookPayload
+  | LearnDocumentPayload
+  | LearnSectionPayload;
 
 export interface TranslationUnit {
   entity: TranslatableEntity;
@@ -125,6 +152,10 @@ export const ENTITY_PRIORITY: Record<TranslatableEntity, number> = {
   KB_SOURCE: 1,
   UI_MESSAGE: 2,
   SIGN: 3,
+  // Study material after the exam and the UI (spec-23); sections after their titles.
+  LEARN_BOOK: 4,
+  LEARN_DOCUMENT: 4,
+  LEARN_SECTION: 5,
   ITEM_VARIANT: 9,
   EXAM_BLUEPRINT: 9,
   FACT: 9,

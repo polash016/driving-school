@@ -199,23 +199,28 @@ model User {
   readinessSnapshots     ReadinessSnapshot[]
   mistakeCards           MistakeCard[]
   homeworkCompletions    HomeworkCompletion[]
-  createdInvites         InviteLink[]         @relation("InviteCreator")
-  createdGroups          StudentGroup[]       @relation("GroupCreator")
-  createdItems           MasterItem[]         @relation("ItemCreator")
-  reviewedItems          MasterItem[]         @relation("ItemReviewer")
-  uploadedImages         ImageAsset[]         @relation("ImageUploader")
-  createdHomework        HomeworkAssignment[] @relation("HomeworkCreator")
-  auditEvents            AuditLog[]           @relation("AuditActor")
-  updatedSettings        Setting[]            @relation("SettingUpdater")
+  createdInvites         InviteLink[]           @relation("InviteCreator")
+  createdGroups          StudentGroup[]         @relation("GroupCreator")
+  createdItems           MasterItem[]           @relation("ItemCreator")
+  reviewedItems          MasterItem[]           @relation("ItemReviewer")
+  uploadedImages         ImageAsset[]           @relation("ImageUploader")
+  createdHomework        HomeworkAssignment[]   @relation("HomeworkCreator")
+  auditEvents            AuditLog[]             @relation("AuditActor")
+  updatedSettings        Setting[]              @relation("SettingUpdater")
   sessions               UserSession[]
   authTokens             AuthToken[]
-  createdBatches         GenerationBatch[]    @relation("BatchCreator")
-  reviewedTranslations   Translation[]        @relation("TranslationReviewer")
-  startedTranslationRuns TranslationRun[]     @relation("TranslationRunStarter")
-  itemApprovals          ItemApproval[]       @relation("ItemApprover")
-  aiProviders            AiProvider[]         @relation("AiProviderCreator")
+  createdBatches         GenerationBatch[]      @relation("BatchCreator")
+  reviewedTranslations   Translation[]          @relation("TranslationReviewer")
+  startedTranslationRuns TranslationRun[]       @relation("TranslationRunStarter")
+  itemApprovals          ItemApproval[]         @relation("ItemApprover")
+  aiProviders            AiProvider[]           @relation("AiProviderCreator")
   taskSetProgress        TaskSetProgress[]
-  taskSetBuilds          TaskSetBuild[]       @relation("TaskSetBuildRequester")
+  taskSetBuilds          TaskSetBuild[]         @relation("TaskSetBuildRequester")
+  createdLearnBooks      LearnBook[]            @relation("LearnBookCreator")
+  updatedLearnBooks      LearnBook[]            @relation("LearnBookUpdater")
+  createdLearnDocs       LearnDocument[]        @relation("LearnDocCreator")
+  updatedLearnDocs       LearnDocument[]        @relation("LearnDocUpdater")
+  learnProgress          LearnReadingProgress[]
 
   // Admin user lists filtered by role/active (spec-11)
   @@index([role, isActive])
@@ -342,6 +347,8 @@ model LicenseClass {
   blueprints  ExamBlueprint[]
   attempts    ExamAttempt[]
   taskSets    TaskSet[]
+  learnBooks  LearnBook[]
+  learnDocs   LearnDocument[]
 }
 
 model Topic {
@@ -363,6 +370,7 @@ model Topic {
   attemptQuestions ExamAttemptQuestion[]
   batches          GenerationBatch[]
   rejections       GenerationRejection[]
+  learnDocuments   LearnDocument[]
 
   // Tree traversal (children of a node)
   @@index([parentId])
@@ -443,20 +451,21 @@ model MasterItem {
   updatedAt        DateTime                     @updatedAt
   deletedAt        DateTime?
 
-  topic         Topic                 @relation(fields: [topicId], references: [id])
-  licenseClass  LicenseClass?         @relation(fields: [licenseClassId], references: [id])
-  sourceImage   ImageAsset?           @relation(fields: [sourceImageId], references: [id])
-  batch         GenerationBatch?      @relation(fields: [batchId], references: [id])
-  replaces      MasterItem?           @relation("ItemReplacement", fields: [replacesId], references: [id])
-  replacedBy    MasterItem[]          @relation("ItemReplacement")
-  approvals     ItemApproval[]
-  createdByUser User?                 @relation("ItemCreator", fields: [createdById], references: [id])
-  reviewedBy    User?                 @relation("ItemReviewer", fields: [reviewedById], references: [id])
-  variants      ItemVariant[]
-  taskSetMember TaskSetMember? // the ONE slice this question belongs to (spec-16)
-  citations     MasterItemCitation[]
-  mistakeCards  MistakeCard[]
-  rejections    GenerationRejection[]
+  topic           Topic                    @relation(fields: [topicId], references: [id])
+  licenseClass    LicenseClass?            @relation(fields: [licenseClassId], references: [id])
+  sourceImage     ImageAsset?              @relation(fields: [sourceImageId], references: [id])
+  batch           GenerationBatch?         @relation(fields: [batchId], references: [id])
+  replaces        MasterItem?              @relation("ItemReplacement", fields: [replacesId], references: [id])
+  replacedBy      MasterItem[]             @relation("ItemReplacement")
+  approvals       ItemApproval[]
+  createdByUser   User?                    @relation("ItemCreator", fields: [createdById], references: [id])
+  reviewedBy      User?                    @relation("ItemReviewer", fields: [reviewedById], references: [id])
+  variants        ItemVariant[]
+  taskSetMember   TaskSetMember? // the ONE slice this question belongs to (spec-16)
+  citations       MasterItemCitation[]
+  mistakeCards    MistakeCard[]
+  rejections      GenerationRejection[]
+  simplifications SimplificationProposal[]
 
   // Assembly sampling (spec-07): approved items per topic/type
   @@index([topicId, status, type])
@@ -474,8 +483,6 @@ model MasterItem {
   @@index([searchText], type: Gin)
   // "what replaced this retired question" (spec-04b)
   @@index([replacesId])
-  simplifications SimplificationProposal[]
-
   // "other phrasings of this same point" — assembly excludes repeats within one attempt
   @@index([conceptGroupId])
 }
@@ -497,7 +504,7 @@ model MasterItem {
 /// first, and the swap writes master content, variant and all translations together. A student
 /// never reads a stale pairing, and never falls back to English either.
 model SimplificationProposal {
-  id           String   @id @default(cuid())
+  id           String  @id @default(cuid())
   /// Groups one CLI invocation, so a batch can be reviewed, applied and rolled back as a unit.
   runId        String
   masterItemId String?
@@ -505,9 +512,9 @@ model SimplificationProposal {
   signId       String?
 
   /// The proposed `{ en, nb }` content, in MasterItem.content shape (or `{ name, meaning }` for a sign).
-  proposed     Json
+  proposed            Json
   /// A snapshot of the text being replaced — the rollback record, independent of the audit log.
-  previous     Json
+  previous            Json
   /// Optimistic concurrency: the swap refuses unless the row still matches what was proposed and
   /// reviewed. This is what makes "propose against a prod restore on Monday, apply on Friday" safe.
   expectedVersion     Int?
@@ -515,11 +522,11 @@ model SimplificationProposal {
 
   /// Per-locale translations of `proposed`, as `{ bn: {stem,options,explanation}, es: {...} }`.
   /// Written by the shadow-translation pass, consumed by the swap.
-  translations Json?
+  translations      Json?
   /// Which locales are translated AND passed their QA gate — the swap requires all of them.
   translatedLocales String[]
 
-  status  SimplificationStatus @default(PROPOSED)
+  status   SimplificationStatus @default(PROPOSED)
   /// Why a proposal was refused, or which check failed: `["STEM_TOO_LONG"]`, `["BLIND_DISAGREED"]`.
   findings String[]
   /// The full verification record, for the notes file and for a disputed item later.
@@ -530,10 +537,10 @@ model SimplificationProposal {
   /// Which model sat the question blind, so an accuracy regression is traceable to a model.
   verifierModel String?
 
-  appliedAt  DateTime?
+  appliedAt   DateTime?
   appliedById String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   masterItem MasterItem? @relation(fields: [masterItemId], references: [id], onDelete: Cascade)
   sign       Sign?       @relation(fields: [signId], references: [id], onDelete: Cascade)
@@ -711,10 +718,12 @@ model ImageAsset {
   updatedAt          DateTime    @updatedAt
   deletedAt          DateTime?
 
-  uploadedBy  User?             @relation("ImageUploader", fields: [uploadedById], references: [id])
-  detections  ImageDetection[]
-  masterItems MasterItem[]
-  batches     GenerationBatch[]
+  uploadedBy      User?             @relation("ImageUploader", fields: [uploadedById], references: [id])
+  detections      ImageDetection[]
+  masterItems     MasterItem[]
+  batches         GenerationBatch[]
+  learnBookCovers LearnBook[]       @relation("LearnBookCover")
+  learnDocHeroes  LearnDocument[]   @relation("LearnDocHero")
 
   // Dedupe check on upload (spec-06)
   @@index([perceptualHash])
@@ -1083,8 +1092,9 @@ model KbChunk {
   createdAt  DateTime                     @default(now())
   updatedAt  DateTime                     @updatedAt
 
-  source    KbSource             @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  citations MasterItemCitation[]
+  source         KbSource             @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  citations      MasterItemCitation[]
+  learnCitations LearnCitation[]
 
   // Chunk listing per source (admin KB screen)
   @@index([sourceId])
@@ -1219,6 +1229,12 @@ enum TranslatableEntity {
   EXAM_BLUEPRINT
   KB_SOURCE
   FACT
+  /// A book's title + description (spec-23).
+  LEARN_BOOK
+  /// A document's title + summary (spec-23). The body travels as LEARN_SECTION units.
+  LEARN_DOCUMENT
+  /// One H2-bounded, size-capped slice of a document body; entityId = "<documentId>:s<n>" (spec-23).
+  LEARN_SECTION
 }
 
 enum TranslationRunKind {
@@ -1494,4 +1510,139 @@ model TranslationJob {
   @@unique([runId, entity, entityId])
   // The claim query: the next QUEUED batch for this run, questions first, grouped by entity kind.
   @@index([runId, state, priority, entity])
+}
+
+// ─────────────────────────────────────────────────────────── Learn (spec-23) ──
+
+enum LearnStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum LearnDocKind {
+  ARTICLE
+  CHAPTER
+}
+
+/// A book: an ordered set of chapters (LearnDocument, kind CHAPTER).
+model LearnBook {
+  id             String      @id @default(cuid())
+  /// URL: /learn/books/[slug]
+  slug           String      @unique
+  title          Json // bilingual { en, nb }
+  description    Json? // bilingual { en, nb }
+  coverImageId   String?
+  licenseClassId String?
+  status         LearnStatus @default(DRAFT)
+  sortOrder      Int         @default(0)
+  publishedAt    DateTime?
+  createdById    String?
+  updatedById    String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  deletedAt      DateTime?
+
+  coverImage   ImageAsset?     @relation("LearnBookCover", fields: [coverImageId], references: [id])
+  licenseClass LicenseClass?   @relation(fields: [licenseClassId], references: [id])
+  createdBy    User?           @relation("LearnBookCreator", fields: [createdById], references: [id])
+  updatedBy    User?           @relation("LearnBookUpdater", fields: [updatedById], references: [id])
+  chapters     LearnDocument[]
+
+  // Hub: published books in display order (status = PUBLISHED, deletedAt null)
+  @@index([status, sortOrder])
+}
+
+/// An article, or a chapter of a book — one model, one reader route (/learn/read/[slug]).
+model LearnDocument {
+  id             String       @id @default(cuid())
+  slug           String       @unique
+  kind           LearnDocKind
+  /// CHAPTER only.
+  bookId         String?
+  /// CHAPTER only; 1-based. Indexed, NOT unique: a reorder rewrites the whole list in one
+  /// transaction, and a unique constraint would force a two-phase shuffle around itself.
+  chapterOrder   Int?
+  topicId        String
+  licenseClassId String?
+  title          Json // bilingual { en, nb }
+  summary        Json? // bilingual { en, nb } — card lead and reader deck
+  body           Json // bilingual { en, nb } markdown
+  heroImageId    String?
+  status         LearnStatus  @default(DRAFT)
+  publishedAt    DateTime?
+  /// Bumped on every title/summary/body/citation write; the cache key and the version a
+  /// student's readAt refers to.
+  version        Int          @default(1)
+  /// { en: n, nb: n } computed on write — "x min read" never comes from a render.
+  wordCount      Json
+  /// Display payload [{ sourceCode, ref }], the shape of MasterItem.legalCitations.
+  citations      Json
+  createdBy      Provenance   @default(HUMAN)
+  modelVersion   String?
+  promptVersion  String?
+  createdById    String?
+  updatedById    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  book         LearnBook?             @relation(fields: [bookId], references: [id])
+  topic        Topic                  @relation(fields: [topicId], references: [id])
+  licenseClass LicenseClass?          @relation(fields: [licenseClassId], references: [id])
+  heroImage    ImageAsset?            @relation("LearnDocHero", fields: [heroImageId], references: [id])
+  creator      User?                  @relation("LearnDocCreator", fields: [createdById], references: [id])
+  updater      User?                  @relation("LearnDocUpdater", fields: [updatedById], references: [id])
+  progress     LearnReadingProgress[]
+  kbCitations  LearnCitation[]
+
+  // Book page + reader prev/next: the chapters of one book, in order
+  @@index([bookId, chapterOrder])
+  // Hub article list (kind, PUBLISHED, newest first) and the admin list's status filter
+  @@index([kind, status, publishedAt(sort: Desc)])
+  // Hub topic filter; later the wrong-answer "Read more" lookup by topic
+  @@index([topicId, status])
+}
+
+/// Queryable link from a document to the chunks it cites — mirrors MasterItemCitation, so
+/// "chunk re-ingested → which content cites it" reaches documents too.
+model LearnCitation {
+  id         String   @id @default(cuid())
+  documentId String
+  kbChunkId  String
+  sourceCode String
+  ref        String
+  createdAt  DateTime @default(now())
+
+  document LearnDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  kbChunk  KbChunk       @relation(fields: [kbChunkId], references: [id], onDelete: Cascade)
+
+  // Sources footer of one document
+  @@index([documentId])
+  // Chunk re-ingested → the documents that cite it
+  @@index([kbChunkId])
+}
+
+/// One student's standing in one document.
+model LearnReadingProgress {
+  userId       String
+  documentId   String
+  /// 0–100: the furthest scroll position reached.
+  positionPct  Int       @default(0)
+  /// Set once by "mark as read" or by reaching the end; never cleared by a later visit.
+  readAt       DateTime?
+  /// LearnDocument.version at readAt — lets the UI say "updated since you read it".
+  readVersion  Int?
+  lastOpenedAt DateTime
+  updatedAt    DateTime  @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document LearnDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  // Reader: one primary-key read per page view
+  @@id([userId, documentId])
+  // "Continue reading": this user's most recently opened document
+  @@index([userId, lastOpenedAt(sort: Desc)])
+  // Cascade on document delete; admin read counts
+  @@index([documentId])
 }

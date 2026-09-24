@@ -599,6 +599,65 @@ erDiagram
   DateTime startedAt "nullable"
   DateTime finishedAt "nullable"
 }
+"LearnBook" {
+  String id PK
+  String slug UK
+  Json title
+  Json description "nullable"
+  String coverImageId FK "nullable"
+  String licenseClassId FK "nullable"
+  LearnStatus status
+  Int sortOrder
+  DateTime publishedAt "nullable"
+  String createdById FK "nullable"
+  String updatedById FK "nullable"
+  DateTime createdAt
+  DateTime updatedAt
+  DateTime deletedAt "nullable"
+}
+"LearnDocument" {
+  String id PK
+  String slug UK
+  LearnDocKind kind
+  String bookId FK "nullable"
+  Int chapterOrder "nullable"
+  String topicId FK
+  String licenseClassId FK "nullable"
+  Json title
+  Json summary "nullable"
+  Json body
+  String heroImageId FK "nullable"
+  LearnStatus status
+  DateTime publishedAt "nullable"
+  Int version
+  Json wordCount
+  Json citations
+  Provenance createdBy
+  String modelVersion "nullable"
+  String promptVersion "nullable"
+  String createdById FK "nullable"
+  String updatedById FK "nullable"
+  DateTime createdAt
+  DateTime updatedAt
+  DateTime deletedAt "nullable"
+}
+"LearnCitation" {
+  String id PK
+  String documentId FK
+  String kbChunkId FK
+  String sourceCode
+  String ref
+  DateTime createdAt
+}
+"LearnReadingProgress" {
+  String userId FK
+  String documentId FK
+  Int positionPct
+  DateTime readAt "nullable"
+  Int readVersion "nullable"
+  DateTime lastOpenedAt
+  DateTime updatedAt
+}
 "Profile" |o--|| "User" : user
 "StudentGroup" }o--|| "User" : createdBy
 "GroupMembership" }o--|| "StudentGroup" : group
@@ -669,6 +728,20 @@ erDiagram
 "TranslationRun" }o--|| "Language" : language
 "TranslationRun" }o--o| "User" : startedBy
 "TranslationJob" }o--|| "TranslationRun" : run
+"LearnBook" }o--o| "ImageAsset" : coverImage
+"LearnBook" }o--o| "LicenseClass" : licenseClass
+"LearnBook" }o--o| "User" : createdBy
+"LearnBook" }o--o| "User" : updatedBy
+"LearnDocument" }o--o| "LearnBook" : book
+"LearnDocument" }o--|| "Topic" : topic
+"LearnDocument" }o--o| "LicenseClass" : licenseClass
+"LearnDocument" }o--o| "ImageAsset" : heroImage
+"LearnDocument" }o--o| "User" : creator
+"LearnDocument" }o--o| "User" : updater
+"LearnCitation" }o--|| "LearnDocument" : document
+"LearnCitation" }o--|| "KbChunk" : kbChunk
+"LearnReadingProgress" }o--|| "User" : user
+"LearnReadingProgress" }o--|| "LearnDocument" : document
 ```
 
 ### `User`
@@ -1563,3 +1636,87 @@ Properties as follows:
 - `error`:
 - `startedAt`:
 - `finishedAt`:
+
+### `LearnBook`
+
+A book: an ordered set of chapters (LearnDocument, kind CHAPTER).
+
+Properties as follows:
+
+- `id`:
+- `slug`: URL: /learn/books/[slug]
+- `title`:
+- `description`:
+- `coverImageId`:
+- `licenseClassId`:
+- `status`:
+- `sortOrder`:
+- `publishedAt`:
+- `createdById`:
+- `updatedById`:
+- `createdAt`:
+- `updatedAt`:
+- `deletedAt`:
+
+### `LearnDocument`
+
+An article, or a chapter of a book — one model, one reader route (/learn/read/[slug]).
+
+Properties as follows:
+
+- `id`:
+- `slug`:
+- `kind`:
+- `bookId`: CHAPTER only.
+- `chapterOrder`
+  > CHAPTER only; 1-based. Indexed, NOT unique: a reorder rewrites the whole list in one
+  > transaction, and a unique constraint would force a two-phase shuffle around itself.
+- `topicId`:
+- `licenseClassId`:
+- `title`:
+- `summary`:
+- `body`:
+- `heroImageId`:
+- `status`:
+- `publishedAt`:
+- `version`
+  > Bumped on every title/summary/body/citation write; the cache key and the version a
+  > student's readAt refers to.
+- `wordCount`: { en: n, nb: n } computed on write — "x min read" never comes from a render.
+- `citations`: Display payload [{ sourceCode, ref }], the shape of MasterItem.legalCitations.
+- `createdBy`:
+- `modelVersion`:
+- `promptVersion`:
+- `createdById`:
+- `updatedById`:
+- `createdAt`:
+- `updatedAt`:
+- `deletedAt`:
+
+### `LearnCitation`
+
+Queryable link from a document to the chunks it cites — mirrors MasterItemCitation, so
+"chunk re-ingested → which content cites it" reaches documents too.
+
+Properties as follows:
+
+- `id`:
+- `documentId`:
+- `kbChunkId`:
+- `sourceCode`:
+- `ref`:
+- `createdAt`:
+
+### `LearnReadingProgress`
+
+One student's standing in one document.
+
+Properties as follows:
+
+- `userId`:
+- `documentId`:
+- `positionPct`: 0–100: the furthest scroll position reached.
+- `readAt`: Set once by "mark as read" or by reaching the end; never cleared by a later visit.
+- `readVersion`: LearnDocument.version at readAt — lets the UI say "updated since you read it".
+- `lastOpenedAt`:
+- `updatedAt`:

@@ -62,6 +62,8 @@ export const schoolConfigSchema = z
       trailerCalculator: z.boolean(),
       passGuarantee: z.boolean(),
       studentPayments: z.boolean(),
+      /** The Learn section (spec-23): books, chapters and articles. Off hides tile, nav and routes. */
+      learn: z.boolean(),
     }),
     ai: z.object({
       /** Model ids resolved by the OmniRoute gateway — never inline model strings in code. */
@@ -139,6 +141,15 @@ export const schoolConfigSchema = z
         signMeaningWords: z.int().min(5).max(20),
       }),
     }),
+    /** Editorial values for the Learn section (spec-23) — config, never magic numbers in code. */
+    learn: z.object({
+      /** Words per minute behind "x min read". */
+      readingWpm: z.int().min(80).max(400),
+      /** A translation unit is an H2-bounded section; longer sections are split at paragraphs. */
+      sectionMaxWords: z.int().min(150).max(1200),
+      /** Default length an AI draft is asked for. */
+      draftDefaultWords: z.int().min(250).max(1500),
+    }),
     /**
      * Where uploaded question images live (spec-06 amendment D3). The driver is config, not code,
      * so a school can start on a VPS directory and move to object storage without a rewrite.
@@ -199,6 +210,7 @@ export const schoolConfig: SchoolConfig = Object.freeze(
       trailerCalculator: true,
       passGuarantee: false,
       studentPayments: false,
+      learn: true,
     },
     ai: {
       models: {
@@ -231,6 +243,11 @@ export const schoolConfig: SchoolConfig = Object.freeze(
         explanationSentences: 2,
         signMeaningWords: 12,
       },
+    },
+    learn: {
+      readingWpm: 200,
+      sectionMaxWords: 450,
+      draftDefaultWords: 700,
     },
     storage: {
       driver: "local",

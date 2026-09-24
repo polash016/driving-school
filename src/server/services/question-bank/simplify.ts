@@ -19,6 +19,7 @@ import {
   classifyAgainstPool,
   embedStems,
 } from "./similarity";
+import { lookupChunksForCitations, usableCitations } from "@/server/services/kb/citations";
 import { contentFingerprint } from "./rewrite";
 import {
   brevityBlockers,
@@ -330,57 +331,13 @@ export async function citedText(
   db: PrismaClient,
   item: SimplifiableItem,
 ): Promise<string> {
-  const citations = (item.legalCitations ?? []) as Array<{
-    sourceCode?: string;
-    ref?: string;
-  }>;
-  if (!Array.isArray(citations) || citations.length === 0) return "";
-
   // Deliberately NOT kb/search: that is one embedding request per item, ~1000 requests straight
-  // into the daily cap, to fetch rows we can address directly.
-  const usable = citations.filter(
-    (c): c is { sourceCode: string; ref: string } =>
-      Boolean(c.sourceCode?.trim() && c.ref?.trim()),
-  );
+  // into the daily cap, to fetch rows we can address directly. The exact-then-section-head lookup
+  // lives in kb/citations.ts, shared with the Learn drafting path (spec-23).
+  const usable = usableCitations(item.legalCitations);
   if (usable.length === 0) return "";
-
-  const lookup = async (
-    pairs: Array<{ sourceCode: string; ref: string }>,
-  ): Promise<string[]> => {
-    if (pairs.length === 0) return [];
-    const rows = await db.kbChunk.findMany({
-      where: {
-        // `isActive` belongs to the CHUNK; `KbSource` carries `code` and `deletedAt`.
-        isActive: true,
-        OR: pairs.map((c) => ({
-          ref: c.ref,
-          source: { code: c.sourceCode, deletedAt: null },
-        })),
-      },
-      select: { text: true },
-      take: 12,
-    });
-    return rows.map((row) => row.text);
-  };
-
-  const exact = await lookup(usable);
-  if (exact.length > 0) return exact.join("\n\n");
-
-  // Fall back to the whole SECTION. The knowledge base is chunked per section ("§ 7"), while a
-  // citation may name a subsection ("§ 7 nr. 3", "§ 13-3"). Measured on the production bank: 9 of
-  // 20 text questions resolved nothing on an exact match, and most of those cite a subsection of a
-  // section that IS ingested. Refusing them would skip a correct question for a formatting
-  // mismatch. What stays unresolvable is a source never ingested at all — `vegtrafikkloven` and
-  // `kjoretoyforskriften` have zero chunks — and refusing those is right, because the blind check
-  // would have no ground truth to answer from.
-  const heads = usable
-    .map((c) => {
-      const match = c.ref.match(/§\s*(\d+)/);
-      return match ? { sourceCode: c.sourceCode, ref: `§ ${match[1]}` } : null;
-    })
-    .filter((c): c is { sourceCode: string; ref: string } => c !== null);
-
-  return (await lookup(heads)).join("\n\n");
+  const { resolved } = await lookupChunksForCitations(db, usable, { perCitation: 12 });
+  return [...new Set(resolved.map((chunk) => chunk.text))].join("\n\n");
 }
 
 export interface ProposeOptions {

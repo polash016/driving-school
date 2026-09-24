@@ -53,6 +53,19 @@ export const keys = {
   i18nTaxonomy: (locale: string) => `tp:i18n:taxonomy:${locale}`,
   /** Set by the i18n worker every poll with a 3×poll TTL; the admin board reads it as "online". */
   i18nWorker: () => "tp:i18n:worker",
+  /**
+   * Monotonic version for every Learn read cache (spec-23). Bumped by: any book/document write or
+   * transition, a chapter reorder, and any locale overlay change (`invalidateTaxonomy`).
+   */
+  learnVersion: () => `tp:learn:version`,
+  /** Learn hub payload per locale. Invalidated by: learnVersion bump (falls out on TTL otherwise). */
+  learnHub: (version: number, locale: string) => `tp:learn:hub:v${version}:${locale}`,
+  /** One book page (published chapters + metadata) per locale. Invalidated by: learnVersion bump. */
+  learnBook: (version: number, locale: string, slug: string) =>
+    `tp:learn:book:v${version}:${locale}:${slug}`,
+  /** One reader payload (translated markdown, citations, prev/next). Invalidated by: learnVersion bump. */
+  learnDoc: (version: number, locale: string, slug: string) =>
+    `tp:learn:doc:v${version}:${locale}:${slug}`,
   /** Rate-limit counter (window-expiring). */
   rateLimit: (route: string, key: string) => `tp:rl:${route}:${key}`,
   /** AI spend counter per day (cost guard). */

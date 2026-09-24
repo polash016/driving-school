@@ -59,6 +59,12 @@ describe("migrations", () => {
     expect(migration!.sql).toContain('USING GIN ("searchText")');
   });
 
+  it("still creates the Learn hub index (spec-23)", () => {
+    const learn = migrations().find((m) => m.name.endsWith("_learn_books_articles"));
+    expect(learn).toBeDefined();
+    expect(learn!.sql).toContain('CREATE INDEX "LearnDocument_kind_status_publishedAt_idx"');
+  });
+
   it("still constrains every non-DRAFT item to carry an answer key", () => {
     const migration = migrations().find((m) => m.name === CORRECT_KEY);
     expect(migration).toBeDefined();
