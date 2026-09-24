@@ -4,11 +4,17 @@
  *   pnpm qb:simplify signs                       # dry run: propose shorter sign meanings
  *   pnpm qb:simplify signs --apply               # write the registry + re-render sign questions
  *   pnpm qb:simplify text                        # dry run: propose shorter text/image questions
- *   pnpm qb:simplify text --apply                # translate, then swap, per item
+ *   pnpm qb:simplify text --apply                # translate, then swap, per item (re-proposes!)
+ *   pnpm qb:simplify diffs --run <id>            # every accepted pair, for a human to read
+ *   pnpm qb:simplify text --apply --from-run <id> # swap exactly the proposals of THAT run
  *   pnpm qb:simplify report --run <id>           # what a run proposed, and what it refused
  *   pnpm qb:simplify rollback --run <id>         # put every item in that run back
  *
- * Flags: --limit N, --item <id>, --include-recognition, --yes
+ * Flags: --limit N, --item <id>, --include-recognition, --yes, --from-run <id>
+ *
+ * `--apply` without `--from-run` proposes AGAIN and swaps what comes back, so the pairs a reviewer
+ * read from a dry run are not what goes live. `--from-run` is the honest path: dry run, read
+ * `diffs`, refuse by hand what broadens a question, then apply that run and nothing else.
  *
  * DRY RUN IS THE DEFAULT everywhere. A dry run makes AI calls (it must, to have something to
  * show you) but writes nothing to MasterItem, Sign or Translation — it only records proposals.
@@ -45,6 +51,7 @@ import {
   rewriteApprovedItemInPlace,
   rollbackRewrite,
 } from "../src/server/services/question-bank/rewrite";
+import { applyProposalsFromRun } from "../src/server/services/question-bank/apply-proposals";
 
 (process as unknown as { loadEnvFile?: (path: string) => void }).loadEnvFile?.(
   ".env",
@@ -346,6 +353,14 @@ async function swapAll(
 // ────────────────────────────────────────────────────────── text / image ──
 
 async function runText(runId: string): Promise<void> {
+  const fromRun = option("from-run");
+  if (fromRun) {
+    if (!APPLY) {
+      throw new Error("--from-run only makes sense with --apply: it swaps a reviewed run.");
+    }
+    return runApplyFromRun(fromRun);
+  }
+
   const items = await db.masterItem.findMany({
     where: {
       type: { in: ["TEXT", "IMAGE"] },
@@ -518,6 +533,31 @@ async function runText(runId: string): Promise<void> {
   }
 }
 
+/**
+ * Swap the proposals of a run a human has read. The proposals were gated when they were made and
+ * reviewed through `diffs`; this step translates and swaps them, and nothing else is proposed.
+ */
+async function runApplyFromRun(sourceRunId: string): Promise<void> {
+  console.log(`Applying the reviewed proposals of run ${sourceRunId}…\n`);
+  const result = await applyProposalsFromRun(
+    db,
+    {
+      runId: sourceRunId,
+      actorId: await adminId(),
+      ...(option("item") ? { onlyItemId: option("item") } : {}),
+    },
+    { log: (line) => console.log(line) },
+  );
+  for (const s of result.skipped) console.log(`  skip ${s.itemId.slice(-6)}: ${s.reason}`);
+  console.log(
+    `\napplied ${result.applied.length} · held ${result.held.length} · skipped ${result.skipped.length}` +
+      `  (run id: ${sourceRunId})`,
+  );
+  if (result.held.length > 0) {
+    console.log("\nHeld items keep their PROPOSED row; re-run the same command to retry them.");
+  }
+}
+
 // ──────────────────────────────────────────────────────── report / undo ──
 
 /**
@@ -532,8 +572,8 @@ async function runText(runId: string): Promise<void> {
  */
 async function runDiffs(runId: string): Promise<void> {
   const proposals = await db.simplificationProposal.findMany({
-    where: { runId, status: "PROPOSED", masterItemId: { not: null } },
-    select: { masterItemId: true, previous: true, proposed: true },
+    where: { runId, status: { in: ["PROPOSED", "APPLIED"] }, masterItemId: { not: null } },
+    select: { masterItemId: true, previous: true, proposed: true, status: true },
     orderBy: { createdAt: "asc" },
   });
   if (proposals.length === 0) {
@@ -551,7 +591,10 @@ async function runDiffs(runId: string): Promise<void> {
 
     console.log(`
 ${"─".repeat(78)}`);
-    console.log(`${index + 1}/${proposals.length}  ${p.masterItemId?.slice(-8)}`);
+    console.log(
+      `${index + 1}/${proposals.length}  ${p.masterItemId?.slice(-8)}` +
+        (p.status === "APPLIED" ? "  [applied]" : ""),
+    );
     console.log(`  STEM  ${words(before.stem)}w → ${words(after.stem)}w`);
     console.log(`    -   ${before.stem}`);
     console.log(`    +   ${after.stem}`);
@@ -710,7 +753,7 @@ async function main(): Promise<void> {
       return runRollback(runId);
     default:
       throw new Error(
-        "Usage: pnpm qb:simplify <signs|text|report|diffs|rollback> [--apply] [--limit N] [--run <id>] [--include-recognition] [--yes]",
+        "Usage: pnpm qb:simplify <signs|text|report|diffs|rollback> [--apply] [--from-run <id>] [--limit N] [--run <id>] [--item <id>] [--include-recognition] [--yes]",
       );
   }
 }

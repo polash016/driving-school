@@ -635,3 +635,24 @@ fixture (15 units over ~10.4 s): the literal formula reported 53/min where the r
 - **Production is on Gemini Paid, not the free tier.** Earlier pacing estimates in the plan assumed
   free-tier per-minute and 1000/day embedding caps and should be re-measured before scheduling.
 - **Approved by:** developer (2026-09-21, the two follow-up questions).
+
+## 2026-09-24 · spec-22 · The proposals a reviewer read are the proposals that get applied
+
+- **Context.** Production inspection on 2026-09-24 showed the campaign had run on 2026-09-22
+  (`apply-20260922-161008`) and stopped short: 47 of 148 text/image questions swapped, 39 held on a
+  student-visible translation failing QA, 53 refused; `signs --apply` never ran, so 0 of 287
+  meanings and 0 of 574 approved sign questions changed; and the app was still the 2026-09-12 build,
+  so the live generation path still used the pre-budget prompts. Students therefore saw ~6 % of the
+  bank shortened.
+- **The gap.** `text --apply` re-proposes with fresh AI calls and swaps whatever comes back. The
+  notes say "a human must read the accepted diffs before `--apply`", but the diffs a human read from
+  a dry run were never what went live. `diffs --run` reviewed one set; `--apply` wrote another.
+- **Decision.** `text --apply --from-run <id>` swaps exactly the `PROPOSED` rows of a reviewed run
+  (`services/question-bank/apply-proposals.ts`): translate first, then the same atomic swap, and the
+  row becomes `APPLIED` with `appliedAt`/`appliedById` — the first code path to set that status, so
+  a re-run never re-applies. A proposal whose item moved on is refused by the existing optimistic
+  check (`ConflictError`) and reported as a hold. The production sequence is therefore: dry run →
+  read `diffs` → refuse by hand anything that broadens a question → apply that run id.
+- **Not changed.** Plain `--apply` keeps its old behaviour for a one-shot run on a fresh restore;
+  the header now says out loud that it re-proposes.
+- **Approved by:** developer (2026-09-24, "finish it fully now").
