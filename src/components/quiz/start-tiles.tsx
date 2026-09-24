@@ -1,6 +1,6 @@
 "use client";
 
-import { CarIcon, TrafficSignIcon } from "@phosphor-icons/react/dist/ssr";
+import { BookOpenIcon, CarIcon, TrafficSignIcon } from "@phosphor-icons/react/dist/ssr";
 import { useTranslations } from "next-intl";
 import { useActionState } from "react";
 import { startQuizAction } from "@/app/[locale]/(student)/quiz/actions";
@@ -31,11 +31,16 @@ export function StartTiles({
   locale,
   signCount,
   signTestEnabled,
+  learnEnabled = false,
+  learnPublishedCount = 0,
 }: {
   locale: AppLocale;
   signCount: number;
   /** School-level switch from config — a school that does not teach signs hides the tile. */
   signTestEnabled: boolean;
+  /** The Learn section (spec-23): off hides the tile; on with nothing published disables it. */
+  learnEnabled?: boolean;
+  learnPublishedCount?: number;
 }) {
   const t = useTranslations("home");
   const tErrors = useTranslations();
@@ -52,7 +57,7 @@ export function StartTiles({
         <FormAlert>{tErrors(state.messageKey)}</FormAlert>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className={learnEnabled ? "grid grid-cols-3 gap-2.5" : "grid grid-cols-2 gap-3"}>
         <Card className="glass-lift rounded-[calc(var(--radius-base)+6px)] p-0">
           <CardContent className="p-0">
             <Link
@@ -133,6 +138,44 @@ export function StartTiles({
                     />
                   </span>
                   {t("signTestEmpty")}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {learnEnabled ? (
+          <Card className="glass-lift rounded-[calc(var(--radius-base)+6px)] p-0">
+            <CardContent className="p-0">
+              {learnPublishedCount > 0 ? (
+                <Link
+                  href="/learn"
+                  className="flex min-h-[8.75rem] flex-col items-center justify-center gap-2 rounded-[calc(var(--radius-base)+6px)] px-2 py-5 text-center transition-transform duration-150 outline-none active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:active:scale-100"
+                >
+                  <span
+                    className="grid size-14 place-items-center rounded-[1.15rem] shadow-[var(--chip-brand-glow),inset_0_1px_0_oklch(1_0_0/0.85)]"
+                    style={{
+                      backgroundImage: "var(--gradient-hero)",
+                      color: "var(--chip-brand-fg)",
+                    }}
+                  >
+                    <BookOpenIcon weight="fill" className="size-8" aria-hidden />
+                  </span>
+                  <span className="text-sm font-semibold text-foreground">{t("learn")}</span>
+                  <span className="text-xs text-muted-foreground">{t("learnSub")}</span>
+                </Link>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled
+                  title={t("learnEmpty")}
+                  className="flex h-auto min-h-[8.75rem] w-full flex-col items-center justify-center gap-2 rounded-[calc(var(--radius-base)+6px)] px-2 py-5 text-sm whitespace-normal hover:bg-transparent dark:hover:bg-transparent"
+                >
+                  <span className="grid size-14 place-items-center rounded-[1.15rem] bg-muted text-muted-foreground">
+                    <BookOpenIcon weight="fill" className="size-8" aria-hidden />
+                  </span>
+                  {t("learnEmpty")}
                 </Button>
               )}
             </CardContent>

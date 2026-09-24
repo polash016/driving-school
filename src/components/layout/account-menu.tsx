@@ -4,6 +4,7 @@ import { AccountSheet } from "@/components/layout/account-sheet";
 import { Button } from "@/components/ui/button";
 import { getSessionUser } from "@/server/auth";
 import { Link } from "@/i18n/navigation";
+import { schoolConfig } from "../../../config/school.config";
 
 /**
  * Header auth affordance: a way in when signed out, and a way to the account (and out) when
@@ -26,6 +27,11 @@ export async function AccountMenu({ locale }: { locale: string }) {
   // Rendered once, placed twice: inline from `sm` up, and inside the mobile sheet below it.
   const links = (
     <>
+      {schoolConfig.featureFlags.learn ? (
+        <Button asChild variant="ghost" size="sm" className="min-h-11">
+          <Link href="/learn">{t("learn")}</Link>
+        </Button>
+      ) : null}
       {user.role !== "STUDENT" ? (
         <Button asChild variant="ghost" size="sm" className="min-h-11">
           <Link href="/admin/invites">{t("admin")}</Link>

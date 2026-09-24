@@ -3,6 +3,8 @@ import { CategoryProgress } from "@/components/quiz/category-progress";
 import { RecentTests } from "@/components/quiz/recent-tests";
 import { ResumeCard } from "@/components/quiz/resume-card";
 import { StartTiles } from "@/components/quiz/start-tiles";
+import { ContinueReadingCard } from "@/components/learn/continue-reading-card";
+import { learnService } from "@/server/services/learn";
 import { StatPair } from "@/components/quiz/stat-pair";
 import { TaskSetHero } from "@/components/task-sets/task-set-hero";
 import { Card, CardContent } from "@/components/ui/card";
@@ -77,6 +79,8 @@ export default async function HomePage({
     categories,
     rate,
     profile,
+    learnPublishedCount,
+    continueReading,
   ] = await Promise.all([
     db.masterItem.count({
       where: {
@@ -105,6 +109,14 @@ export default async function HomePage({
       where: { userId: user.id },
       select: { firstName: true },
     }),
+    // The Learn tile is gated on its own content, like the sign tile (spec-23).
+    // Index: LearnDocument_kind_status_publishedAt_idx.
+    schoolConfig.featureFlags.learn
+      ? db.learnDocument.count({ where: { status: "PUBLISHED", deletedAt: null } })
+      : Promise.resolve(0),
+    schoolConfig.featureFlags.learn
+      ? learnService.continueReading(locale, user.id)
+      : Promise.resolve(null),
   ]);
 
   return (
@@ -146,7 +158,11 @@ export default async function HomePage({
         locale={locale as AppLocale}
         signCount={signCount}
         signTestEnabled={schoolConfig.featureFlags.signTest}
+        learnEnabled={schoolConfig.featureFlags.learn}
+        learnPublishedCount={learnPublishedCount}
       />
+
+      {continueReading ? <ContinueReadingCard item={continueReading} /> : null}
 
       <StatPair passRate={rate.percent} passedCount={board.passedCount} />
 
