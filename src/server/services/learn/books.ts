@@ -12,6 +12,7 @@ import {
   type AdminLearnPage,
   type LearnStatus,
 } from "@/server/contracts/learn";
+import { requestTranslationSync } from "@/server/services/i18n/sync";
 import { invalidateLearn } from "./cache";
 import { assertImageExists, assertLicenseClass } from "./checks";
 
@@ -243,6 +244,7 @@ export function createBookService(db: PrismaClient) {
       select: { id: true },
     });
     await invalidateLearn();
+    if (to === "PUBLISHED") await requestTranslationSync(db);
   }
 
   /** Soft delete; chapters go with the book. */

@@ -685,7 +685,14 @@
         "SCRIPT_MISMATCH": "Not written in the language's own script",
         "MIXED_SCRIPT_WORD": "A letter from another alphabet inside a word",
         "ADMIN_FLAGGED": "Marked broken by an admin",
-        "VERBOSE": "Longer than this language's budget"
+        "VERBOSE": "Longer than this language's budget",
+        "MD_HEADINGS": "Headings were added or lost",
+        "MD_IMAGES": "An image was added, lost or changed",
+        "MD_LINKS": "A link was added, lost or changed",
+        "MD_TABLE": "A table row was added or lost",
+        "MD_CODE": "Code appeared in the translation",
+        "MD_HTML": "HTML appeared in the translation",
+        "MD_LIST": "The list is a different length"
       },
       "errors": {
         "alreadyExists": "That language has already been added.",

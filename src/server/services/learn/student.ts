@@ -16,6 +16,7 @@ import {
 } from "@/server/contracts/learn";
 import { cachedLearn } from "./cache";
 import { readMinutes } from "./markdown";
+import { loadLearnBookOverlay, loadLearnDocumentOverlay } from "./overlay";
 
 /**
  * What a student reads (spec-23). Two layers on purpose: the PUBLIC part of every page — the
@@ -34,6 +35,7 @@ function words(wordCount: unknown, locale: string): number {
 
 export function createStudentLearnService(db: PrismaClient) {
   async function publicHub(locale: string, topicId: string | undefined, page: number, pageSize: number) {
+    const builtin = isBuiltinLocale(locale);
     return cachedLearn(
       (version) => keys.learnHub(version, `${locale}:${topicId ?? "all"}:${page}:${pageSize}`),
       async () => {
@@ -51,6 +53,7 @@ export function createStudentLearnService(db: PrismaClient) {
           },
           orderBy: [{ sortOrder: "asc" }, { publishedAt: "desc" }],
         });
+        const bookOverlay = await loadLearnBookOverlay(db, locale, books);
         // Index: LearnDocument_kind_status_publishedAt_idx, or _topicId_status_idx when filtered.
         const where = { kind: "ARTICLE" as const, ...PUBLISHED_DOC, ...(topicId ? { topicId } : {}) };
         const topicRows = await db.learnDocument.groupBy({
@@ -67,6 +70,7 @@ export function createStudentLearnService(db: PrismaClient) {
               slug: true,
               title: true,
               summary: true,
+              body: true,
               heroImageId: true,
               wordCount: true,
               topic: { select: { id: true, name: true } },
@@ -82,25 +86,34 @@ export function createStudentLearnService(db: PrismaClient) {
           select: { id: true, name: true, sortOrder: true },
           orderBy: { sortOrder: "asc" },
         });
+        const docOverlay = await loadLearnDocumentOverlay(db, locale, articles);
         return {
-          books: books.map((book) => ({
-            id: book.id,
-            slug: book.slug,
-            title: pickBilingualText(book.title, locale),
-            description: book.description ? pickBilingualText(book.description, locale) || null : null,
-            coverImageId: book.coverImageId,
-            chapterIds: book.chapters.map((c) => c.id),
-            licenseClassCode: book.licenseClass?.code ?? null,
-          })),
-          articles: articles.map((doc) => ({
-            id: doc.id,
-            slug: doc.slug,
-            title: pickBilingualText(doc.title, locale),
-            summary: doc.summary ? pickBilingualText(doc.summary, locale) || null : null,
-            topicName: pickBilingualText(doc.topic.name, locale),
-            readMinutes: readMinutes(words(doc.wordCount, locale)),
-            heroImageId: doc.heroImageId,
-          })),
+          books: books.map((book) => {
+            const tr = bookOverlay.get(book.id);
+            return {
+              id: book.id,
+              slug: book.slug,
+              title: tr?.title ?? pickBilingualText(book.title, locale),
+              description: tr ? tr.description : book.description ? pickBilingualText(book.description, locale) || null : null,
+              coverImageId: book.coverImageId,
+              chapterIds: book.chapters.map((c) => c.id),
+              licenseClassCode: book.licenseClass?.code ?? null,
+              inLocale: builtin || Boolean(tr),
+            };
+          }),
+          articles: articles.map((doc) => {
+            const tr = docOverlay.get(doc.id);
+            return {
+              id: doc.id,
+              slug: doc.slug,
+              title: tr?.title ?? pickBilingualText(doc.title, locale),
+              summary: tr ? tr.summary : doc.summary ? pickBilingualText(doc.summary, locale) || null : null,
+              topicName: pickBilingualText(doc.topic.name, locale),
+              readMinutes: readMinutes(words(doc.wordCount, locale)),
+              heroImageId: doc.heroImageId,
+              inLocale: builtin || Boolean(tr),
+            };
+          }),
           totalCount,
           topics: topicNames.map((topic) => ({
             id: topic.id,
@@ -124,16 +137,14 @@ export function createStudentLearnService(db: PrismaClient) {
         })
       : [];
     const readAt = new Map(progress.map((row) => [row.documentId, row.readAt]));
-    const inLocale = isBuiltinLocale(locale);
     return hubSchema.parse({
       books: pub.books.map(({ chapterIds, ...book }) => ({
         ...book,
         chapterCount: chapterIds.length,
         readChapters: chapterIds.filter((id) => readAt.get(id)).length,
-        inLocale,
       })),
       articles: {
-        items: pub.articles.map((article) => ({ ...article, readAt: readAt.get(article.id) ?? null, inLocale })),
+        items: pub.articles.map((article) => ({ ...article, readAt: readAt.get(article.id) ?? null })),
         page: query.page,
         pageSize: query.pageSize,
         totalCount: pub.totalCount,
@@ -158,22 +169,28 @@ export function createStudentLearnService(db: PrismaClient) {
             // Index: LearnDocument_bookId_chapterOrder_idx.
             chapters: {
               where: PUBLISHED_DOC,
-              select: { id: true, slug: true, title: true, chapterOrder: true, wordCount: true },
+              select: { id: true, slug: true, title: true, summary: true, body: true, chapterOrder: true, wordCount: true },
               orderBy: { chapterOrder: "asc" },
             },
           },
         });
         if (!book) return null;
+        const [bookOverlay, chapterOverlay] = await Promise.all([
+          loadLearnBookOverlay(db, locale, [book]),
+          loadLearnDocumentOverlay(db, locale, book.chapters),
+        ]);
+        const tr = bookOverlay.get(book.id);
         return {
           id: book.id,
           slug: book.slug,
-          title: pickBilingualText(book.title, locale),
-          description: book.description ? pickBilingualText(book.description, locale) || null : null,
+          title: tr?.title ?? pickBilingualText(book.title, locale),
+          description: tr ? tr.description : book.description ? pickBilingualText(book.description, locale) || null : null,
           coverImageId: book.coverImageId,
+          inLocale: isBuiltinLocale(locale) || Boolean(tr),
           chapters: book.chapters.map((chapter, index) => ({
             id: chapter.id,
             slug: chapter.slug,
-            title: pickBilingualText(chapter.title, locale),
+            title: chapterOverlay.get(chapter.id)?.title ?? pickBilingualText(chapter.title, locale),
             chapterOrder: index + 1,
             readMinutes: readMinutes(words(chapter.wordCount, locale)),
           })),
@@ -198,7 +215,7 @@ export function createStudentLearnService(db: PrismaClient) {
       positionPct: byId.get(chapter.id)?.positionPct ?? 0,
     }));
     return bookPageSchema.parse({
-      book: { ...pub, chapters: undefined, inLocale: isBuiltinLocale(locale) },
+      book: { ...pub, chapters: undefined },
       chapters,
       readCount: chapters.filter((c) => c.readAt).length,
       nextUnreadSlug: chapters.find((c) => !c.readAt)?.slug ?? null,
@@ -225,13 +242,14 @@ export function createStudentLearnService(db: PrismaClient) {
             topic: { select: { slug: true, name: true } },
             book: {
               select: {
+                id: true,
                 slug: true,
                 title: true,
                 status: true,
                 deletedAt: true,
                 chapters: {
                   where: PUBLISHED_DOC,
-                  select: { id: true, slug: true, title: true },
+                  select: { id: true, slug: true, title: true, summary: true, body: true },
                   orderBy: { chapterOrder: "asc" },
                 },
               },
@@ -255,19 +273,25 @@ export function createStudentLearnService(db: PrismaClient) {
 
         const chapters = doc.book?.chapters ?? [];
         const position = chapters.findIndex((c) => c.id === doc.id);
+        const [overlay, bookOverlay] = await Promise.all([
+          loadLearnDocumentOverlay(db, locale, [doc, ...chapters.filter((c) => c.id !== doc.id)]),
+          doc.book ? loadLearnBookOverlay(db, locale, [{ id: doc.book.id, title: doc.book.title, description: null }]) : Promise.resolve(new Map()),
+        ]);
+        const tr = overlay.get(doc.id);
         const sibling = (offset: number) => {
           const row = position >= 0 ? chapters[position + offset] : undefined;
-          return row ? { slug: row.slug, title: pickBilingualText(row.title, locale) } : null;
+          return row ? { slug: row.slug, title: overlay.get(row.id)?.title ?? pickBilingualText(row.title, locale) } : null;
         };
         return {
           id: doc.id,
           slug: doc.slug,
           kind: doc.kind,
           version: doc.version,
-          title: pickBilingualText(doc.title, locale),
-          summary: doc.summary ? pickBilingualText(doc.summary, locale) || null : null,
-          bodyMarkdown: pickBilingualText(doc.body, locale),
-          servedLocale: locale === "nb" ? "nb" : "en",
+          title: tr?.title ?? pickBilingualText(doc.title, locale),
+          summary: tr ? tr.summary : doc.summary ? pickBilingualText(doc.summary, locale) || null : null,
+          bodyMarkdown: tr?.body ?? pickBilingualText(doc.body, locale),
+          servedLocale: tr ? locale : locale === "nb" ? "nb" : "en",
+          inLocale: isBuiltinLocale(locale) || Boolean(tr),
           heroImageId: doc.heroImageId,
           readMinutes: readMinutes(words(doc.wordCount, locale)),
           topic: { slug: doc.topic.slug, name: pickBilingualText(doc.topic.name, locale) },
@@ -276,7 +300,7 @@ export function createStudentLearnService(db: PrismaClient) {
             doc.kind === "CHAPTER" && doc.book
               ? {
                   slug: doc.book.slug,
-                  title: pickBilingualText(doc.book.title, locale),
+                  title: bookOverlay.get(doc.book.id)?.title ?? pickBilingualText(doc.book.title, locale),
                   chapterOrder: position + 1,
                   chapterCount: chapters.length,
                 }
@@ -297,7 +321,6 @@ export function createStudentLearnService(db: PrismaClient) {
     });
     return readerDocumentSchema.parse({
       ...pub,
-      inLocale: isBuiltinLocale(locale),
       progress: {
         positionPct: progress?.positionPct ?? 0,
         readAt: progress?.readAt ?? null,

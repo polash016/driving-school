@@ -7,6 +7,7 @@ import {
   type AdminDocument,
   type LearnStatus,
 } from "@/server/contracts/learn";
+import { requestTranslationSync } from "@/server/services/i18n/sync";
 import { lookupChunksForCitations, usableCitations } from "@/server/services/kb/citations";
 import { invalidateLearn } from "./cache";
 import { assertImageExists, assertImagesExist, assertLicenseClass, assertSourcesExist, assertTopic } from "./checks";
@@ -90,7 +91,7 @@ export function createDocumentService(db: PrismaClient) {
     if (input.id) {
       const existing = await db.learnDocument.findFirst({
         where: { id: input.id, deletedAt: null },
-        select: { id: true, kind: true, bookId: true, title: true, summary: true, body: true, citations: true, version: true },
+        select: { id: true, kind: true, bookId: true, title: true, summary: true, body: true, citations: true, version: true, status: true },
       });
       if (!existing) throw new NotFoundError({ documentId: input.id });
       // The kind and the book are fixed at creation: moving a chapter between books, or turning
@@ -116,6 +117,9 @@ export function createDocumentService(db: PrismaClient) {
           : []),
       ]);
       await invalidateLearn();
+      // Published text that changed has translations to catch up; the sync runner finds the
+      // stale units by hash, so nothing unchanged is re-translated.
+      if (changed && existing.status === "PUBLISHED") await requestTranslationSync(db);
       return { id: input.id, version };
     }
 
@@ -180,6 +184,7 @@ export function createDocumentService(db: PrismaClient) {
       select: { id: true },
     });
     await invalidateLearn();
+    if (to === "PUBLISHED") await requestTranslationSync(db);
   }
 
   async function deleteDocument(id: string, actorId: string): Promise<void> {

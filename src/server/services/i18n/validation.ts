@@ -1,3 +1,4 @@
+import { markdownStructure } from "@/server/services/learn/markdown";
 import type { TranslatableEntity } from "@prisma/client";
 import { schoolConfig } from "../../../../config/school.config";
 import { countWords, wordBudget, type BrevityKind } from "@/lib/brevity";
@@ -413,6 +414,35 @@ export function checkTranslation(input: {
         blocking: true,
         detail: mixedFields.join(", "),
       });
+    }
+  }
+
+  // 6d. Markdown skeleton (spec-23). A translated section must keep every heading, list, table,
+  //     image and link of its source: a lost heading breaks the chapter's structure, a changed
+  //     image path points at nothing, and a translated link is a link to nowhere.
+  if (input.entity === "LEARN_SECTION") {
+    const from = markdownStructure(String((source as { text?: string }).text ?? ""));
+    const to = markdownStructure(String((translated as { text?: string }).text ?? ""));
+    if (from.h2 !== to.h2 || from.h3 !== to.h3) {
+      issues.push({ code: "MD_HEADINGS", blocking: true, detail: `${from.h2}/${from.h3} to ${to.h2}/${to.h3}` });
+    }
+    if (!sameMultiset(from.images, to.images)) {
+      issues.push({ code: "MD_IMAGES", blocking: true, detail: `${from.images.length} to ${to.images.length}` });
+    }
+    if (!sameMultiset(from.links, to.links)) {
+      issues.push({ code: "MD_LINKS", blocking: true, detail: `${from.links.length} to ${to.links.length}` });
+    }
+    if (from.tableRows !== to.tableRows) {
+      issues.push({ code: "MD_TABLE", blocking: true, detail: `${from.tableRows} to ${to.tableRows}` });
+    }
+    if (to.codeFences > from.codeFences) {
+      issues.push({ code: "MD_CODE", blocking: true });
+    }
+    if (to.htmlTags > from.htmlTags) {
+      issues.push({ code: "MD_HTML", blocking: true });
+    }
+    if (from.listItems > 0 && Math.abs(from.listItems - to.listItems) / from.listItems > 0.2) {
+      issues.push({ code: "MD_LIST", blocking: false, detail: `${from.listItems} to ${to.listItems}` });
     }
   }
 

@@ -76,8 +76,9 @@ describe("the script rule (spec-21)", () => {
     });
     expect(units).toMatch(/own orthography/i);
     expect(units).not.toMatch(/script\./);
-    // 1.2.0 since spec-22 added the length budget (rule 10 / rule 7).
-    expect(translateUnitsPrompt.version).toBe("1.2.0");
-    expect(translateRepairPrompt.version).toBe("1.2.0");
+    // 1.3.0 since spec-23 added the markdown rule (9b / 6b) on top of spec-22's budget.
+    expect(translateUnitsPrompt.version).toBe("1.3.0");
+    expect(translateRepairPrompt.version).toBe("1.3.0");
+    expect(units).toContain("LEARN_SECTION");
   });
 });

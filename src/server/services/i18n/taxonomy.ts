@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { pickBilingualText } from "@/lib/i18n-content";
 import { isBuiltinLocale } from "@/lib/locale";
 import { logger } from "@/lib/logger";
+import { invalidateLearn } from "@/server/services/learn/cache";
 import { cacheDel, cacheGet, cacheSet, keys } from "@/server/redis";
 import { mergeName, servableStatuses } from "./resolve";
 import type { UnitPayload } from "./units";
@@ -104,7 +105,12 @@ export async function sourceLabels(
   );
 }
 
-/** Called wherever a TOPIC / LICENSE_CLASS / KB_SOURCE translation or the policy changes. */
+/**
+ * Called wherever a locale's content overlays change: a TOPIC / LICENSE_CLASS / KB_SOURCE
+ * translation, the policy — and, since spec-23, any LEARN_* translation, which is why the Learn
+ * read caches are versioned from here too.
+ */
 export async function invalidateTaxonomy(locale: string): Promise<void> {
   await cacheDel(keys.i18nTaxonomy(locale));
+  await invalidateLearn();
 }

@@ -37,6 +37,13 @@ const FLAG_KEYS = [
   "QA_UNAVAILABLE",
   "SCRIPT_MISMATCH",
   "MIXED_SCRIPT_WORD",
+  "MD_HEADINGS",
+  "MD_IMAGES",
+  "MD_LINKS",
+  "MD_TABLE",
+  "MD_CODE",
+  "MD_HTML",
+  "MD_LIST",
   "ADMIN_FLAGGED",
   "VERBOSE",
 ] as const;

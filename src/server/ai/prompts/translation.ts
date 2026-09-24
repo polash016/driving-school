@@ -44,7 +44,7 @@ export const translateUnitsPrompt: PromptTemplate<{
   lengthBudget: string;
 }> = {
   id: "translation.units",
-  version: "1.2.0",
+  version: "1.3.0",
   render: ({
     targetLanguage,
     targetCode,
@@ -69,6 +69,7 @@ export const translateUnitsPrompt: PromptTemplate<{
       "7. The option named as correct must remain the ONLY defensible answer, and every other option must stay clearly wrong.",
       "8. Write for a learner driver reading on a phone: second person, everyday words, one idea per sentence, active voice. Match the source's reading level or make it simpler — never harder. Do not explain more than the source explains.",
       `9. ${scriptRule(targetScript)}`,
+      "9b. MARKDOWN UNITS (kind LEARN_SECTION) are study text with structure. Keep every heading marker (##, ###), list marker (-), table pipe and image or link target EXACTLY as they are; translate only the prose, the heading text and the link labels. Never add or remove a heading, a list item or a table row.",
       `10. NEVER LONGER THAN IT HAS TO BE. The source was written to a strict budget: 15 words for a question, 8 for an option, 2 sentences for an explanation. ${lengthBudget} If ${targetLanguage} genuinely needs more words to say the same thing, take them — but never add an idea, an example, a courtesy or an explanation the source does not have. Being a word over is fine; cutting meaning to hit a number is not.`,
       "",
       'IF YOU CANNOT TRANSLATE FAITHFULLY, SAY SO. If a faithful translation would make two options mean the same thing, or would make a wrong option arguably correct, do NOT paraphrase your way around it — return that item with `"issue"` set to a short explanation and leave its text as best you can. A flagged item goes to a human; a quietly fudged one goes to a student.',
@@ -130,7 +131,7 @@ export const translateRepairPrompt: PromptTemplate<{
   lengthBudget: string;
 }> = {
   id: "translation.repair",
-  version: "1.2.0",
+  version: "1.3.0",
   render: ({
     targetLanguage,
     targetCode,
@@ -151,6 +152,7 @@ export const translateRepairPrompt: PromptTemplate<{
       "4. Preserve {placeholder} and {{slot}} tokens exactly.",
       "5. Institution names stay untranslated.",
       "6. The correct option must remain the only defensible answer.",
+      "6b. A LEARN_SECTION unit is markdown: keep every heading, list and table marker and every image or link target exactly; translate the prose only.",
       `7. Write for a learner driver: plain, precise, no jargon, second person — and no longer than it needs to be. ${lengthBudget} Never shorten by dropping meaning: a flagged item is better than a trimmed one.`,
       `8. ${scriptRule(targetScript)}`,
       "IF YOU CANNOT FIX AN ITEM FAITHFULLY, SAY SO in its `issue` field and return the previous translation unchanged for it.",

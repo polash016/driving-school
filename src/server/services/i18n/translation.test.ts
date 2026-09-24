@@ -442,3 +442,30 @@ describe("payload strings", () => {
     expect(payloadStrings({ text: "hello" })).toEqual(["hello"]);
   });
 });
+
+describe("LEARN_SECTION markdown skeleton (spec-23)", () => {
+  const check = (en: string, nb: string) =>
+    checkTranslation({ entity: "LEARN_SECTION", locale: "es", source: { text: en }, translated: { text: nb } });
+  const codes = (en: string, nb: string) => check(en, nb).issues.map((i) => i.code);
+  const src = "## Rule\n\nYield (§ 7).\n\n- one\n- two\n\n![Sign](/api/images/abc)\n\n[law](https://lovdata.no)\n\n| a | b |\n|---|---|\n| 1 | 2 |\n";
+
+  it("passes a faithful translation that keeps the skeleton", () => {
+    const tr = "## Regla\n\nCede (§ 7).\n\n- uno\n- dos\n\n![Señal](/api/images/abc)\n\n[ley](https://lovdata.no)\n\n| a | b |\n|---|---|\n| 1 | 2 |\n";
+    expect(check(src, tr).passed).toBe(true);
+  });
+  it("blocks a lost heading, a changed image, a changed link, a lost table row, new code and new html", () => {
+    expect(codes(src, src.replace("## Rule", "Rule"))).toContain("MD_HEADINGS");
+    expect(codes(src, src.replace("/api/images/abc", "/api/images/xyz"))).toContain("MD_IMAGES");
+    expect(codes(src, src.replace("https://lovdata.no", "https://evil.example"))).toContain("MD_LINKS");
+    expect(codes(src, src.replace("| 1 | 2 |\n", ""))).toContain("MD_TABLE");
+    expect(codes(src, src + "```js\nx\n```\n")).toContain("MD_CODE");
+    expect(codes(src, src + "<b>x</b>\n")).toContain("MD_HTML");
+    const blocking = check(src, src.replace("## Rule", "Rule")).issues.find((i) => i.code === "MD_HEADINGS");
+    expect(blocking?.blocking).toBe(true);
+  });
+  it("only warns about a list that grew or shrank a little", () => {
+    const issues = check(src, src.replace("- two\n", "")).issues;
+    const list = issues.find((i) => i.code === "MD_LIST");
+    expect(list?.blocking).toBe(false);
+  });
+});

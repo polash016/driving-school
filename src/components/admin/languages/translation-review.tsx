@@ -40,6 +40,13 @@ const FLAG_KEYS = [
   "QA_UNAVAILABLE",
   "SCRIPT_MISMATCH",
   "MIXED_SCRIPT_WORD",
+  "MD_HEADINGS",
+  "MD_IMAGES",
+  "MD_LINKS",
+  "MD_TABLE",
+  "MD_CODE",
+  "MD_HTML",
+  "MD_LIST",
   "ADMIN_FLAGGED",
   "VERBOSE",
 ] as const;
@@ -291,9 +298,14 @@ export function TranslationReview({
                   <p className="text-xs font-medium text-muted-foreground">
                     {t("translationSide")}
                   </p>
-                  <p className="text-sm text-foreground">
+                  <p
+                    className={cn(
+                      "text-sm text-foreground",
+                      row.entity === "LEARN_SECTION" && "font-mono text-xs whitespace-pre-wrap",
+                    )}
+                  >
                     {String(
-                      row.value.stem ?? row.value.name ?? row.value.text ?? "",
+                      row.value.stem ?? row.value.name ?? row.value.title ?? row.value.text ?? "",
                     )}
                   </p>
                   {sourceOptions.length > 0 ? (

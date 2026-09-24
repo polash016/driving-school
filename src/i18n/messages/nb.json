@@ -685,7 +685,14 @@
         "SCRIPT_MISMATCH": "Ikke skrevet med språkets eget skriftsystem",
         "MIXED_SCRIPT_WORD": "En bokstav fra et annet alfabet inne i et ord",
         "ADMIN_FLAGGED": "Merket som ødelagt av en administrator",
-        "VERBOSE": "Lengre enn budsjettet for dette språket"
+        "VERBOSE": "Lengre enn budsjettet for dette språket",
+        "MD_HEADINGS": "Overskrifter ble lagt til eller mistet",
+        "MD_IMAGES": "Et bilde ble lagt til, mistet eller endret",
+        "MD_LINKS": "En lenke ble lagt til, mistet eller endret",
+        "MD_TABLE": "En tabellrad ble lagt til eller mistet",
+        "MD_CODE": "Kode dukket opp i oversettelsen",
+        "MD_HTML": "HTML dukket opp i oversettelsen",
+        "MD_LIST": "Listen har en annen lengde"
       },
       "errors": {
         "alreadyExists": "Det språket er allerede lagt til.",

@@ -203,6 +203,21 @@ export interface UntranslatedUnit {
  * `only` filters BEFORE the limit is applied: asking for the failures must return failures, not
  * whatever survives a slice of a much longer untranslated list.
  */
+/**
+ * Study material is translated by sync runs but does not decide whether a language is ready
+ * (spec-23, DECISIONS 2026-09-24): one published 12-chapter book would otherwise flip every
+ * language to "incomplete", while the reader already says per document when a translation is
+ * not there yet.
+ */
+export const READINESS_EXCLUDED: ReadonlySet<TranslatableEntity> = new Set([
+  "LEARN_BOOK",
+  "LEARN_DOCUMENT",
+  "LEARN_SECTION",
+]);
+export function countsTowardReadiness(entity: TranslatableEntity): boolean {
+  return !READINESS_EXCLUDED.has(entity);
+}
+
 export async function untranslatedUnits(
   db: PrismaClient,
   locale: string,
@@ -212,9 +227,9 @@ export async function untranslatedUnits(
     where: { code: locale },
     select: { glossaryVersion: true },
   });
-  const units = await extractAll(db, {
-    glossaryVersion: language.glossaryVersion,
-  });
+  const units = (
+    await extractAll(db, { glossaryVersion: language.glossaryVersion })
+  ).filter((unit) => countsTowardReadiness(unit.entity));
   // Index: Translation[locale, entity, status] — the leading column serves this locale scan.
   const rows = await db.translation.findMany({
     where: { locale },
@@ -282,9 +297,9 @@ export async function languageCoverage(
     };
   }
 
-  const units = await extractAll(db, {
-    glossaryVersion: language.glossaryVersion,
-  });
+  const units = (
+    await extractAll(db, { glossaryVersion: language.glossaryVersion })
+  ).filter((unit) => countsTowardReadiness(unit.entity));
   // Index: Translation[locale, entity, status] — the leading column serves this locale scan.
   const rows = await db.translation.findMany({
     where: { locale },

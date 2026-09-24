@@ -25,12 +25,25 @@ import { countWords, markdownStructure } from "./markdown";
 export const MIN_EXCERPTS = 3;
 const MAX_EXCERPT_CHARS = 24_000;
 
+/** Models sometimes write Norwegian under "no" (the ISO code) rather than "nb"; both are accepted. */
+const bilingualField = (side: z.ZodString) =>
+  z.preprocess(
+    (value) => {
+      if (value && typeof value === "object" && !("nb" in value) && "no" in value) {
+        const { no, ...rest } = value as Record<string, unknown>;
+        return { ...rest, nb: no };
+      }
+      return value;
+    },
+    z.object({ en: side, nb: side }),
+  );
+
 export const learnDraftResponseSchema = z.object({
-  title: z.object({ en: z.string().min(1).max(160), nb: z.string().min(1).max(160) }),
-  summary: z.object({ en: z.string().max(400), nb: z.string().max(400) }),
-  body: z.object({ en: z.string().min(1), nb: z.string().min(1) }),
-  citations: z.array(legalCitationSchema.extend({ supports: z.string().optional() })).default([]),
-  issue: z.string().optional(),
+  title: bilingualField(z.string().min(1).max(160)),
+  summary: bilingualField(z.string().max(400)),
+  body: bilingualField(z.string().min(1)),
+  citations: z.array(legalCitationSchema.extend({ supports: z.string().nullable().optional() })).default([]),
+  issue: z.string().nullable().optional(),
 });
 type DraftResponse = z.infer<typeof learnDraftResponseSchema>;
 
@@ -191,22 +204,26 @@ export async function draftDocument(
     feedback: "",
   };
 
-  // One retry, with the finding in the prompt: the same sample twice teaches nothing.
+  // Strip what may never be stored BEFORE judging the skeleton: an image the model added in one
+  // language is removed, not a reason to refuse the whole draft. Then one retry, with the finding
+  // in the prompt — the same sample twice teaches nothing.
   let response = await deps.generate(vars);
-  let mismatch = structureMismatch(response.data.body.en, response.data.body.nb);
-  let drift = driftBetween(response.data.body.en, response.data.body.nb);
+  let en = stripForbidden(response.data.body.en);
+  let nb = stripForbidden(response.data.body.nb);
+  let mismatch = structureMismatch(en.markdown, nb.markdown);
+  let drift = driftBetween(en.markdown, nb.markdown);
   if (mismatch || drift) {
     response = await deps.generate({ ...vars, feedback: mismatch ?? drift ?? "" });
-    mismatch = structureMismatch(response.data.body.en, response.data.body.nb);
-    drift = driftBetween(response.data.body.en, response.data.body.nb);
+    en = stripForbidden(response.data.body.en);
+    nb = stripForbidden(response.data.body.nb);
+    mismatch = structureMismatch(en.markdown, nb.markdown);
+    drift = driftBetween(en.markdown, nb.markdown);
     if (mismatch || drift) {
       throw new ValidationError({ mismatch, drift }, "admin.learn.errors.aiStructure");
     }
   }
 
   const warnings: string[] = [];
-  const en = stripForbidden(response.data.body.en);
-  const nb = stripForbidden(response.data.body.nb);
   for (const removed of new Set([...en.removed, ...nb.removed])) warnings.push(`stripped.${removed}`);
   if (response.data.issue) warnings.push("modelIssue");
 

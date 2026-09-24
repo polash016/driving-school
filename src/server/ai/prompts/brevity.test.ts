@@ -46,8 +46,8 @@ describe("prompt versions are pinned", () => {
     [theoryGenerationPrompt, "generation.theory-questions", "1.3.0"],
     [imageQuestionPrompt, "generation.image-questions", "1.1.0"],
     [signMeaningPrompt, "signs.meaning", "1.1.0"],
-    [translateUnitsPrompt, "translation.units", "1.2.0"],
-    [translateRepairPrompt, "translation.repair", "1.2.0"],
+    [translateUnitsPrompt, "translation.units", "1.3.0"],
+    [translateRepairPrompt, "translation.repair", "1.3.0"],
     [simplifyQuestionPrompt, "rewrite.simplify-question", "1.1.0"],
   ])("%#: id and version", (prompt, id, version) => {
     expect(prompt.id).toBe(id);

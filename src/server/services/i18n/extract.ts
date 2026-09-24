@@ -5,6 +5,7 @@ import {
 } from "@prisma/client";
 import { BASE_MESSAGES } from "@/i18n/builtin";
 import { flattenMessages } from "./catalogue";
+import { extractLearnUnits } from "@/server/services/learn/overlay";
 import {
   hashUnit,
   type QuestionPayload,
@@ -282,6 +283,13 @@ export async function extractAll(
     wanted("SIGN") ? extractSigns(db, options.glossaryVersion, ids) : [],
     wanted("KB_SOURCE")
       ? extractKbSources(db, options.glossaryVersion, ids)
+      : [],
+    // Study material (spec-23): published books, documents and their sections.
+    wanted("LEARN_BOOK") || wanted("LEARN_DOCUMENT") || wanted("LEARN_SECTION")
+      ? extractLearnUnits(db, options.glossaryVersion, {
+          only: (["LEARN_BOOK", "LEARN_DOCUMENT", "LEARN_SECTION"] as const).filter((entity) => wanted(entity)),
+          ...(ids ? { ids } : {}),
+        })
       : [],
   ]);
   return groups.flat();
