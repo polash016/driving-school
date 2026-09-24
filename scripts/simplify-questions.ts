@@ -372,6 +372,7 @@ async function swapAll(
 ): Promise<void> {
   let swapped = 0;
   let held = 0;
+  let unchanged = 0;
 
   for (const item of items) {
     const code = (item.sourceImage?.licenseAttestation as { signCode?: string } | null)?.signCode;
@@ -392,6 +393,12 @@ async function swapAll(
     if (!rerendered.content) {
       held++;
       console.log(`  hold ${item.id}: ${rerendered.findings.join(", ")}`);
+      continue;
+    }
+    // Already rendered from the current registry (a retry after holds): the text is identical,
+    // so a swap would only bump the version and re-translate the same words.
+    if (contentFingerprint(rerendered.content) === contentFingerprint(item.content)) {
+      unchanged++;
       continue;
     }
 
@@ -424,7 +431,7 @@ async function swapAll(
     if (swapped % 10 === 0) console.log(`  …swapped ${swapped}`);
   }
 
-  console.log(`\nswapped ${swapped} · held ${held}`);
+  console.log(`\nswapped ${swapped} · held ${held} · already current ${unchanged}`);
 }
 
 // ────────────────────────────────────────────────────────── text / image ──
