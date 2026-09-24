@@ -52,3 +52,52 @@ output pasted; nothing here is asserted without it.
 - Message keys: `nav.learn`, `home.learn*`, `learn.*`, `admin.learn.*` in both files;
   `src/i18n/messages.test.ts` + `message-keys.test.ts` green (parity). (C10)
 - Feature flag `featureFlags.learn`: tile, nav links (student and admin) and every route check it. (C12)
+
+## Slice 3 — AI drafting (2026-09-24)
+
+- Prompt `learn.draft-document` 1.0.0 (`src/server/ai/prompts/learn.ts`), pinned by
+  `prompts/learn.test.ts`: grounded only in the retrieved excerpts, numbers and § copied exactly,
+  citations in prose, identical H2/H3 skeleton in both languages, no images/links/HTML/code, A2/B1
+  voice, target length.
+- `services/learn/draft.test.ts` — 8 tests with a mocked gateway: excerpts rendered into the
+  prompt with sibling titles and the book name; refusal under 3 excerpts (`aiNoMaterial`); one
+  retry with the exact structure finding fed back, then `aiStructure`; a number that differs
+  between the languages is refused the same way (`NUMBER_DRIFT` through `checkTranslation`);
+  `aiNoCitations` when nothing resolves, unresolved ones reported otherwise; images, links, HTML
+  and code stripped and named in `warnings`. Provenance (`modelVersion`, `promptVersion`) is
+  returned and stored as `createdBy: AI` only when the admin saves.
+- `draftDocumentAction`: `requireUser("INSTRUCTOR")`, `rateLimit("learnDraft", user.id)`
+  (12 per hour), audit `learn.document_ai_drafted` with excerpt count, versions and warnings.
+  Synchronous, like `generateQuestionsAction`; the dialog shows `role=status` / `aria-busy`
+  progress and "usually 20–40 s". Nginx `proxy_read_timeout` on the VPS is 300 s (checked).
+- Live run: the local Gemini key answered once (the parser now accepts `no` as the Norwegian
+  key and a null `issue`) and was then refused with 403 "project has been denied access", so the
+  recorded live run is done on production below.
+
+## Slice 4 — translation wiring (2026-09-24)
+
+- Units: `LEARN_BOOK` (title + description), `LEARN_DOCUMENT` (title + summary),
+  `LEARN_SECTION` (`{ text }`, `entityId = "<docId>:s<n>"`) — only PUBLISHED documents of PUBLISHED
+  books, sections ≤ 450 words (`schoolConfig.learn.sectionMaxWords`), Norwegian side attached only
+  when both bodies have the same skeleton. `ENTITY_PRIORITY` 4/4/5.
+- `overlay.test.ts` — 4 tests: one document unit plus one section per H2 block, aligned; nb
+  dropped on a skeleton mismatch; a changed section moves only its own hash; a glossary bump moves
+  every hash.
+- `overlay.integration.test.ts` — 2 tests against `teoripro_test`: extraction returns only the
+  published article while its book is a draft, then the book, chapter and sections after the book
+  is published; `extractAll` with `only`/`ids` narrows to one section; readiness ignores `LEARN_*`
+  (`countsTowardReadiness`); a fully translated document is served whole in the test locale with
+  `servedLocale` = that locale; **editing one section makes the whole document fall back** to
+  English with `inLocale: false`; a language that requires approval never serves MACHINE.
+- QA: `LEARN_SECTION` branch in `validation.ts` — `MD_HEADINGS`, `MD_IMAGES`, `MD_LINKS`,
+  `MD_TABLE`, `MD_CODE`, `MD_HTML` blocking, `MD_LIST` advisory; `translation.test.ts` covers each.
+  `NUMBER_DRIFT` / `CITATION_DRIFT` already apply to any entity.
+- Prompts `translation.units` and `translation.repair` → 1.3.0 with the markdown rule; pins
+  updated in `translation.test.ts` and `brevity.test.ts`.
+- `invalidateTaxonomy` now also bumps `tp:learn:version`, so every LEARN_* translation write
+  (review, runs, audit, language edits — its eight callers) invalidates the Learn read caches.
+  `requestTranslationSync` is stamped on publish and on an edit of a published document.
+- Readiness: `READINESS_EXCLUDED` in `languages.ts` — `languageCoverage` and `untranslatedUnits`
+  drop `LEARN_*` units (DECISIONS 2026-09-24).
+- Review UI: `LEARN_SECTION` rows render pre-wrapped monospace; the seven `MD_*` codes have labels
+  in both message files and appear in the flag lists of the review and sample screens.
