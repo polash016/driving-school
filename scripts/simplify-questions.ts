@@ -2,7 +2,8 @@
  * Shorten the question bank in place, without any student ever reading English (spec-22).
  *
  *   pnpm qb:simplify signs                       # dry run: propose shorter sign meanings
- *   pnpm qb:simplify signs --apply               # write the registry + re-render sign questions
+ *   pnpm qb:simplify signs --apply               # write the registry + re-render sign questions (re-proposes!)
+ *   pnpm qb:simplify signs --apply --from-run <id> # write exactly the meanings of THAT dry run
  *   pnpm qb:simplify text                        # dry run: propose shorter text/image questions
  *   pnpm qb:simplify text --apply                # translate, then swap, per item (re-proposes!)
  *   pnpm qb:simplify diffs --run <id>            # every accepted pair, for a human to read
@@ -90,6 +91,14 @@ function table(rows: string[][]): void {
 // ───────────────────────────────────────────────────────────────── signs ──
 
 async function runSigns(runId: string): Promise<void> {
+  const fromRun = option("from-run");
+  if (fromRun) {
+    if (!APPLY) {
+      throw new Error("--from-run only makes sense with --apply: it writes a reviewed run.");
+    }
+    return runSignsFromRun(fromRun);
+  }
+
   const signs = await loadSigns(db);
   const scope = LIMIT > 0 ? signs.slice(0, LIMIT) : signs;
   console.log(
@@ -207,6 +216,74 @@ async function runSigns(runId: string): Promise<void> {
     return;
   }
   await applySigns(runId, signs, accepted);
+}
+
+/**
+ * Apply the sign meanings a human read from a dry run's table — no new proposals.
+ *
+ * The set-level distinctness gate runs again against the registry AS IT IS NOW, because the
+ * registry may have been edited by hand in /admin/signs between the dry run and this apply, and
+ * "two signs in a class now say the same thing" must be judged on today's rows.
+ */
+async function runSignsFromRun(sourceRunId: string): Promise<void> {
+  const signs = await loadSigns(db);
+  const byId = new Map(signs.map((sign) => [sign.id, sign]));
+  // Index: SimplificationProposal_runId_status_idx.
+  const proposals = await db.simplificationProposal.findMany({
+    where: { runId: sourceRunId, status: "PROPOSED", signId: { not: null } },
+    select: { id: true, signId: true, proposed: true, expectedFingerprint: true },
+    orderBy: { createdAt: "asc" },
+  });
+  console.log(`${proposals.length} accepted sign meanings in run ${sourceRunId}.`);
+
+  const accepted = new Map<string, SignRow>();
+  const stale: string[] = [];
+  for (const p of proposals) {
+    const sign = byId.get(p.signId!);
+    const proposed = p.proposed as { name?: SignRow["name"]; meaning?: SignRow["meaning"] };
+    if (!sign || !proposed.meaning || !proposed.name) continue;
+    // A sign edited by hand since the dry run keeps the hand edit; the reviewer read a diff
+    // against text that no longer exists.
+    if (contentFingerprint({ name: sign.name, meaning: sign.meaning }) !== p.expectedFingerprint) {
+      stale.push(sign.code);
+      continue;
+    }
+    accepted.set(sign.id, { ...sign, name: proposed.name, meaning: proposed.meaning });
+  }
+  if (stale.length > 0) {
+    console.log(`  stale (edited since the dry run, kept as is): ${stale.join(", ")}`);
+  }
+
+  const merged = signs.map((sign) => {
+    const next = accepted.get(sign.id);
+    return { code: sign.code, signClass: sign.signClass, meaningEn: (next ?? sign).meaning.en };
+  });
+  const current = signs.map((sign) => ({
+    code: sign.code,
+    signClass: sign.signClass,
+    meaningEn: sign.meaning.en,
+  }));
+  const { introduced } = distinctnessDelta(current, merged);
+  if (introduced.length > 0) {
+    console.log("\n⚠ THIS REWRITE would make sign questions ungradeable:");
+    for (const problem of introduced) {
+      console.log(
+        `  ${problem.signClass}: ${problem.distinct} distinct of ${problem.total}` +
+          (problem.duplicates.length ? ` · duplicates: ${problem.duplicates.join(", ")}` : ""),
+      );
+    }
+    console.log("\nFix those meanings by hand in /admin/signs, then re-run. Nothing was applied.");
+    return;
+  }
+  console.log("class distinctness: OK (this rewrite introduces no new collisions)");
+
+  await applySigns(sourceRunId, signs, accepted);
+
+  const actorId = await adminId();
+  await db.simplificationProposal.updateMany({
+    where: { runId: sourceRunId, status: "PROPOSED", signId: { in: [...accepted.keys()] } },
+    data: { status: "APPLIED", appliedAt: new Date(), appliedById: actorId },
+  });
 }
 
 /**
