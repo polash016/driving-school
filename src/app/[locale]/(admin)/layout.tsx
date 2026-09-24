@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { requireUser } from "@/server/auth/require-user";
+import { schoolConfig } from "../../../../config/school.config";
 
 /**
  * Staff area. INSTRUCTOR is the floor for the group; individual screens raise the bar
@@ -21,6 +22,7 @@ export default async function AdminLayout({
     { href: "/admin/images", label: t("images") },
     { href: "/admin/signs", label: t("signs") },
     { href: "/admin/questions/accuracy", label: t("accuracy") },
+    ...(schoolConfig.featureFlags.learn ? [{ href: "/admin/learn" as const, label: t("learn") }] : []),
     ...(user.role === "ADMIN"
       ? [
           { href: "/admin/task-sets" as const, label: t("taskSets") },
