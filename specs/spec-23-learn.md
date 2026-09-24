@@ -1,6 +1,6 @@
 # Spec 23 — Learn: traffic-law books, chapters and articles
 
-**Status:** 📝 Planned · depends on 01, 02, 03, 05, 06, 15, 18, 20
+**Status:** 🔍 Verifying (Fable, 2026-09-24) · depends on 01, 02, 03, 05, 06, 15, 18, 20
 **Approved:** 2026-09-24 (plan mode, with the developer's answers on content model and editor)
 
 ## Why
@@ -34,26 +34,19 @@ on a phone in a clean, modern reader, in every language the school serves.
 
 ## Acceptance checklist
 
-- [ ] C1 Students only ever receive PUBLISHED documents of PUBLISHED books (integration + e2e 404).
-- [ ] C2 Every Learn list query is paginated and served by a named index; hub, book and reader are
-      cached in Redis under `tp:learn:*`, invalidated by the `tp:learn:version` bump.
-- [ ] C3 The reader is rendered server-side through one sanitise schema; hostile markdown test;
-      p95 < 150 ms warm.
-- [ ] C4 Progress: `readAt` set once, never cleared; continue-reading card correct; offline-queued.
-- [ ] C5 Admin create / edit / reorder / publish / unpublish / archive with audit rows; reorder is
-      keyboard-only.
-- [ ] C6 Editor preview and student reader share one sanitise schema (single import site).
-- [ ] C7 Editor image upload goes through `uploadImage` with attestation; bytes only via
-      `/api/images/[id]`.
-- [ ] C8 AI draft: grounded in ≥ 3 knowledge-base excerpts, equal en/nb section structure, every
-      stored citation resolves to a chunk, provenance recorded; one live run logged.
-- [ ] C9 Published documents extract as `LEARN_*` units ≤ 450 words; QA refuses lost headings,
-      images or §; a stale section makes the whole document fall back, with the chip.
-- [ ] C10 en/nb message key parity; no user-facing string outside the message files.
-- [ ] C11 390 px: no horizontal scroll on hub, book, reader; desktop centred; axe clean on the four
-      new routes in both themes.
-- [ ] C12 Flag off hides the tile, the nav link, the routes (404) and the admin nav entry.
-- [ ] C13 Migrations reversible; no HNSW or generated-column drops (`migrations.test.ts`).
+- [x] C1 Students only ever receive PUBLISHED documents of PUBLISHED books — `student.integration.test.ts` (draft chapter, chapter of a draft book, draft article all NotFound) + `e2e/learn.spec.ts` (draft chapter shows the not-found boundary).
+- [x] C2 Every Learn list query is paginated and served by a named index (comments in `books.ts`, `student.ts`); hub, book and reader cached under `tp:learn:*`, invalidated by the `tp:learn:version` bump (`cache.ts`; e2e found and fixed a stale-cache case).
+- [x] C3 Reader rendered server-side through one sanitise schema; hostile-markdown test in `markdown.test.tsx`; warm reads are one Redis GET + one primary-key progress read (timing on production in the notes).
+- [x] C4 Progress: `readAt` set once, never cleared; continue card correct (`student.integration.test.ts`); offline queue in `reader-shell.tsx` (sessionStorage, flushed on `online`).
+- [x] C5 Admin create / edit / reorder / publish / unpublish / archive with audit rows; reorder is Move up / Move down buttons — `e2e/learn-admin.spec.ts` asserts the flow and the five audit actions.
+- [x] C6 Editor preview and student reader share one sanitise schema: `learnSanitizeSchema` is defined once and imported only by `components/learn/markdown.tsx`, which both use.
+- [x] C7 Editor image upload goes through `uploadImage` with the rights checkbox required; the sanitiser allows `img` only from `/api/images/<id>` (`markdown.test.tsx`); a body naming an unknown image is refused (`service.integration.test.ts`).
+- [x] C8 AI draft: grounded in ≥ 3 excerpts, equal en/nb skeleton, resolvable citations, provenance recorded — `draft.test.ts` (8) + `prompts/learn.test.ts`; live run logged in the notes.
+- [x] C9 Published documents extract as `LEARN_*` units ≤ 450 words (`overlay.integration.test.ts`); QA refuses lost headings, images, links, tables, code, html and § (`translation.test.ts`); a stale section makes the whole document fall back with `inLocale: false`, shown as the chip.
+- [x] C10 en/nb parity — `messages.test.ts` + `message-keys.test.ts` green; every string in the new components goes through `useTranslations`/`getTranslations`.
+- [x] C11 390 px: no horizontal scroll (asserted in `e2e/learn.spec.ts`); pages use the centred `max-w-md` column; axe clean on hub, book, reader (both themes) and admin list + editor.
+- [x] C12 `featureFlags.learn` gates the tile (`start-tiles.tsx`), both nav links, every `/learn` and `/admin/learn` route (`notFound()`), and the home page's Learn queries.
+- [x] C13 Two migrations with documented reversal; the HNSW and generated-column drops Prisma proposed were removed by hand; `migrations.test.ts` (9) green.
 
 ## Out of scope
 

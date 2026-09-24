@@ -101,3 +101,13 @@ output pasted; nothing here is asserted without it.
   drop `LEARN_*` units (DECISIONS 2026-09-24).
 - Review UI: `LEARN_SECTION` rows render pre-wrapped monospace; the seven `MD_*` codes have labels
   in both message files and appear in the flag lists of the review and sample screens.
+
+## Test-suite note (2026-09-24)
+
+`i18n/review.integration.test.ts` and `i18n/languages.integration.test.ts` read seeded topics and
+the 150 APPROVED items that `task-sets/service.integration.test.ts` leaves behind. The first
+version of the Learn integration tests truncated `Topic` (CASCADE) and wiped both, which is why
+they failed in a full run. They now create and delete their own rows only, the test database was
+re-seeded (`prisma db seed`, `db:seed-items`) and the task-set file run once to restore the
+residue. The underlying order dependence in the two i18n files predates this spec and is left as
+found.
