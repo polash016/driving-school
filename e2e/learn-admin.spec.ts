@@ -109,6 +109,7 @@ test("the Norwegian admin list renders in Norwegian", async ({ page }) => {
   await page.getByLabel("Email").fill(instructorEmail);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Log in" }).click();
+  await expect(page).toHaveURL(/\/en$/);
   await page.goto("/no/admin/learn?tab=BOOKS");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Lær");
   await expect(page.getByRole("tab", { name: "Bøker" })).toBeVisible();
@@ -119,6 +120,7 @@ test("axe: no serious/critical violations on the admin list and the editor", asy
   await page.getByLabel("Email").fill(instructorEmail);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Log in" }).click();
+  await expect(page).toHaveURL(/\/en$/);
   for (const path of ["/en/admin/learn", "/en/admin/learn/articles/new"]) {
     await page.goto(path);
     const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();

@@ -120,27 +120,30 @@ test("tile → hub → book → chapter → mark read → next → back shows 1/
   await expect(page.getByText("Continue reading")).toBeVisible();
   await expect(page.getByText(`Chapter 2 ${RUN}`)).toBeVisible();
 
-  const drafted = await page.goto(`/en/learn/read/e2e-ch-3-${RUN}`);
-  expect(drafted?.status()).toBe(404);
+  // A draft chapter is not served. With a streaming loading boundary the status is 200 and the
+  // not-found boundary is what renders — so the assertion is on what the student sees.
+  await page.goto(`/en/learn/read/e2e-ch-3-${RUN}`);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText('Page not found');
+  await expect(page.getByText(`Chapter 3 ${RUN}`)).toHaveCount(0);
 });
 
 test("the same path works from the keyboard alone", async ({ page }) => {
   await login(page, EMAILS.keyboard);
   await page.goto("/en/learn");
-  await page.keyboard.press("Tab");
-  // Tab until the book card has focus, then Enter.
-  for (let i = 0; i < 30; i++) {
-    const name = await page.evaluate(() => document.activeElement?.textContent ?? "");
-    if (name.includes(`Road book ${RUN}`)) break;
-    await page.keyboard.press("Tab");
-  }
+  // Tab until the book card has focus, then Enter — matched by href, the one thing a card link
+  // has that no header control shares.
+  const tabTo = async (hrefPart: string) => {
+    for (let i = 0; i < 40; i++) {
+      await page.keyboard.press("Tab");
+      const href = await page.evaluate(() => (document.activeElement as HTMLAnchorElement | null)?.getAttribute("href") ?? "");
+      if (href.includes(hrefPart)) return;
+    }
+    throw new Error(`no focusable link containing ${hrefPart}`);
+  };
+  await tabTo(`/learn/books/e2e-book-${RUN}`);
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(`/learn/books/e2e-book-${RUN}$`));
-  for (let i = 0; i < 30; i++) {
-    const name = await page.evaluate(() => document.activeElement?.textContent ?? "");
-    if (name.includes("Start reading")) break;
-    await page.keyboard.press("Tab");
-  }
+  await tabTo(`/learn/read/e2e-ch-1-${RUN}`);
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(`/learn/read/e2e-ch-1-${RUN}$`));
   await page.getByRole("button", { name: /Chapter 1 of 2/ }).focus();
