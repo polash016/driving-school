@@ -15,7 +15,22 @@ const instructorEmail = `learn-i-${RUN}@example.no`;
 const PASSWORD = "bratsberg-sving-42";
 let instructorId = "";
 
+
+/** Seeding and cleanup bypass the service, so the public Learn cache must be told the world changed. */
+async function bumpLearnVersion(): Promise<void> {
+  const url = process.env.REDIS_URL;
+  if (!url) return;
+  const { default: Redis } = await import("ioredis");
+  const redis = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 1 });
+  try {
+    await redis.incr("tp:learn:version");
+  } finally {
+    await redis.quit().catch(() => undefined);
+  }
+}
+
 test.beforeAll(async () => {
+  await bumpLearnVersion();
   const user = await db.user.create({
     data: {
       email: instructorEmail,
@@ -35,6 +50,7 @@ test.afterAll(async () => {
   await db.learnBook.deleteMany({ where: { id: { in: books.map((b) => b.id) } } });
   await db.auditLog.deleteMany({ where: { actorId: instructorId } });
   await db.user.deleteMany({ where: { id: instructorId } });
+  await bumpLearnVersion();
   await db.$disconnect();
 });
 

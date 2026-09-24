@@ -20,7 +20,22 @@ const body = (n: number) => ({
   nb: `## Del ${n}\n\n${"Regelen, forklart med enkle ord. ".repeat(12)}\n\n- en\n- to\n\n## Andre overskrift\n\n${"Flere ord om samme regel. ".repeat(12)}\n`,
 });
 
+
+/** Seeding and cleanup bypass the service, so the public Learn cache must be told the world changed. */
+async function bumpLearnVersion(): Promise<void> {
+  const url = process.env.REDIS_URL;
+  if (!url) return;
+  const { default: Redis } = await import("ioredis");
+  const redis = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 1 });
+  try {
+    await redis.incr("tp:learn:version");
+  } finally {
+    await redis.quit().catch(() => undefined);
+  }
+}
+
 test.beforeAll(async () => {
+  await bumpLearnVersion();
   for (const email of Object.values(EMAILS)) {
     await db.user.create({
       data: {
@@ -78,6 +93,7 @@ test.afterAll(async () => {
   await db.learnDocument.deleteMany({ where: { OR: [{ bookId }, { slug: `e2e-art-${RUN}` }] } });
   await db.learnBook.delete({ where: { id: bookId } });
   await db.user.deleteMany({ where: { id: { in: users.map((u) => u.id) } } });
+  await bumpLearnVersion();
   await db.$disconnect();
 });
 
@@ -109,7 +125,12 @@ test("tile → hub → book → chapter → mark read → next → back shows 1/
   await page.getByRole("link", { name: "Next" }).click();
   await expect(page).toHaveURL(new RegExp(`/learn/read/e2e-ch-2-${RUN}$`));
   // Scroll partway so the second chapter is "in progress" for the continue card.
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight * 0.5));
+  // A fifth of the scrollable range — enough to count as started, well short of the 95 % that
+  // counts as read (a short chapter's half-page is already its end).
+  await page.evaluate(() => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    window.scrollTo(0, Math.max(1, Math.floor(max * 0.2)));
+  });
   await page.waitForTimeout(400);
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
 
@@ -133,16 +154,24 @@ test("the same path works from the keyboard alone", async ({ page }) => {
   // Tab until the book card has focus, then Enter — matched by href, the one thing a card link
   // has that no header control shares.
   const tabTo = async (hrefPart: string) => {
+    const trail: string[] = [];
     for (let i = 0; i < 40; i++) {
       await page.keyboard.press("Tab");
-      const href = await page.evaluate(() => (document.activeElement as HTMLAnchorElement | null)?.getAttribute("href") ?? "");
-      if (href.includes(hrefPart)) return;
+      const focused = await page.evaluate(() => {
+        const el = document.activeElement as HTMLElement | null;
+        return `${el?.tagName ?? "?"}:${el?.getAttribute("href") ?? el?.textContent?.trim().slice(0, 20) ?? ""}`;
+      });
+      trail.push(focused);
+      if (focused.includes(hrefPart)) return;
     }
-    throw new Error(`no focusable link containing ${hrefPart}`);
+    throw new Error(`no focusable link containing ${hrefPart}; focus trail: ${trail.join(" → ")}`);
   };
+  // The hub streams in behind a skeleton; tabbing before it lands only cycles the header.
+  await expect(page.getByRole("link", { name: new RegExp(`Road book ${RUN}`) })).toBeVisible();
   await tabTo(`/learn/books/e2e-book-${RUN}`);
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(`/learn/books/e2e-book-${RUN}$`));
+  await expect(page.getByRole("link", { name: "Start reading" })).toBeVisible();
   await tabTo(`/learn/read/e2e-ch-1-${RUN}`);
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(`/learn/read/e2e-ch-1-${RUN}$`));
