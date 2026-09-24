@@ -675,6 +675,7 @@
         "MODEL_FLAGGED": "KI-en sa den ikke kunne oversette dette trofast",
         "QA_UNAVAILABLE": "Kvalitetskontrollen kunne ikke kjøres",
         "SCRIPT_MISMATCH": "Ikke skrevet med språkets eget skriftsystem",
+        "MIXED_SCRIPT_WORD": "En bokstav fra et annet alfabet inne i et ord",
         "ADMIN_FLAGGED": "Merket som ødelagt av en administrator",
         "VERBOSE": "Lengre enn budsjettet for dette språket"
       },

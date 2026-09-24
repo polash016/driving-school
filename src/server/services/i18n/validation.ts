@@ -124,6 +124,26 @@ export function isNonLatinScript(locale: string): boolean {
   return targetScript(locale) !== undefined;
 }
 
+/**
+ * True when some word of `text` mixes a letter of the target script with a letter of another
+ * non-Latin script. Words are runs of letters and combining marks, so a vowel sign stays attached
+ * to its consonant; a foreign letter INSIDE such a run is a keyboard-layout or model glitch, never
+ * a translation choice.
+ */
+export function hasMixedScriptWord(text: string, target: RegExp): boolean {
+  const single = new RegExp(target.source, "u");
+  for (const word of text.split(/[^\p{L}\p{M}]+/u)) {
+    if (!single.test(word)) continue;
+    for (const ch of word) {
+      if (!/\p{L}/u.test(ch)) continue;
+      if (single.test(ch)) continue;
+      if (/\p{Script=Latin}/u.test(ch)) continue;
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Letters a text carries once its placeholders and slots are set aside. */
 function letterCount(text: string): number {
   return text
@@ -375,6 +395,23 @@ export function checkTranslation(input: {
         code: "SCRIPT_MISMATCH",
         blocking: true,
         detail: wrongFields.join(", "),
+      });
+    }
+  }
+
+  // 6c. A letter of a foreign non-Latin script INSIDE a word of the target script. Production
+  //     served "ঢوকার" — an Arabic waw in the middle of a Bengali word — and 6b passed the field
+  //     because it does contain Bengali. Latin inside a word is still allowed (a unit, a code); it
+  //     is the other alphabets that never belong mid-word.
+  if (script) {
+    const mixedFields = fieldPairs(source, translated)
+      .filter(({ to }) => hasMixedScriptWord(to, script.test))
+      .map(({ field }) => field);
+    if (mixedFields.length > 0) {
+      issues.push({
+        code: "MIXED_SCRIPT_WORD",
+        blocking: true,
+        detail: mixedFields.join(", "),
       });
     }
   }

@@ -121,3 +121,94 @@ that the crossing is unregulated, which changes what is being asked.
 **Therefore a human must read the accepted diffs before `--apply`.** `pnpm qb:simplify diffs --run <id>`
 prints each pair and names the content words a rewrite dropped from the stem, because a lost
 qualifier is how a specific question silently becomes a general one.
+
+## Part 3 — the production run (2026-09-24)
+
+### What production looked like before this session
+
+| Fact | Evidence |
+|---|---|
+| Source at branch tip `4a97c77`; both spec-22 migrations applied 2026-09-22 | `_prisma_migrations` |
+| Running app was the **2026-09-12 build** — pulled, never rebuilt | build id mtime |
+| Campaign runs on 2026-09-22: five dry runs, then one `apply-…` run | `SimplificationProposal.runId` |
+| That apply: 139 proposals → 86 PROPOSED, 53 REFUSED, **47 swapped** (43 TEXT + 4 IMAGE), 39 held on a translation QA failure | `AuditLog item.simplified = 47`, 47 `ItemVariant` rows created that day |
+| **0 of 287 sign meanings** rewritten, 0 of 574 approved SIGN questions re-rendered | `Sign.updatedAt` max = 2026-09-08 |
+| No proposal had ever been marked `APPLIED` — nothing set that status | `status` group by |
+
+So students saw ~6 % of the bank shortened, and the live generate path still ran the pre-budget
+prompts. That is the "I can't see the changes" report, explained.
+
+### Workflow fixes made before touching production again
+
+- `--from-run <id>` for `text` and `signs`: the reviewed run's PROPOSED rows are what gets applied;
+  rows become APPLIED; a moved item is a hold (`apply-proposals.ts`, 6 tests).
+- A sign question already rendered from the current registry is skipped on a retry, and the retry
+  indexes the old text the applied proposals remember (the first retry held all 9 with
+  `UNRESOLVED_OPTION` because the index only knew today's registry).
+- The shadow translation is repaired (spec-19 repair prompt, ≤ 2 attempts) before an item is
+  held, and a thrown provider error is retried once (`shadow-translate.test.ts`, 7 tests).
+  Measured on the retry: 23 of 70 flagged translations rescued.
+- Full suite after these: **782 passed, 80 files**.
+
+### Deploy
+
+Backup taken and verified; `git pull --ff-only`; install; explicit `prisma generate`;
+`migrate deploy` → "No pending migrations"; `next build` 62 s; both pm2 apps restarted and
+online; `/en` → 200; worker heartbeat present. From this build on, `theory` 1.3.0 / `image`
+1.1.0 / `signMeaning` 1.1.0 and `brevityBlockers` are what the live generate path runs.
+
+### Signs (run `signs-dry-20260924`)
+
+Dry run: **221 accepted · 30 kept · 36 refused** (34 `MEANING_TOO_LONG_*` even after rewriting,
+2 `NAME_CHANGED`, 7 `NO_GAIN`) · 3 transient provider errors. The set-level gate reported one
+collision the rewrite would introduce — XVV015/XVV016, both "Numbered county road", would have
+become word-for-word identical — so XVV016 was refused by hand (`HUMAN_COLLISION`) and keeps
+its text. `class distinctness: OK` on apply.
+
+Apply: 220 meanings written; **285 of 287** meaning questions re-rendered and swapped with fresh
+bn/es/fr(/ar) translations. Two remain held after four passes: one whose Spanish translation
+the model returns as malformed JSON every time, one whose Bangla fails `ANSWER_PERMUTED`.
+
+### Text / image (run `text-dry-20260924`)
+
+Dry run: **55 accepted · 38 kept · 55 refused** (35 `ALREADY_SHORT`, 14 `DUPLICATE_OF_EXISTING`,
+12 `NUMBER_DRIFT`, 8 `DISTRACTOR_COLLISION`, 6 `BLIND_DISAGREED`, 5 `EXPLANATION_TOO_LONG`, 3
+`CITATION_UNRESOLVABLE`, 3 `STEM_GREW_NB`, 2 `PREEXISTING_DISPUTE`, …).
+
+All 55 diffs read. Three refused by hand:
+
+| item | why |
+|---|---|
+| `…xrnb6zd5` | English explanation now reads "drive **sakte** or stop" — a Norwegian word in the English |
+| `…bhuwj2iz` | English stem and option now say "**gangfelt**" where the source said "pedestrian crossing" |
+| `…vb73lh4z` | dropped "at a stop **without a traffic island**" — the condition that makes § 9 nr. 3 apply; the question broadened |
+
+Of the 15 `SCOPE` suspects the diff tool flagged, the other 12 keep the same answer and the same
+case (e.g. "narrow road" dropped where the blockage rule does not depend on width).
+
+Apply from the reviewed run, three passes: **37 of 52 applied**, 15 held — 13 on Bangla
+`SEMANTIC_DRIFT` (short stems score under the 0.86 round-trip threshold `qa.ts` itself calls
+"a starting point… to be re-measured"), 2 on `NUMBER_DRIFT` in the § 15 "paragraph N" citations.
+Held items keep their old text in every language — no gap, no fallback.
+
+### Verification (SQL on production, after the runs)
+
+```
+pool:  TEXT 136 / IMAGE 12 / SIGN 574 approved = 722     task sets: 10 PUBLISHED, 704 members
+rewritten today: SIGN 285, TEXT 32, IMAGE 5   (+47 on 09-22)   audit rows: 285 + 37
+translations of items rewritten today: bn 322 MACHINE, es 322, fr 318, ar 55 — none NEEDS_REVIEW
+i18n:audit  bn 1335 checked 0 refused · es 1335/0 · ar 337/0 · fr 372/0
+served sample (…ej4xgzmb): en "How must you drive when approaching or entering an intersection?"
+  bn MACHINE / es MACHINE / fr MACHINE rows present with the new stem
+residue: text/image stems > 15 words 45/148 · sign meanings > 12 words 47/287 (36 refused as
+  still too long) · meaning-question options > 12 words 199/1148 (was 1137/1148)
+```
+
+### Found on the way, outside this campaign
+
+The served sample's Bangla stem carried one Arabic letter inside a Bengali word ("ঢوকার"). A
+regex over the table finds **22 bn rows** with Arabic-script letters, most predating today; the
+per-field script gate passes a field as long as it contains Bengali at all. Fixed in this branch:
+a letter of a foreign non-Latin script inside a word of the target script is now
+`MIXED_SCRIPT_WORD` (blocking), and `i18n:audit --apply --repair` was run for bn to hold and
+repair those rows.

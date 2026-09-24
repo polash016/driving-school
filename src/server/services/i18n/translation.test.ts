@@ -125,6 +125,43 @@ describe("the deterministic translation gate", () => {
     ).toContain("SCRIPT_MISMATCH");
   });
 
+  it("refuses a foreign letter inside a word of the target script as MIXED_SCRIPT_WORD", () => {
+    const bengaliWithWaw: QuestionPayload = {
+      stem: "মোড়ে পৌঁছানোর সময় বা মোড়ে ঢوকার সময় আপনার ড্রাইভিং কেমন হওয়া উচিত?",
+      options: [
+        { key: "a", text: "মোড়ে থাকা যানবাহনকে অপ্রয়োজনীয় বাধা না দিয়ে" },
+        { key: "b", text: "প্রবেশের আগে সবসময় সম্পূর্ণ থামতে হবে" },
+        { key: "c", text: "আগে প্রবেশ করলে অন্য যানবাহন উপেক্ষা করা যায়" },
+      ],
+      explanation: "ক্রসিং রোডের ব্যবহারকারীদের অপ্রয়োজনীয় বাধা দেওয়া যাবে না। Trafikkreglene § 5 nr. 4",
+    };
+    const codes = blockingCodes(
+      checkTranslation({
+        entity: "MASTER_ITEM",
+        locale: "bn",
+        source: {
+          stem: "How must you drive when approaching or entering an intersection?",
+          options: [
+            { key: "a", text: "Without causing unnecessary hindrance to traffic on the intersecting road." },
+            { key: "b", text: "You must always stop completely before entering." },
+            { key: "c", text: "You can ignore traffic if you entered first." },
+          ],
+          explanation: "You must not cause unnecessary hindrance to road users on the intersecting road. Trafikkreglene § 5 nr. 4",
+        },
+        translated: bengaliWithWaw,
+      }),
+    );
+    expect(codes).toContain("MIXED_SCRIPT_WORD");
+    expect(codes).not.toContain("SCRIPT_MISMATCH");
+    // Latin inside a Bengali field is a unit or a citation, not a glitch.
+    const clean = { ...bengaliWithWaw, stem: bengaliWithWaw.stem.replace("ঢوকার", "ঢোকার") };
+    expect(
+      blockingCodes(
+        checkTranslation({ entity: "MASTER_ITEM", locale: "bn", source: { stem: "x y z w", options: [], explanation: "" } as never, translated: { stem: clean.stem } as never }),
+      ),
+    ).not.toContain("MIXED_SCRIPT_WORD");
+  });
+
   // Spec-21: production served "Tumi aage signal dile…" — Bengali words in Latin letters. The old
   // check knew no Bengali, and where it knew a script it passed on one character of it anywhere.
   const bengali: QuestionPayload = {

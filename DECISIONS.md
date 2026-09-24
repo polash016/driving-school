@@ -656,3 +656,27 @@ fixture (15 units over ~10.4 s): the literal formula reported 53/min where the r
 - **Not changed.** Plain `--apply` keeps its old behaviour for a one-shot run on a fresh restore;
   the header now says out loud that it re-proposes.
 - **Approved by:** developer (2026-09-24, "finish it fully now").
+
+## 2026-09-24 · spec-22 · Production run: the residue the gates left, and why it stays
+
+- **Outcome.** 285 of 287 sign questions and 84 of 148 text/image questions are short in
+  production, every one swapped together with fresh translations. The rest is not a backlog to
+  push through; it is the gates doing their job:
+  - 36 sign meanings the model could not bring under 12 words without changing the name or
+    dropping a clause (`MEANING_TOO_LONG_*`); 30 the model declined to touch; XVV016 refused by
+    hand because the rewrite made it identical to XVV015 (a pre-existing near-duplicate).
+  - 58 text/image proposals refused by the verification chain (duplicates, number drift, distractor
+    collisions, blind-verifier disagreement, citations no chunk can back) and 3 by the reviewer.
+  - 15 text/image items and 2 sign questions held because a student-visible translation failed
+    QA after two repairs — 13 of them Bangla `SEMANTIC_DRIFT` on short stems.
+- **Decision.** The residue is accepted and the spec closed. Lowering `SEMANTIC_FLAG_THRESHOLD`
+  to admit the held Bangla would be the "lower the bar" move spec-19 forbids; the honest next step
+  is the re-measurement `qa.ts` already asks for (fifty human-rated pairs), in its own change.
+  Held items keep their long text in every language, so no student sees a gap.
+- **Two more mechanisms landed to get here.** The shadow translation now runs the spec-19 repair
+  prompt before holding (rescued 23 of 70 flagged translations), and a sign retry indexes the old
+  text the applied proposals remember. Both are on the branch with tests.
+- **Found on the way.** 22 Bangla rows carry Arabic-script letters inside Bengali words and the
+  script gate passed them; `MIXED_SCRIPT_WORD` now blocks that, and the audit repairs them.
+- **Approved by:** developer's standing instruction "finish it fully now" (2026-09-24); the
+  residue counts are reported for confirmation.

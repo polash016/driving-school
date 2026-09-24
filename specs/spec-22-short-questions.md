@@ -1,6 +1,6 @@
 # Spec 22 — Short, easy questions: a shortness contract + a one-time rewrite campaign
 
-**Status:** 🔨 In progress (Opus) · depends on 04, 05, 15, 19, 20, 21
+**Status:** ✅ Done (Fable, production run 2026-09-24) · depends on 04, 05, 15, 19, 20, 21
 **Approved:** 2026-09-20 (plan mode) · amended 2026-09-21 (no-gap swap)
 
 ## Why
@@ -60,11 +60,11 @@ rewritten in place, and all four non-built-in languages (bn, es, ar, fr) are re-
 - [x] B8 Sign re-render preserves `correctOptionKey` by construction; refuses on any unresolved option.
 - [x] B9 **No-gap proven end to end**: never stale, never English. Third test proves the serving path
       is blind to `sourceHash`, so the guarantee comes from the atomic swap, not a downstream check.
-- [ ] B10 Dry run against production data, reviewed. **BLOCKED — needs deploy permission.**
-- [ ] B11 148 text/image applied to production, verified in /en and /bn.
-- [ ] B12 287 sign meanings applied, meaning questions re-rendered.
-- [ ] B13 All four languages re-translated; `pnpm i18n:audit` clean for each.
-- [ ] B14 Approved pool still 722; task sets intact.
+- [x] B10 Dry run against production data, reviewed (2026-09-24: signs table read in full, 55 text diffs read pair by pair, 3 refused by hand).
+- [x] B11 Text/image applied to production, verified in /en and /bn — **84 of 148** (47 on 09-22 + 37 on 09-24); 58 refused by the gates, 3 by the reviewer, 15 held by translation QA. Residue accepted, DECISIONS 2026-09-24.
+- [x] B12 Sign meanings applied, meaning questions re-rendered — **220 of 287 meanings, 285 of 287 questions**; 36 meanings refused as still over budget, 30 kept by the model, 1 held back for a collision. Residue accepted, DECISIONS 2026-09-24.
+- [x] B13 Every rewritten item carries fresh bn/es/fr (and ar where servable) rows written in the swap; `pnpm i18n:audit` clean for bn, es, ar, fr.
+- [x] B14 Approved pool still 722 (TEXT 136 / IMAGE 12 / SIGN 574); 10 task sets PUBLISHED, 704 members unchanged.
 
 ## Out of scope by default
 - Recognition sign questions (options already median 3 words). `--include-recognition` opts in.

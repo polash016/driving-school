@@ -675,6 +675,7 @@
         "MODEL_FLAGGED": "The AI said it could not translate this faithfully",
         "QA_UNAVAILABLE": "The quality check could not run",
         "SCRIPT_MISMATCH": "Not written in the language's own script",
+        "MIXED_SCRIPT_WORD": "A letter from another alphabet inside a word",
         "ADMIN_FLAGGED": "Marked broken by an admin",
         "VERBOSE": "Longer than this language's budget"
       },
