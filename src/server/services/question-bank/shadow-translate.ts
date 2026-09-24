@@ -2,6 +2,12 @@ import type { PrismaClient, TranslationStatus } from "@prisma/client";
 import { logger } from "@/lib/logger";
 import { servableStatuses } from "@/server/services/i18n/resolve";
 import {
+  isReQaOnly,
+  repairBatch,
+  repairProblems,
+  type RepairContext,
+} from "@/server/services/i18n/repair";
+import {
   translateBatch,
   type LanguagePolicy,
   type TranslatedUnit,
@@ -73,7 +79,7 @@ export async function shadowTranslate(
 
   let results: TranslatedUnit[];
   try {
-    results = await translateBatch(db, language, [unit]);
+    results = await translateWithOneRetry(db, language, unit);
   } catch (error) {
     logger.warn(
       { itemId: input.itemId, locale: language.code, error },
@@ -87,7 +93,7 @@ export async function shadowTranslate(
     };
   }
 
-  const result = results[0];
+  let result = results[0];
   if (!result) {
     return { locale: language.code, translation: null, qaFlags: [], reason: "no result" };
   }
@@ -95,6 +101,58 @@ export async function shadowTranslate(
   // The serving bar: APPROVED always, MACHINE only where the language does not require a human.
   // NEEDS_REVIEW and REJECTED are never served, so swapping one in would mean English anyway.
   const servable = servableStatuses(language.requiresApproval);
+
+  // Repair before holding (spec-19's rule: the machine fixes its own QA failures rather than the
+  // bar being lowered). The first production apply held 39 of 86 items, and a retry held 26 of 52,
+  // almost all on SEMANTIC_DRIFT and NUMBER_DRIFT — findings the repair prompt exists to act on.
+  // Only a language that can serve MACHINE is worth repairing here: where a human must approve,
+  // no repair makes the unit servable today, and the language does not block the swap anyway.
+  for (
+    let attempt = 0;
+    attempt < MAX_SHADOW_REPAIRS &&
+    !language.requiresApproval &&
+    !servable.includes(result.status) &&
+    !isReQaOnly(result.qaFlags);
+    attempt++
+  ) {
+    const context = new Map<string, RepairContext>([
+      [
+        unit.entityId,
+        {
+          value: result.value,
+          qaFlags: result.qaFlags,
+          problems: repairProblems({ qaFlags: result.qaFlags, qaReport: result.qaReport }),
+          reviewNote: null,
+          repairAttempts: attempt,
+          sourceHash: unit.sourceHash,
+        },
+      ],
+    ]);
+    let repaired: TranslatedUnit | undefined;
+    try {
+      repaired = (await repairBatch(db, language, [unit], context)).translated[0];
+    } catch (error) {
+      logger.warn(
+        { itemId: input.itemId, locale: language.code, attempt, error },
+        "shadow repair failed",
+      );
+      break;
+    }
+    if (!repaired) break;
+    logger.info(
+      {
+        itemId: input.itemId,
+        locale: language.code,
+        attempt,
+        before: result.qaFlags,
+        after: repaired.qaFlags,
+        status: repaired.status,
+      },
+      "shadow repair attempted",
+    );
+    result = repaired;
+  }
+
   if (!servable.includes(result.status)) {
     return {
       locale: language.code,
@@ -122,6 +180,29 @@ export async function shadowTranslate(
       providerLabel: result.providerLabel,
     },
   };
+}
+
+/** Repair attempts before a swap is held. Two: a third rarely changes a verdict the first two did not. */
+export const MAX_SHADOW_REPAIRS = 2;
+
+/**
+ * One retry on a thrown provider error only. A contract-validation failure (the model returned
+ * malformed JSON) is a fact about one sample, not about the text; the second sample usually parses.
+ */
+async function translateWithOneRetry(
+  db: PrismaClient,
+  language: LanguagePolicy,
+  unit: TranslationUnit,
+): Promise<TranslatedUnit[]> {
+  try {
+    return await translateBatch(db, language, [unit]);
+  } catch (firstError) {
+    logger.warn(
+      { locale: language.code, entityId: unit.entityId, error: firstError },
+      "shadow translation call failed — retrying once",
+    );
+    return translateBatch(db, language, [unit]);
+  }
 }
 
 export interface ShadowSet {
