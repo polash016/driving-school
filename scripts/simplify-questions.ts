@@ -229,12 +229,28 @@ async function runSignsFromRun(sourceRunId: string): Promise<void> {
   const signs = await loadSigns(db);
   const byId = new Map(signs.map((sign) => [sign.id, sign]));
   // Index: SimplificationProposal_runId_status_idx.
-  const proposals = await db.simplificationProposal.findMany({
-    where: { runId: sourceRunId, status: "PROPOSED", signId: { not: null } },
-    select: { id: true, signId: true, proposed: true, expectedFingerprint: true },
+  const rows = await db.simplificationProposal.findMany({
+    where: { runId: sourceRunId, status: { in: ["PROPOSED", "APPLIED"] }, signId: { not: null } },
+    select: { id: true, signId: true, status: true, proposed: true, previous: true, expectedFingerprint: true },
     orderBy: { createdAt: "asc" },
   });
+  const proposals = rows.filter((r) => r.status === "PROPOSED");
   console.log(`${proposals.length} accepted sign meanings in run ${sourceRunId}.`);
+
+  // On a retry the registry already holds the new text, but a held question still offers the OLD
+  // meanings as options. The applied proposals remember that old text, and the inverse index must
+  // map it, or every held question resolves nothing and is held again.
+  const priorText = new Map<string, { name: SignRow["name"]; meaning: SignRow["meaning"] }>();
+  for (const r of rows) {
+    if (r.status !== "APPLIED") continue;
+    const previous = r.previous as { name?: SignRow["name"]; meaning?: SignRow["meaning"] } | null;
+    if (previous?.name && previous.meaning) {
+      priorText.set(r.signId!, { name: previous.name, meaning: previous.meaning });
+    }
+  }
+  if (priorText.size > 0) {
+    console.log(`  ${priorText.size} meanings applied earlier in this run — their old text is indexed too.`);
+  }
 
   const accepted = new Map<string, SignRow>();
   const stale: string[] = [];
@@ -277,7 +293,7 @@ async function runSignsFromRun(sourceRunId: string): Promise<void> {
   }
   console.log("class distinctness: OK (this rewrite introduces no new collisions)");
 
-  await applySigns(sourceRunId, signs, accepted);
+  await applySigns(sourceRunId, signs, accepted, priorText);
 
   const actorId = await adminId();
   await db.simplificationProposal.updateMany({
@@ -297,6 +313,8 @@ async function applySigns(
   runId: string,
   allSigns: SignRow[],
   accepted: Map<string, SignRow>,
+  /** Old text of meanings applied by an earlier pass of the same run (retry after holds). */
+  priorText: Map<string, { name: SignRow["name"]; meaning: SignRow["meaning"] }> = new Map(),
 ): Promise<void> {
   console.log(`\nApplying ${accepted.size} sign meanings…`);
   for (const [signId, next] of accepted) {
@@ -318,6 +336,13 @@ async function applySigns(
     // themselves lets the same code path serve both kinds.
     indexEn.set(sign.name.en.trim().toLowerCase(), next.name.en);
     indexNb.set(sign.name.nb.trim().toLowerCase(), next.name.nb);
+    const prior = priorText.get(sign.id);
+    if (prior) {
+      indexEn.set(prior.meaning.en.trim().toLowerCase(), next.meaning.en);
+      indexNb.set(prior.meaning.nb.trim().toLowerCase(), next.meaning.nb);
+      indexEn.set(prior.name.en.trim().toLowerCase(), next.name.en);
+      indexNb.set(prior.name.nb.trim().toLowerCase(), next.name.nb);
+    }
   }
 
   const kinds = flag("include-recognition")
